@@ -125,6 +125,7 @@ int main(int argc,const char *argv[])
             BET->pullsock = pullsock;
             BET->subsock = subsock;
             BET->pushsock = pushsock;
+            BET->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
             BET->maxchips = CARDS777_MAXCHIPS;
             BET->chipsize = CARDS777_CHIPSIZE;
             *BET2 = *BET;
