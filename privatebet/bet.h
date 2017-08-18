@@ -241,7 +241,7 @@ https://crypto.stanford.edu/~pgolle/papers/poker.pdf
 #endif
 
 #define CARDS777_MAXCARDS 255 //52    //
-#define CARDS777_MAXPLAYERS 2 //9   //
+#define CARDS777_MAXPLAYERS 10 //9   //
 #define CARDS777_MAXROUNDS 3 //9   //
 #define CARDS777_MAXCHIPS 100
 #define CARDS777_CHIPSIZE (SATOSHIDEN / 100)

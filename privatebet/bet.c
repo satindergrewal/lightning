@@ -17,7 +17,7 @@
 #include "bet.h"
 char *LN_idstr,Host_ipaddr[64],Host_peerid[67],BET_ORACLEURL[64] = "127.0.0.1:7797";
 uint16_t LN_port;
-int32_t Gamestart,Gamestarted,Lastturni,Maxrounds = 3,Maxplayers = 2;
+int32_t Gamestart,Gamestarted,Lastturni,Maxrounds = 3,Maxplayers = 10;
 uint8_t BET_logs[256],BET_exps[510];
 bits256 *Debug_privkeys;
 struct BET_shardsinfo *BET_shardsinfos;
