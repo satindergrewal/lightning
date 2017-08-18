@@ -346,8 +346,7 @@ static struct block *new_block(struct chain_topology *topo,
 	struct block *b = tal(topo, struct block);
 
 	sha256_double(&b->blkid, &blk->hdr, sizeof(blk->hdr));
-	log_debug_struct(topo->log, "Adding block %s",
-			 struct sha256_double, &b->blkid);
+	log_debug_struct(topo->log, "Adding block %s",struct sha256_double, &b->blkid);
 	assert(!block_map_get(&topo->block_map, &b->blkid));
 	b->next = next;
 	b->topo = topo;

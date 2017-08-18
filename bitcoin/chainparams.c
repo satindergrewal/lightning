@@ -13,7 +13,7 @@ const struct chainparams networks[] = {
 				     0x0a, 0x8c, 0xe2, 0x6f}}},
      .rpc_port = 8332,
      .cli = "bitcoin-cli",
-     .cli_args = NULL,
+     .cli_args = "",
      .dust_limit = 546,
      .testnet = false},
     {.index = 1,
@@ -51,7 +51,17 @@ const struct chainparams networks[] = {
      .cli = "litecoin-cli",
      .cli_args = "",
      .dust_limit = 100000,
-     .testnet = false}};
+     .testnet = false},
+    {.index = 4,
+        .network_name = "chips",
+        .genesis_blockhash = {{.u.u8 = {0x00, 0x00, 0x00, 0x6e, 0x75, 0xf6, 0xaa, 0x0e, 0xfd, 0xbf, 0x7d, 0xb0, 0x31, 0x32, 0xaa, 0x4e, 0x4d, 0x0c, 0x84, 0x95, 0x15, 0x37, 0xa6, 0xf5, 0xa7, 0xc3, 0x9a, 0x0a, 0x9d, 0x30, 0xe1, 0xe7}}},
+        .rpc_port = 57776,
+        .cli = "chips-cli",
+        .cli_args = "",
+        .dust_limit = 10000,
+        .testnet = false}
+
+};
 
 const struct chainparams *chainparams_for_network(const char *network_name)
 {

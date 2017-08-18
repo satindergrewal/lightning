@@ -40,7 +40,8 @@ static struct lightningd_state *lightningd_state(void)
 	list_head_init(&dstate->peers);
 	list_head_init(&dstate->pay_commands);
 	dstate->portnum = 0;
-	dstate->testnet = true;
+    dstate->testnet = false;//true;
+    printf(">>>>>>>>>>>>>>>> dstate->testnet.%d\n",dstate->testnet);
 	timers_init(&dstate->timers, time_mono());
 	list_head_init(&dstate->wallet);
 	list_head_init(&dstate->addresses);
@@ -83,9 +84,9 @@ int main(int argc, char *argv[])
 
 	dstate->topology = new_topology(dstate, dstate->base_log);
 	dstate->bitcoind = new_bitcoind(dstate, dstate->base_log);
-	dstate->bitcoind->chainparams = chainparams_for_network("regtest");
+	dstate->bitcoind->chainparams = chainparams_for_network("chips");
 
-	/* Handle options and config; move to .lightningd */
+	/* Handle options and config; move to .chipsln */
 	register_opts(dstate);
 	handle_opts(dstate, argc, argv);
 
@@ -108,6 +109,7 @@ int main(int argc, char *argv[])
 		       get_peer_min_block(dstate));
 
 	/* Create RPC socket (if any) */
+    printf("call jsonrpc\n");
 	setup_jsonrpc(dstate, dstate->rpc_filename);
 
 	/* Set up connections from peers (if dstate->portnum is set) */

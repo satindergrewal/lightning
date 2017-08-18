@@ -442,11 +442,9 @@ static struct io_plan *release_peer(struct io_conn *conn, struct daemon *daemon,
 			      "%s", tal_hex(trc, msg));
 
 	peer = find_peer(daemon, unique_id);
-	if (!peer || !peer->local) {
+	if (!peer) {
 		/* This can happen with a reconnect vs connect race.
-		 * See gossip_peer_released in master daemon. It may
-		 * also happen if we asked to release just before
-		 * failing the peer*/
+		 * See gossip_peer_released in master daemon. */
 		daemon_conn_send(&daemon->master,
 				 take(towire_gossipctl_release_peer_replyfail(msg)));
 	} else {
@@ -472,13 +470,11 @@ static struct io_plan *fail_peer(struct io_conn *conn, struct daemon *daemon,
 	peer = find_peer(daemon, unique_id);
 	if (!peer)
 		status_trace("Unknown fail_peer %"PRIu64, unique_id);
-	else if (peer->local) {
+	else {
+		assert(peer->local);
 		status_trace("fail_peer %"PRIu64, unique_id);
 		/* This owns the peer, so we can free it */
 		io_close(peer->conn);
-	} else {
-		status_trace("Could not fail_peer %"PRIu64", it's not local",
-			     unique_id);
 	}
 
 	return daemon_conn_read_next(conn, &daemon->master);
@@ -783,12 +779,10 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
-	secp256k1_ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY |
-						 SECP256K1_CONTEXT_SIGN);
+	secp256k1_ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
 
 	daemon = tal(NULL, struct daemon);
-	/* Do not log absolutely anything, stdout is now a socket
-	 * connected to some other daemon. */
+	// Do not log absolutely anything, stdout is now a socket connected to some other daemon
 	log_book = new_log_book(daemon, 2 * 1024 * 1024, LOG_BROKEN + 1);
 	base_log =
 	    new_log(daemon, log_book, "lightningd_gossip(%u):", (int)getpid());
@@ -798,8 +792,7 @@ int main(int argc, char *argv[])
 	daemon->broadcast_interval = 30000;
 
 	/* stdin == control */
-	daemon_conn_init(daemon, &daemon->master, STDIN_FILENO, recv_req,
-			 master_gone);
+	daemon_conn_init(daemon, &daemon->master, STDIN_FILENO, recv_req,master_gone);
 	status_setup_async(&daemon->master);
 
 	/* When conn closes, everything is freed. */

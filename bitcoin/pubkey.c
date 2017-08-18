@@ -30,8 +30,7 @@ void pubkey_to_der(u8 der[PUBKEY_DER_LEN], const struct pubkey *key)
 }
 
 /* Pubkey from privkey */
-bool pubkey_from_privkey(const struct privkey *privkey,
-			 struct pubkey *key)
+bool pubkey_from_privkey(const struct privkey *privkey,struct pubkey *key)
 {
 	if (!secp256k1_ec_pubkey_create(secp256k1_ctx,
 					&key->pubkey, privkey->secret.data))

@@ -12,7 +12,7 @@ import time
 BITCOIND_CONFIG = {
     "rpcuser": "rpcuser",
     "rpcpassword": "rpcpass",
-    "rpcport": 18332,
+    "rpcport": 57776,
 }
 
 
@@ -169,30 +169,25 @@ class SimpleBitcoinProxy:
 
 class BitcoinD(TailableProc):
 
-    def __init__(self, bitcoin_dir="/tmp/bitcoind-test", rpcport=18332):
+    def __init__(self, bitcoin_dir="/root/.chips", rpcport=57776):
         TailableProc.__init__(self, bitcoin_dir)
         
         self.bitcoin_dir = bitcoin_dir
         self.rpcport = rpcport
-        self.prefix = 'bitcoind'
-
-        regtestdir = os.path.join(bitcoin_dir, 'regtest')
-        if not os.path.exists(regtestdir):
-            os.makedirs(regtestdir)
+        self.prefix = 'chipsd'
 
         self.cmd_line = [
-            'bitcoind',
+            'chipsd',
             '-datadir={}'.format(bitcoin_dir),
             '-printtoconsole',
             '-server',
-            '-regtest',
             '-debug',
             '-logtimestamps',
             '-nolisten',
         ]
         BITCOIND_CONFIG['rpcport'] = rpcport
-        write_config(os.path.join(bitcoin_dir, 'bitcoin.conf'), BITCOIND_CONFIG)
-        write_config(os.path.join(regtestdir, 'bitcoin.conf'), BITCOIND_CONFIG)
+        write_config(os.path.join(bitcoin_dir, 'chips.conf'), BITCOIND_CONFIG)
+        write_config(os.path.join(regtestdir, 'chips.conf'), BITCOIND_CONFIG)
         self.rpc = SimpleBitcoinProxy(
             "http://rpcuser:rpcpass@127.0.0.1:{}".format(self.rpcport))
 

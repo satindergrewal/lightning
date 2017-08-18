@@ -14,7 +14,7 @@ PORT=`findport 18332 $VARIANT`
 RPCPORT=`findport $(($PORT + 1))`
 
 # Create appropriate config file so cmdline matches.
-cat > $DATADIR/bitcoin.conf <<EOF
+cat > $DATADIR/chips.conf <<EOF
 regtest=1
 testnet=0
 rpcport=$RPCPORT

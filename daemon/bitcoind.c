@@ -20,7 +20,7 @@
 #include <errno.h>
 #include <inttypes.h>
 
-#define BITCOIN_CLI "bitcoin-cli"
+#define BITCOIN_CLI "chips-cli"
 
 char *bitcoin_datadir;
 
@@ -28,13 +28,11 @@ static char **gather_args(struct bitcoind *bitcoind,
 			  const tal_t *ctx, const char *cmd, va_list ap)
 {
 	size_t n = 0;
-	char **args = tal_arr(ctx, char *, 2);
+	char **args = tal_arr(ctx, char *, 3);
 
 	args[n++] = cast_const(char *, bitcoind->chainparams->cli);
-	if (bitcoind->chainparams->cli_args) {
-		args[n++] = cast_const(char *, bitcoind->chainparams->cli_args);
-		tal_resize(&args, n + 1);
-	}
+    if ( bitcoind->chainparams->cli_args != 0 && bitcoind->chainparams->cli_args[0] != 0 )
+        args[n++] = cast_const(char *, bitcoind->chainparams->cli_args);
 
 	if (bitcoind->datadir) {
 		args[n++] = tal_fmt(args, "-datadir=%s", bitcoind->datadir);
@@ -48,6 +46,13 @@ static char **gather_args(struct bitcoind *bitcoind,
 		n++;
 		tal_resize(&args, n + 1);
 	}
+    if ( 0 )
+    {
+        int32_t i;
+        for (i=0; i<n; i++)
+            printf("(%s).%d ",args[i],i);
+        printf(" args.%d\n",(int32_t)n);
+    }
 	return args;
 }
 
@@ -145,7 +150,7 @@ static void next_bcli(struct bitcoind *bitcoind)
 
 	bcli->pid = pipecmdarr(&bcli->fd, NULL, &bcli->fd, bcli->args);
 	if (bcli->pid < 0)
-		fatal("%s exec failed: %s", bcli->args[0], strerror(errno));
+		fatal("(%s) exec failed: %s", bcli->args[0], strerror(errno));
 
 	bitcoind->req_running = true;
 	conn = io_new_conn(bitcoind, bcli->fd, output_init, bcli);
@@ -182,7 +187,6 @@ start_bitcoin_cli(struct bitcoind *bitcoind,
 {
 	va_list ap;
 	struct bitcoin_cli *bcli = tal(bitcoind, struct bitcoin_cli);
-
 	bcli->bitcoind = bitcoind;
 	bcli->process = process;
 	bcli->cb = cb;
@@ -218,18 +222,20 @@ static void process_estimatefee_6(struct bitcoin_cli *bcli)
 	p = tal_strndup(bcli, bcli->output, bcli->output_bytes);
 	fee = strtod(p, &end);
 	if (end == p || *end != '\n')
-		fatal("%s: gave non-numeric fee %s",
-		      bcli_args(bcli), p);
+		fatal("%s: gave non-numeric fee %s",bcli_args(bcli), p);
 
 	if (fee < 0) {
-		log_unusual(bcli->bitcoind->log,
-			    "Unable to estimate fee");
-		fee_rate = 0;
-	} else {
-		/* Since we used 6 as an estimate, double it. */
-		fee *= 2;
-		fee_rate = fee * 100000000;
+        fee = 0.00010000;
+        //printf("estimatefee.(%s) -> default to %.8f\n",p,fee);
+		//log_unusual(bcli->bitcoind->log,"Unable to estimate fee, default to 0.00020000");
 	}
+    else
+    {
+        fee *= 2;
+        printf("estimatefee.(%s) ->  %.8f\n",p,fee);
+        // Since we used 6 as an estimate, double it.
+    }
+    fee_rate = fee * 100000000;
 
 	cb(bcli->bitcoind, fee_rate, bcli->cb_arg);
 }
@@ -319,12 +325,7 @@ static void process_chaintips(struct bitcoin_cli *bcli)
 		const jsmntok_t *hash = json_get_member(bcli->output, t, "hash");
 
 		if (!json_tok_streq(bcli->output, status, "active")) {
-			log_debug(bcli->bitcoind->log,
-				  "Ignoring chaintip %.*s status %.*s",
-				  hash->end - hash->start,
-				  bcli->output + hash->start,
-				  status->end - status->start,
-				  bcli->output + status->start);
+			//log_debug(bcli->bitcoind->log,"Ignoring chaintip %.*s status %.*s",hash->end - hash->start,bcli->output + hash->start,status->end - status->start,bcli->output + status->start);
 			continue;
 		}
 		if (valid) {
@@ -394,16 +395,13 @@ static void process_getblockcount(struct bitcoin_cli *bcli)
 {
 	u32 blockcount;
 	char *p, *end;
-	void (*cb)(struct bitcoind *bitcoind,
-		   u32 blockcount,
-		   void *arg) = bcli->cb;
-
+	void (*cb)(struct bitcoind *bitcoind,u32 blockcount,void *arg) = bcli->cb;
 	p = tal_strndup(bcli, bcli->output, bcli->output_bytes);
 	blockcount = strtol(p, &end, 10);
 	if (end == p || *end != '\n')
 		fatal("%s: gave non-numeric blockcount %s",
 		      bcli_args(bcli), p);
-
+    printf("process blockcount.(%s)\n",p);
 	cb(bcli->bitcoind, blockcount, bcli->cb_arg);
 }
 
@@ -453,7 +451,7 @@ struct bitcoind *new_bitcoind(const tal_t *ctx, struct log *log)
 	struct bitcoind *bitcoind = tal(ctx, struct bitcoind);
 
 	/* Use testnet by default, change later if we want another network */
-	bitcoind->chainparams = chainparams_for_network("testnet");
+	bitcoind->chainparams = chainparams_for_network("chips");
 	bitcoind->datadir = NULL;
 	bitcoind->log = log;
 	bitcoind->req_running = false;

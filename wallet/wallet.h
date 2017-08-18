@@ -3,9 +3,7 @@
 
 #include "config.h"
 #include "db.h"
-#include <ccan/crypto/shachain/shachain.h>
 #include <ccan/tal/tal.h>
-#include <lightningd/channel_config.h>
 #include <lightningd/utxo.h>
 #include <wally_bip32.h>
 
@@ -40,22 +38,6 @@ enum wallet_output_type {
 	htlc_recv = 4
 };
 
-/* A database backed shachain struct. The datastructure is
- * writethrough, reads are performed from an in-memory version, all
- * writes are passed through to the DB. */
-struct wallet_shachain {
-	u64 id;
-	struct shachain chain;
-};
-
-/* A database backed peer struct. Like wallet_shachain, it is writethrough. */
-/* TODO(cdecker) Separate peer from channel */
-struct wallet_channel {
-	u64 id;
-	u64 peer_id;
-	struct peer *peer;
-};
-
 /**
  * wallet_new - Constructor for a new sqlite3 based wallet
  *
@@ -69,8 +51,7 @@ struct wallet *wallet_new(const tal_t *ctx, struct log *log);
  *
  * Add a UTXO to the set of outputs we care about.
  */
-bool wallet_add_utxo(struct wallet *w, struct utxo *utxo,
-		     enum wallet_output_type type);
+bool wallet_add_utxo(struct wallet *w, struct utxo *utxo,enum wallet_output_type type);
 
 /**
  * wallet_update_output_status - Perform an output state transition
@@ -121,8 +102,7 @@ void wallet_confirm_utxos(struct wallet *w, const struct utxo **utxos);
  * @index: (out) the bip32 derivation index that matched the script
  * @output_is_p2sh: (out) whether the script is a p2sh, or p2wpkh
  */
-bool wallet_can_spend(struct wallet *w, const u8 *script,
-		      u32 *index, bool *output_is_p2sh);
+bool wallet_can_spend(struct wallet *w, const u8 *script,u32 *index, bool *output_is_p2sh);
 
 /**
  * wallet_get_newindex - get a new index from the wallet.
@@ -132,57 +112,4 @@ bool wallet_can_spend(struct wallet *w, const u8 *script,
  */
 s64 wallet_get_newindex(struct lightningd *ld);
 
-/**
- * wallet_shachain_init -- wallet wrapper around shachain_init
- */
-bool wallet_shachain_init(struct wallet *wallet, struct wallet_shachain *chain);
-
-/**
- * wallet_shachain_add_hash -- wallet wrapper around shachain_add_hash
- */
-bool wallet_shachain_add_hash(struct wallet *wallet,
-			      struct wallet_shachain *chain,
-			      shachain_index_t index,
-			      const struct sha256 *hash);
-
-/* Simply passes through to shachain_get_hash since it doesn't touch
- * the DB */
-static inline bool wallet_shachain_get_hash(struct wallet *w,
-					    struct wallet_shachain *chain,
-					    u64 index, struct sha256 *hash)
-{
-	return shachain_get_hash(&chain->chain, index, hash);
-}
-/**
- * wallet_shachain_load -- Load an existing shachain from the wallet.
- *
- * @wallet: the wallet to load from
- * @id: the shachain id to load
- * @chain: where to load the shachain into
- */
-bool wallet_shachain_load(struct wallet *wallet, u64 id,
-			  struct wallet_shachain *chain);
-
-bool wallet_channel_load(struct wallet *w, const u64 id,
-			 struct wallet_channel *chan);
-
-/**
- * wallet_channel_save -- Upsert the channel into the database
- *
- * @wallet: the wallet to save into
- * @chan: the instance to store (not const so we can update the unique_id upon
- *   insert)
- */
-bool wallet_channel_save(struct wallet *w, struct wallet_channel *chan);
-
-/**
- * wallet_channel_config_save -- Upsert a channel_config into the database
- */
-bool wallet_channel_config_save(struct wallet *w, struct channel_config *cc);
-
-/**
- * wallet_channel_config_load -- Load channel_config from database into cc
- */
-bool wallet_channel_config_load(struct wallet *w, const u64 id,
-				struct channel_config *cc);
 #endif /* WALLET_WALLET_H */

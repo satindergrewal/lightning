@@ -1,5 +1,5 @@
 #! /usr/bin/make
-NAME=Bitcoin Savings & Trust Daily Interest II
+NAME=CHIPS LN
 
 # Needs to have oneof support: Ubuntu vivid's is too old :(
 PROTOCC:=protoc-c
@@ -39,7 +39,6 @@ BITCOIN_SRC :=					\
 	bitcoin/pullpush.c			\
 	bitcoin/script.c			\
 	bitcoin/shadouble.c			\
-	bitcoin/short_channel_id.c		\
 	bitcoin/signature.c			\
 	bitcoin/tx.c				\
 	bitcoin/varint.c
@@ -178,7 +177,6 @@ BITCOIN_HEADERS := bitcoin/address.h		\
 	bitcoin/pullpush.h			\
 	bitcoin/script.h			\
 	bitcoin/shadouble.h			\
-	bitcoin/short_channel_id.h		\
 	bitcoin/signature.h			\
 	bitcoin/tx.h				\
 	bitcoin/varint.h

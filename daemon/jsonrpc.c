@@ -263,8 +263,7 @@ static const struct json_command dev_restart_command = {
 };
 AUTODATA(json_command, &dev_restart_command);
 
-static void json_getinfo(struct command *cmd,
-			 const char *buffer, const jsmntok_t *params)
+static void json_getinfo(struct command *cmd,const char *buffer, const jsmntok_t *params)
 {
 	struct json_result *response = new_json_result(cmd);
 
@@ -275,8 +274,7 @@ static void json_getinfo(struct command *cmd,
 		json_add_num(response, "port", cmd->dstate->portnum);
 	json_add_bool(response, "testnet", cmd->dstate->testnet);
 	json_add_string(response, "version", version());
-	json_add_num(response, "blockheight",
-		     get_block_height(cmd->dstate->topology));
+	json_add_num(response, "blockheight",get_block_height(cmd->dstate->topology));
 	json_object_end(response);
 	command_success(cmd, response);
 }
@@ -593,7 +591,7 @@ static struct io_plan *jcon_connected(struct io_conn *conn,
 static struct io_plan *incoming_jcon_connected(struct io_conn *conn,
 					       struct lightningd_state *dstate)
 {
-	log_info(dstate->base_log, "Connected json input");
+	//log_info(dstate->base_log, "Connected json input");
 	return jcon_connected(conn, dstate);
 }
 
@@ -601,7 +599,7 @@ void setup_jsonrpc(struct lightningd_state *dstate, const char *rpc_filename)
 {
 	struct sockaddr_un addr;
 	int fd, old_umask;
-
+printf("setup_jsonrpc.(%s)\n",rpc_filename);
 	if (streq(rpc_filename, ""))
 		return;
 

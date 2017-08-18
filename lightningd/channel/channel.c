@@ -1710,8 +1710,7 @@ static void handle_offer_htlc(struct peer *peer, const u8 *inmsg)
 		peer->funding_locked[LOCAL] = true;
 		start_commit_timer(peer);
 		/* Tell the master. */
-		msg = towire_channel_offer_htlc_reply(inmsg, peer->htlc_id,
-						      0, NULL);
+		msg = towire_channel_offer_htlc_reply(inmsg, peer->htlc_id,0, NULL);
 		daemon_conn_send(&peer->master, take(msg));
 		peer->htlc_id++;
 		return;
@@ -1721,8 +1720,7 @@ static void handle_offer_htlc(struct peer *peer, const u8 *inmsg)
 		goto failed;
 	case CHANNEL_ERR_DUPLICATE:
 	case CHANNEL_ERR_DUPLICATE_ID_DIFFERENT:
-		status_failed(WIRE_CHANNEL_BAD_COMMAND,
-			      "Duplicate HTLC %"PRIu64, peer->htlc_id);
+		status_failed(WIRE_CHANNEL_BAD_COMMAND,"Duplicate HTLC %"PRIu64, peer->htlc_id);
 
 	/* FIXME: Fuzz the boundaries a bit to avoid probing? */
 	case CHANNEL_ERR_MAX_HTLC_VALUE_EXCEEDED:
@@ -1736,8 +1734,7 @@ static void handle_offer_htlc(struct peer *peer, const u8 *inmsg)
 		goto failed;
 	case CHANNEL_ERR_HTLC_BELOW_MINIMUM:
 		failcode = WIRE_AMOUNT_BELOW_MINIMUM;
-		failmsg = tal_fmt(inmsg, "HTLC too small (%u minimum)",
-				  htlc_minimum_msat(peer->channel, REMOTE));
+		failmsg = tal_fmt(inmsg, "HTLC too small (%u minimum)",htlc_minimum_msat(peer->channel, REMOTE));
 		goto failed;
 	case CHANNEL_ERR_TOO_MANY_HTLCS:
 		failcode = WIRE_TEMPORARY_CHANNEL_FAILURE;

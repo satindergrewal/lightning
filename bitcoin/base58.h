@@ -25,11 +25,8 @@ struct bitcoin_address;
 #define BASE58_KEY_MAX_LEN 53
 
 /* Bitcoin address encoded in base58, with version and checksum */
-char *bitcoin_to_base58(const tal_t *ctx, bool test_net,
-			const struct bitcoin_address *addr);
-bool bitcoin_from_base58(bool *test_net,
-			 struct bitcoin_address *addr,
-			 const char *base58, size_t len);
+char *bitcoin_to_base58(const tal_t *ctx, bool test_net,const struct bitcoin_address *addr);
+bool bitcoin_from_base58(bool *test_net,struct bitcoin_address *addr,const char *base58, size_t len);
 
 /* P2SH address encoded as base58, with version and checksum */
 char *p2sh_to_base58(const tal_t *ctx, bool test_net,

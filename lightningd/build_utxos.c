@@ -16,8 +16,7 @@ const struct utxo **build_utxos(const tal_t *ctx,
 	u64 fee_estimate = 0;
 	u64 bip32_max_index = db_get_intvar(ld->wallet->db, "bip32_max_index", 0);
 	const struct utxo **utxos =
-	    wallet_select_coins(ctx, ld->wallet, satoshi_out, feerate_per_kw,
-				&fee_estimate, change_satoshis);
+	    wallet_select_coins(ctx, ld->wallet, satoshi_out, feerate_per_kw,&fee_estimate, change_satoshis);
 
 	/* Oops, didn't have enough coins available */
 	if (!utxos)
