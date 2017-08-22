@@ -456,7 +456,7 @@ void BET_clientloop(void *_ptr)
             }
             if ( nonz == 0 )
             {
-                if ( time(NULL) > lasttime+5 )
+                if ( time(NULL) > lasttime+60 )
                 {
                     printf("%s round.%d turni.%d myid.%d | valid.%d roundready.%d\n",bet->game,VARS->round,VARS->turni,bet->myplayerid,VARS->validperms,VARS->roundready);
                     lasttime = (uint32_t)time(NULL);
