@@ -124,21 +124,31 @@ cJSON *chipsln_invoice(uint64_t msatoshi,char *label)
 
 bits256 chipsln_rhash_create(uint64_t satoshis,char *label)
 {
-    cJSON *inv,*array; bits256 rhash;
+    cJSON *inv,*array,*obj; bits256 rhash; char *ilab;
     if ( label == 0 )
         label = "";
     memset(rhash.bytes,0,sizeof(rhash));
     if ( (array= chipsln_listinvoice(label)) != 0 )
     {
-        if ( cJSON_GetArraySize(array) == 1 )
+        if ( (n= cJSON_GetArraySize(array)) > 0 )
         {
-            inv = jitem(array,0);
-            rhash = jbits256(inv,"rhash");
-            //char str[65]; printf("list invoice.(%s) (%s) -> %s\n",label,jprint(inv,0),bits256_str(str,rhash));
-            if ( bits256_nonz(rhash) != 0 )
+            for (i=0; i<n; i++)
             {
-                free_json(array);
-                return(rhash);
+                inv = jitem(array,i);
+                if ( (ilab= jstr(inv,"label")) != 0 && strcmp(label,ilab) == 0 )
+                {
+                    if ( (obj= jobj(inv,"complete")) != 0 && is_cJSON_False(obj) != 0 )
+                    {
+                        rhash = jbits256(inv,"rhash");
+                        //char str[65]; printf("list invoice.(%s) (%s) -> %s\n",label,jprint(inv,0),bits256_str(str,rhash));
+                        if ( bits256_nonz(rhash) != 0 )
+                        {
+                            free_json(array);
+                            return(rhash);
+                        }
+                    }
+                    break;
+                }
             }
         }
         free_json(array);
@@ -148,6 +158,7 @@ bits256 chipsln_rhash_create(uint64_t satoshis,char *label)
         rhash = jbits256(inv,"rhash");
         char str[65]; printf("rhash.(%s) -> %s\n",jprint(inv,0),bits256_str(str,rhash));
         free_json(inv);
+        return(rhash);
     }
     return(rhash);
 }

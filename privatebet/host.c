@@ -29,48 +29,6 @@ struct privatebet_peerln *BET_peerln_find(char *peerid)
     return(0);
 }
 
-// { "label" : "0", "rhash" : "366a0c6add6c09a47f001ca92dcf2635012663c52d0a1e4bd634e5f876d29a5e", "msatoshi" : 1000000000, "complete" : false }
-struct privatebet_peerln *BET_invoice_complete(char *nextlabel,cJSON *item,struct privatebet_info *bet)
-{
-    char *label,peerstr[67]; int32_t ind; cJSON *retjson; uint8_t peerid[33]; struct privatebet_peerln *p = 0; bits256 rhash;
-    rhash = jbits256(item,"rhash");
-    if ( (label= jstr(item,"label")) != 0 )
-    {
-        if ( is_hexstr(label,0) == 66 )
-        {
-            decode_hex(peerid,sizeof(peerid),label);
-            memcpy(peerstr,label,66);
-            peerstr[66] = 0;
-            if ( (p= BET_peerln_find(peerstr)) != 0 )
-            {
-                label += 66;
-                if ( label[0] == '_' )
-                {
-                    ind = atoi(label+1);
-                    if ( ind >= 0 )
-                    {
-                        char str[65],str2[65];
-                        if ( bits256_cmp(p->hostrhash,rhash) != 0 )
-                            printf("warning rhash mismatch %s != %s\n",bits256_str(str,rhash),bits256_str(str2,p->hostrhash));
-                        else
-                        {
-                            sprintf(nextlabel,"%s_%d",peerstr,ind+1);
-                            p->hostrhash = chipsln_rhash_create(bet->chipsize,nextlabel);
-                        }
-                    }
-                }
-                BET_chip_recv(label,bet);
-                if ( (retjson= chipsln_delinvoice(label)) != 0 )
-                {
-                    printf("delinvoice.(%s) -> (%s)\n",label,jprint(retjson,0));
-                    free_json(retjson);
-                }
-            }
-        }
-    }
-    return(p);
-}
-
 struct privatebet_peerln *BET_peerln_create(struct privatebet_rawpeerln *raw,int32_t maxplayers,int32_t maxchips,int32_t chipsize)
 {
     struct privatebet_peerln *p; cJSON *inv; char label[64];
@@ -306,19 +264,19 @@ int32_t BET_chipsln_update(struct privatebet_info *bet,struct privatebet_vars *v
             }
             if ( (invoices= chipsln_listinvoice("")) != 0 )
             {
-                printf("listinvoice.(%s)\n",jprint(invoices,0));
+                //printf("listinvoice.(%s)\n",jprint(invoices,0));
                 if ( is_cJSON_Array(invoices) != 0 && (n= cJSON_GetArraySize(invoices)) > 0 )
                 {
                     for (i=0; i<n; i++)
                     {
                         item = jitem(invoices,i);
-                        printf("%s\n",jprint(item,0));
                         if ( jobj(item,"complete") != 0 && is_cJSON_True(jobj(item,"complete")) != 0 )
                         {
+                            printf("completed! %s\n",jprint(item,0));
                             if ( (p= BET_invoice_complete(nextlabel,item,bet)) != 0 )
                             {
                             }
-                        } else printf("not complete %s\n",jprint(jobj(item,"complete"),0));
+                        } //else printf("not complete %s\n",jprint(jobj(item,"complete"),0));
                     }
                 }
                 free_json(invoices);

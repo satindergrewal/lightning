@@ -59,8 +59,6 @@ bits256 BET_hosthash_extract(cJSON *argjson,int32_t chipsize)
                 hash = jbits256i(array,i);
                 if ( bits256_cmp(hash,Mypubkey) == 0 && Host_peerid[0] != 0 && Host_channel[0] != 0 )
                 {
-                    //char str[65]; printf("BET_clientpay.[%d] %s\n",i,bits256_str(str,Hostrhashes[i]));
-                    //BET_clientpay(hostrhashes[i],bet->chipsize);
                     BET_hostrhash_update(hostrhashes[i]);
                     return(hostrhashes[i]);
                 }
@@ -69,6 +67,53 @@ bits256 BET_hosthash_extract(cJSON *argjson,int32_t chipsize)
     }
     memset(hash.bytes,0,sizeof(hash));
     return(hash);
+}
+
+// { "label" : "0", "rhash" : "366a0c6add6c09a47f001ca92dcf2635012663c52d0a1e4bd634e5f876d29a5e", "msatoshi" : 1000000000, "complete" : false }
+struct privatebet_peerln *BET_invoice_complete(char *nextlabel,cJSON *item,struct privatebet_info *bet)
+{
+    char *label,peerstr[67]; int32_t ind; cJSON *retjson; uint8_t peerid[33]; struct privatebet_peerln *p = 0; bits256 rhash;
+    rhash = jbits256(item,"rhash");
+    if ( j64bits(item,"msatoshi") != bet->chipsize*1000 )
+    {
+        printf("mismatched msatoshi %llu != %d*1000\n",(long long)j64bits(item,"msatoshi"),bet->chipsize);
+        return(0);
+    }
+    if ( (label= jstr(item,"label")) != 0 )
+    {
+        if ( is_hexstr(label,0) == 66 )
+        {
+            decode_hex(peerid,sizeof(peerid),label);
+            memcpy(peerstr,label,66);
+            peerstr[66] = 0;
+            if ( (p= BET_peerln_find(peerstr)) != 0 )
+            {
+                if ( label[66] == '_' )
+                {
+                    ind = atoi(label+66+1);
+                    if ( ind >= 0 )
+                    {
+                        char str[65],str2[65];
+                        if ( bits256_cmp(p->hostrhash,rhash) != 0 )
+                            printf("warning rhash mismatch %s != %s\n",bits256_str(str,rhash),bits256_str(str2,p->hostrhash));
+                        else
+                        {
+                            sprintf(nextlabel,"%s_%d",peerstr,ind+1);
+                            p->hostrhash = chipsln_rhash_create(bet->chipsize,nextlabel);
+                            printf("updated rhash for %s to %s\n",peerstr,bits256_str(str,p->hostrhash));
+                        }
+                    }
+                }
+                BET_chip_recv(label,bet);
+                if ( (retjson= chipsln_delinvoice(label)) != 0 )
+                {
+                    printf("delinvoice.(%s) -> (%s)\n",label,jprint(retjson,0));
+                    free_json(retjson);
+                }
+            }
+        }
+    }
+    return(p);
 }
 
 int32_t BET_clientpay(uint64_t chipsize)
