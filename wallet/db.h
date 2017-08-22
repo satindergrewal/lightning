@@ -8,10 +8,10 @@
 #include <stdbool.h>
 
 struct db {
-	char *filename;
-	bool in_transaction;
-	const char *err;
-	sqlite3 *sql;
+    char *filename;
+    bool in_transaction;
+    const char *err;
+    sqlite3 *sql;
 };
 
 /**
@@ -30,10 +30,10 @@ struct db *db_setup(const tal_t *ctx);
  * db_query - Prepare and execute a query, and return the result
  */
 sqlite3_stmt *PRINTF_FMT(3, 4)
-	db_query(const char *caller, struct db *db, const char *fmt, ...);
+db_query(const char *caller, struct db *db, const char *fmt, ...);
 
 bool PRINTF_FMT(3, 4)
-	db_exec(const char *caller, struct db *db, const char *fmt, ...);
+db_exec(const char *caller, struct db *db, const char *fmt, ...);
 
 /**
  * db_begin_transaction - Begin a transaction
@@ -72,5 +72,11 @@ bool db_set_intvar(struct db *db, char *varname, s64 val);
  * the query failed or no such variable exists.
  */
 s64 db_get_intvar(struct db *db, char *varname, s64 defval);
+
+/**
+ * sqlite3_column_hexval - Helper to populate a binary field from a hex value
+ */
+bool sqlite3_column_hexval(sqlite3_stmt *s, int col, void *dest,
+                           size_t destlen);
 
 #endif /* WALLET_DB_H */
