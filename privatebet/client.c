@@ -83,6 +83,7 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
             }
         }
     }
+    BET_hosthash_extract(argjson,bet->chipsize);
     BET_clientpay(bet->chipsize);
     printf("JOIN broadcast.(%s)\n",jprint(argjson,0));
     return(0);

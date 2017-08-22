@@ -32,9 +32,10 @@ void BET_chip_recv(char *label,struct privatebet_info *bet)
     }
 }
 
-void BET_hosthash_update(bits256 rhash)
+void BET_hostrhash_update(bits256 rhash)
 {
     int32_t i;
+    char str[65]; printf("hostrhash update.(%s)\n",bits256_str(str,rhash));
     if ( Num_hostrhashes < sizeof(Host_rhashes)/sizeof(*Host_rhashes) )
     {
         for (i=0; i<Num_hostrhashes; i++)
@@ -60,7 +61,7 @@ bits256 BET_hosthash_extract(cJSON *argjson,int32_t chipsize)
                 {
                     //char str[65]; printf("BET_clientpay.[%d] %s\n",i,bits256_str(str,Hostrhashes[i]));
                     //BET_clientpay(hostrhashes[i],bet->chipsize);
-                    BET_hosthash_update(hostrhashes[i]);
+                    BET_hostrhash_update(hostrhashes[i]);
                     return(hostrhashes[i]);
                 }
             }
