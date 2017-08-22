@@ -12,16 +12,16 @@
  * just memset them and not have to take care about the extra byte for
  * u32 */
 struct short_channel_id {
-	u32 blocknum : 24;
-	u32 txnum : 24;
-	u16 outnum;
+    u32 blocknum : 24;
+    u32 txnum : 24;
+    u16 outnum;
 };
 
 bool short_channel_id_from_str(const char *str, size_t strlen,
-			       struct short_channel_id *dst);
+                               struct short_channel_id *dst);
 
 bool short_channel_id_eq(const struct short_channel_id *a,
-			 const struct short_channel_id *b);
+                         const struct short_channel_id *b);
 
 char *short_channel_id_to_str(tal_t *ctx, const struct short_channel_id *scid);
 
