@@ -244,10 +244,10 @@ https://crypto.stanford.edu/~pgolle/papers/poker.pdf
 #define CARDS777_MAXPLAYERS 10 //9   //
 #define CARDS777_MAXROUNDS 3 //9   //
 #define CARDS777_MAXCHIPS 100
-#define CARDS777_CHIPSIZE (SATOSHIDEN / 100)
+#define CARDS777_CHIPSIZE (SATOSHIDEN / 1000)
 #define BET_PLAYERTIMEOUT 15
 #define BET_GAMESTART_DELAY 0
-#define BET_RESERVERATE 1.011
+#define BET_RESERVERATE 1.0125
 
 struct BET_shardsinfo
 {

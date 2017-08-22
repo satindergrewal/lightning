@@ -121,6 +121,8 @@ int32_t BET_clientpay(uint64_t chipsize)
     bits256 rhash,preimage; cJSON *routejson,*retjson,*array; int32_t n,retval = -1;
     if ( Host_channel[0] != 0 && (n= Num_hostrhashes) > 0 )
     {
+        if ( BET_peer_chipsavail(Host_peerid,chipsize) <= 2 )
+            return(-2);
         rhash = Host_rhashes[n-1];
         if ( bits256_nonz(rhash) != 0 )
         {

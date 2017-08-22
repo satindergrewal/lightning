@@ -289,7 +289,7 @@ int32_t BET_chipsln_update(struct privatebet_info *bet,struct privatebet_vars *v
 
 void BET_hostloop(void *_ptr)
 {
-    uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
+    uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; double lastmilli = 0.; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
     VARS = calloc(1,sizeof(*VARS));
     printf("hostloop pubsock.%d pullsock.%d range.%d\n",bet->pubsock,bet->pullsock,bet->range);
     while ( bet->pullsock >= 0 && bet->pubsock >= 0 )
@@ -313,11 +313,12 @@ void BET_hostloop(void *_ptr)
         }
         if ( nonz == 0 )
         {
-            if ( BET_chipsln_update(bet,VARS) == 0 )
+            if ( OS_milliseconds() > lastmilli+100 && BET_chipsln_update(bet,VARS) == 0 )
             {
+                lastmilli = OS_milliseconds();
                 //BETS_players_update(bet,VARS);
             }
-            if ( time(NULL) > lasttime+50 )
+            if ( time(NULL) > lasttime+60 )
             {
                 printf("%s round.%d turni.%d myid.%d\n",bet->game,VARS->round,VARS->turni,bet->     myplayerid);
                 lasttime = (uint32_t)time(NULL);
