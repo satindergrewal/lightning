@@ -32,7 +32,7 @@ struct privatebet_peerln *BET_peerln_find(char *peerid)
 // { "label" : "0", "rhash" : "366a0c6add6c09a47f001ca92dcf2635012663c52d0a1e4bd634e5f876d29a5e", "msatoshi" : 1000000000, "complete" : false }
 struct privatebet_peerln *BET_invoice_complete(char *nextlabel,cJSON *item,struct privatebet_info *bet)
 {
-    char *label,peerstr[67]; cJSON *retjson; uint8_t peerid[33]; struct privatebet_peerln *p = 0; bits256 rhash;
+    char *label,peerstr[67]; int32_t ind; cJSON *retjson; uint8_t peerid[33]; struct privatebet_peerln *p = 0; bits256 rhash;
     rhash = jbits256(item,"rhash");
     if ( (label= jstr(item,"label")) != 0 )
     {
@@ -49,11 +49,12 @@ struct privatebet_peerln *BET_invoice_complete(char *nextlabel,cJSON *item,struc
                     ind = atoi(label+1);
                     if ( ind >= 0 )
                     {
+                        char str[65],str2[65];
                         if ( bits256_cmp(p->hostrhash,rhash) != 0 )
                             printf("warning rhash mismatch %s != %s\n",bits256_str(str,rhash),bits256_str(str2,p->hostrhash));
                         else
                         {
-                            sprintf(nextlabel,"%s_%d",bits256_strind+1);
+                            sprintf(nextlabel,"%s_%d",peerstr,ind+1);
                             p->hostrhash = chipsln_rhash_create(bet->chipsize,nextlabel);
                         }
                     }
@@ -201,31 +202,31 @@ void BET_host_gamestart(struct privatebet_info *bet,struct privatebet_vars *vars
  Host: for each channel create numchips invoices.(playerid/tableid/i) for chipsize -> return json with rhashes[]
  
  Player: send one chip as tip and to verify all is working, get elapsed time
-
-Hostloop:
-{
-    if ( newpeer (via getpeers) )
-        activate player
-    if ( incoming chip )
-    {
-        if initial tip, update state to ready
-        if ( game in progress )
-            broadcast bet received
-    }
-}
+ 
+ Hostloop:
+ {
+ if ( newpeer (via getpeers) )
+ activate player
+ if ( incoming chip )
+ {
+ if initial tip, update state to ready
+ if ( game in progress )
+ broadcast bet received
+ }
+ }
  
  Making a bet:
-    player picks host's rhash, generates own rhash, sends to host
+ player picks host's rhash, generates own rhash, sends to host
  
  HOST: recv:[{rhash0[m]}, {rhash1[m]}, ... ], sends[] <- {rhashi[m]}
  Players[]: recv:[{rhash0[m]}, {rhash1[m]}, ... ], send:{rhashi[m]}
  
-    host: verifies rhash is from valid player, broadcasts new rhash
+ host: verifies rhash is from valid player, broadcasts new rhash
  
  each node with M chips should have MAXCHIPS-M rhashes published
  when node gets chip, M ->M+1, invalidate corresponding rhash
  when node sends chip, M -> M-1, need to create a new rhash
-*/
+ */
 
 void BETS_players_update(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
@@ -233,19 +234,19 @@ void BETS_players_update(struct privatebet_info *bet,struct privatebet_vars *var
     for (i=0; i<bet->numplayers; i++)
     {
         /*update state: new, initial tip, active lasttime, missing, dead
-        if ( dead for more than 5 minutes )
-            close channel (settles chips)*/
+         if ( dead for more than 5 minutes )
+         close channel (settles chips)*/
         /* if ( (0) && time(NULL) > Lastturni+BET_PLAYERTIMEOUT )
-        {
-            timeoutjson = cJSON_CreateObject();
-            jaddstr(timeoutjson,"method","turni");
-            jaddnum(timeoutjson,"round",VARS->round);
-            jaddnum(timeoutjson,"turni",VARS->turni);
-            jaddbits256(timeoutjson,"pubkey",bet->playerpubs[VARS->turni]);
-            jadd(timeoutjson,"actions",cJSON_Parse("[\"timeout\"]"));
-            BET_message_send("TIMEOUT",bet->pubsock,timeoutjson,1,bet);
-            //BET_host_turni_next(bet,&VARS);
-        }*/
+         {
+         timeoutjson = cJSON_CreateObject();
+         jaddstr(timeoutjson,"method","turni");
+         jaddnum(timeoutjson,"round",VARS->round);
+         jaddnum(timeoutjson,"turni",VARS->turni);
+         jaddbits256(timeoutjson,"pubkey",bet->playerpubs[VARS->turni]);
+         jadd(timeoutjson,"actions",cJSON_Parse("[\"timeout\"]"));
+         BET_message_send("TIMEOUT",bet->pubsock,timeoutjson,1,bet);
+         //BET_host_turni_next(bet,&VARS);
+         }*/
     }
 }
 
@@ -305,7 +306,7 @@ int32_t BET_chipsln_update(struct privatebet_info *bet,struct privatebet_vars *v
             }
             if ( (invoices= chipsln_listinvoice("")) != 0 )
             {
-                if ( is_cJSON_Array(invoices) != 0 && (n= cJSON_GetArraySize()) > 0 )
+                if ( is_cJSON_Array(invoices) != 0 && (n= cJSON_GetArraySize(invoices)) > 0 )
                 {
                     for (i=0; i<n; i++)
                     {

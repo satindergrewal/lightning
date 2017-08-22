@@ -27,7 +27,7 @@ void BET_chip_recv(char *label,struct privatebet_info *bet)
     {
         reqjson = cJSON_CreateObject();
         jaddstr(reqjson,"method","onechip");
-        jaddnum(reqjson,"label",label);
+        jaddstr(reqjson,"label",label);
         BET_message_send("BET_chip_recv",bet->pubsock>=0?bet->pubsock:bet->pushsock,reqjson,1,bet);
     }
 }
@@ -37,7 +37,7 @@ void BET_hosthash_update(bits256 rhash)
     int32_t i;
     if ( Num_hostrhashes < sizeof(Host_rhashes)/sizeof(*Host_rhashes) )
     {
-        for (i=0; i<Num_hosthashes; i++)
+        for (i=0; i<Num_hostrhashes; i++)
             if ( bits256_cmp(rhash,Host_rhashes[i]) == 0 )
                 return;
         Host_rhashes[Num_hostrhashes++] = rhash;
@@ -72,10 +72,10 @@ bits256 BET_hosthash_extract(cJSON *argjson,int32_t chipsize)
 
 int32_t BET_clientpay(uint64_t chipsize)
 {
-    bits256 rhash; cJSON *routejson,*retjson,*array; int32_t retval = -1;
-    if ( Host_channel[0] != 0 )
+    bits256 rhash; cJSON *routejson,*retjson,*array; int32_t n,retval = -1;
+    if ( Host_channel[0] != 0 && (n= Num_hostrhashes) > 0 )
     {
-        rhash = BET_rhashes_top();
+        rhash = Host_rhashes[n-1];
         if ( bits256_nonz(rhash) != 0 )
         {
             array = cJSON_CreateArray();
@@ -100,7 +100,8 @@ int32_t BET_clientpay(uint64_t chipsize)
             }
             free_json(array);
         }
-        return(retval);
+    }
+    return(retval);
 }
 
 void BET_channels_parse()
