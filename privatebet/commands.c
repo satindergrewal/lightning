@@ -124,7 +124,7 @@ cJSON *chipsln_invoice(uint64_t msatoshi,char *label)
 
 bits256 chipsln_rhash_create(uint64_t satoshis,char *label)
 {
-    cJSON *inv,*array,*obj; bits256 rhash; char *ilab;
+    cJSON *inv,*array,*obj; bits256 rhash; char *ilab; int32_t i,n;
     if ( label == 0 )
         label = "";
     memset(rhash.bytes,0,sizeof(rhash));
