@@ -112,20 +112,28 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
                 {
                     printf("fundchannel -> (%s)\n",jprint(retjson,0));
                     free_json(retjson);
-                    retjson = 0;
-                    for (i=0; i<10; i++)
+                    for (i=flag=0; i<10; i++)
                     {
-                        if ( retjson != 0 )
-                            free_json(retjson);
-                        if ( (retjson= chipsln_getinfo()) != 0 )
+                        if ( (retjson= chipsln_getpeers()) != 0 )
                         {
-                            if ( jstr(retjson,"state") != 0 && strcmp(jstr(retjson,"state"),"CHANNELD_AWAITING_LOCKIN") == 0 )
-                                fprintf(stderr,"waiting... "), sleep(10);
-                            else break;
+                            if ( (array= jarray(&n,retjson,"peers")) != 0 && n > 0 )
+                            {
+                                for (i=0; i<n; i++)
+                                {
+                                    item = jitem(array,i);
+                                    if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),Host_peerid) != 0 )
+                                        continue;
+                                    if ( jstr(item,"state") != 0 && strcmp(jstr(item,"state"),"CHANNELD_AWAITING_LOCKIN") == 0 )
+                                        flag = 1, printf("waiting\n");
+                                    break;
+                                }
+                            }
+                            free_json(retjson);
                         }
+                        if ( flag == 0 )
+                            break;
+                        sleep(10);
                     }
-                    if ( retjson != 0 )
-                        free_json(retjson);
                     BET_channels_parse();
                 }
             }
