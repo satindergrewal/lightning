@@ -393,7 +393,7 @@ void BET_clientloop(void *_ptr)
                     if ( BET_clientupdate(msgjson,ptr,recvlen,bet,VARS) < 0 )
                         printf("unknown clientupdate msg.(%s)\n",jprint(msgjson,0));
                     if ( Num_hostrhashes > 0 )
-                        Bet_clientpay(bet->chipsize);
+                        BET_clientpay(bet->chipsize);
                     free_json(msgjson);
                 }
                 nn_freemsg(ptr);
