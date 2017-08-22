@@ -41,6 +41,7 @@ BITCOIN_SRC :=					\
 	bitcoin/shadouble.c			\
 	bitcoin/signature.c			\
 	bitcoin/tx.c				\
+ 	bitcoin/short_channel_id.c		\
 	bitcoin/varint.c
 
 BITCOIN_OBJS := $(BITCOIN_SRC:.c=.o)

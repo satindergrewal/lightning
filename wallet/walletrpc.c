@@ -225,7 +225,8 @@ static const struct json_command withdraw_command = {
 };
 AUTODATA(json_command, &withdraw_command);
 
-static void json_newaddr(struct command *cmd,const char *buffer, const jsmntok_t *params)
+static void json_newaddr(struct command *cmd,
+			 const char *buffer, const jsmntok_t *params)
 {
 	struct json_result *response = new_json_result(cmd);
 	struct lightningd *ld = ld_from_dstate(cmd->dstate);
@@ -259,7 +260,8 @@ static void json_newaddr(struct command *cmd,const char *buffer, const jsmntok_t
 	ripemd160(&p2sh, h.u.u8, sizeof(h));
 
 	json_object_start(response, NULL);
-	json_add_string(response, "address",p2sh_to_base58(cmd, cmd->dstate->testnet, &p2sh));
+	json_add_string(response, "address",
+			p2sh_to_base58(cmd, cmd->dstate->testnet, &p2sh));
 	json_object_end(response);
 	command_success(cmd, response);
 }
@@ -272,7 +274,8 @@ static const struct json_command newaddr_command = {
 };
 AUTODATA(json_command, &newaddr_command);
 
-static void json_addfunds(struct command *cmd,const char *buffer, const jsmntok_t *params)
+static void json_addfunds(struct command *cmd,
+			  const char *buffer, const jsmntok_t *params)
 {
 	struct lightningd *ld = ld_from_dstate(cmd->dstate);
 	struct json_result *response = new_json_result(cmd);

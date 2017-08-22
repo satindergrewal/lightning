@@ -1,10 +1,27 @@
 #include "wallet.c"
 
+#include <ccan/mem/mem.h>
 #include "db.c"
 #include "wallet/test_utils.h"
 
 #include <stdio.h>
 #include <unistd.h>
+
+static struct wallet *create_test_wallet(const tal_t *ctx)
+{
+	char filename[] = "/tmp/ldb-XXXXXX";
+	int fd = mkstemp(filename);
+	struct wallet *w = tal(ctx, struct wallet);
+	CHECK_MSG(fd != -1, "Unable to generate temp filename");
+	close(fd);
+
+	w->db = db_open(w, filename);
+
+	CHECK_MSG(w->db, "Failed opening the db");
+	CHECK_MSG(db_migrate(w->db), "DB migration failed");
+
+	return w;
+}
 
 static bool test_wallet_outputs(void)
 {
@@ -280,8 +297,13 @@ static bool test_channel_config_crud(const tal_t *ctx)
 int main(void)
 {
 	bool ok = true;
+	tal_t *tmpctx = tal_tmpctx(NULL);
 
 	ok &= test_wallet_outputs();
+	ok &= test_shachain_crud();
+	ok &= test_channel_crud(tmpctx);
+	ok &= test_channel_config_crud(tmpctx);
 
+	tal_free(tmpctx);
 	return !ok;
 }

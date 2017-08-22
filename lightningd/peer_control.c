@@ -343,8 +343,8 @@ static void get_gossip_fd_for_channeld_reconnect(struct lightningd *ld,
 
 	/* FIXME: set sync to `initial_routing_sync` */
 	req = towire_gossipctl_get_peer_gossipfd(ggf, unique_id, true);
-    printf("subd_req\n");
-	subd_req(ggf, ld->gossip, take(req), -1, 1,get_peer_gossipfd_channeld_reply, ggf);
+	subd_req(ggf, ld->gossip, take(req), -1, 1,
+		 get_peer_gossipfd_channeld_reply, ggf);
 }
 
 static bool get_peer_gossipfd_closingd_reply(struct subd *subd, const u8 *msg,
@@ -430,7 +430,8 @@ static bool peer_reconnected(struct lightningd *ld,
 	if (!peer)
 		return false;
 
-	log_info(peer->log, "Peer has reconnected, state %s",peer_state_name(peer->state));
+	log_info(peer->log, "Peer has reconnected, state %s",
+		 peer_state_name(peer->state));
 
 	/* BOLT #2:
 	 *
@@ -444,40 +445,40 @@ static bool peer_reconnected(struct lightningd *ld,
 		tal_steal(io_new_conn(peer, fd, send_error, pcs), pcs);
 		return true;
 	}
-    printf("peer->state %d\n",peer->state);
+
 	switch (peer->state) {
-	case UNINITIALIZED: //This can't happen.
-            printf("peer_reconnected: UNINITIALIZED case\n");
-            abort();
+	/* This can't happen. */
+	case UNINITIALIZED:
+		abort();
 
 	case GOSSIPD:
-		// Tell gossipd to kick that one out, will call peer_fail
+		/* Tell gossipd to kick that one out, will call peer_fail */
 		subd_send_msg(peer->ld->gossip,
 			      take(towire_gossipctl_fail_peer(peer,
 							      peer->unique_id)));
 		tal_free(peer);
-		// Continue with a new peer
+		/* Continue with a new peer. */
 		return false;
 
 	case OPENINGD:
-		// Kill off openingd, forget old peer
+		/* Kill off openingd, forget old peer. */
 		peer->owner->peer = NULL;
 		tal_free(peer->owner);
 		tal_free(peer);
 
-		// A fresh start.
+		/* A fresh start. */
 		return false;
 
 	case CHANNELD_AWAITING_LOCKIN:
 	case CHANNELD_NORMAL:
 	case CHANNELD_SHUTTING_DOWN:
-		// We need the gossipfd now
+		/* We need the gossipfd now */
 		get_gossip_fd_for_channeld_reconnect(ld, id, peer->unique_id, fd, cs);
 		return true;
 
 	case CLOSINGD_SIGEXCHANGE:
 	case CLOSINGD_COMPLETE:
-		// We need the gossipfd now
+		/* We need the gossipfd now */
 		get_gossip_fd_for_closingd_reconnect(ld, id, peer->unique_id, fd, cs);
 		return true;
 
@@ -485,7 +486,6 @@ static bool peer_reconnected(struct lightningd *ld,
 	case ONCHAIND_THEIR_UNILATERAL:
 	case ONCHAIND_OUR_UNILATERAL:
 	case ONCHAIND_MUTUAL:
-            printf("peer_reconnected: unimplemented case\n");
 		; /* FIXME: Implement! */
 	}
 	abort();
@@ -542,13 +542,8 @@ void add_peer(struct lightningd *ld, u64 unique_id,
 		= peer->next_index[REMOTE]
 		= peer->num_revocations_received = 0;
 	peer->next_htlc_id = 0;
-//<<<<<<< HEAD
-//	shachain_init(&peer->their_shachain);
-//	peer->closing_sig_received = NULL;
-//=======
 	peer->htlcs = tal_arr(peer, struct htlc_stub, 0);
 	wallet_shachain_init(ld->wallet, &peer->their_shachain);
-//>>>>>>> ElementsProject/master
 
 	idname = type_to_string(peer, struct pubkey, id);
 
@@ -2067,33 +2062,37 @@ static void json_fund_channel(struct command *cmd,
 	struct funding_channel *fc = tal(cmd, struct funding_channel);
 	u8 *msg;
 
-	if (!json_get_params(buffer, params,"id", &peertok,"satoshi", &satoshitok,NULL))
-    {
+	if (!json_get_params(buffer, params,
+			     "id", &peertok,
+			     "satoshi", &satoshitok,
+			     NULL)) {
 		command_fail(cmd, "Need peerid and satoshi");
 		return;
 	}
+
 	fc->cmd = cmd;
 	fc->peer = peer_from_json(ld, buffer, peertok);
-	if (!fc->peer)
-    {
+	if (!fc->peer) {
 		command_fail(cmd, "Could not find peer with that peerid");
 		return;
 	}
-	if (fc->peer->owner != ld->gossip)
-    {
+	if (fc->peer->owner != ld->gossip) {
 		command_fail(cmd, "Peer not ready for connection");
 		return;
 	}
-	if (!json_tok_u64(buffer, satoshitok, &fc->peer->funding_satoshi))
-    {
+
+	if (!json_tok_u64(buffer, satoshitok, &fc->peer->funding_satoshi)) {
 		command_fail(cmd, "Invalid satoshis");
 		return;
 	}
+
 	/* FIXME: Support push_msat? */
 	fc->peer->push_msat = 0;
+
 	/* Try to do this now, so we know if insufficient funds. */
 	/* FIXME: Feerate & dustlimit */
-	fc->utxomap = build_utxos(fc, ld, fc->peer->funding_satoshi, 15000, 600,&fc->change, &fc->change_keyindex);
+	fc->utxomap = build_utxos(fc, ld, fc->peer->funding_satoshi, 15000, 600,
+				  &fc->change, &fc->change_keyindex);
 	if (!fc->utxomap) {
 		command_fail(cmd, "Cannot afford funding transaction");
 		return;

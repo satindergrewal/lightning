@@ -3,6 +3,7 @@
 #include "daemon/log.h"
 #include "lightningd/lightningd.h"
 
+#include <ccan/str/hex/hex.h>
 #include <ccan/tal/str/str.h>
 #include <ccan/tal/tal.h>
 #include <inttypes.h>
@@ -111,7 +112,6 @@ bool PRINTF_FMT(3, 4)
 
 	err = sqlite3_exec(db->sql, cmd, NULL, NULL, &errmsg);
 	if (err != SQLITE_OK) {
-		db->in_transaction = false;
 		tal_free(db->err);
 		db->err = tal_fmt(db, "%s:%s:%s:%s", caller,
 				  sqlite3_errstr(err), cmd, errmsg);
@@ -211,6 +211,10 @@ static struct db *db_open(const tal_t *ctx, char *filename)
 	tal_add_destructor(db, close_db);
 	db->in_transaction = false;
 	db->err = NULL;
+	if (!db_exec(__func__, db, "PRAGMA foreign_keys = ON;")) {
+		fatal("Could not enable foreignkeys on database: %s", db->err);
+	}
+
 	return db;
 }
 
@@ -337,4 +341,13 @@ bool db_set_intvar(struct db *db, char *varname, s64 val)
 		    "INSERT INTO vars (name, val) VALUES ('%s', '%" PRId64
 		    "');",
 		    varname, val);
+}
+
+bool sqlite3_column_hexval(sqlite3_stmt *s, int col, void *dest, size_t destlen)
+{
+	const char *source = sqlite3_column_blob(s, col);
+	size_t sourcelen = sqlite3_column_bytes(s, col);
+	if (sourcelen / 2 != destlen)
+		return false;
+	return hex_decode(source, sourcelen, dest, destlen);
 }
