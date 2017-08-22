@@ -96,7 +96,6 @@ cJSON *chipsln_getpeers() { return(chipsln_noargs("getpeers")); }
 cJSON *chipsln_getchannels() { return(chipsln_noargs("getchannels")); }
 cJSON *chipsln_devblockheight() { return(chipsln_noargs("dev-blockheight")); }
 
-cJSON *chipsln_listinvoice(char *label) { return(chipsln_strarg("listinvoice",label)); }
 cJSON *chipsln_delinvoice(char *label) { return(chipsln_strarg("delinvoice",label)); }
 cJSON *chipsln_waitanyinvoice(char *label) { return(chipsln_strarg("waitanyinvoice",label)); }
 cJSON *chipsln_waitinvoice(char *label) { return(chipsln_strarg("waitinvoice",label)); }
@@ -109,6 +108,13 @@ cJSON *chipsln_addfunds(char *rawtx) { return(chipsln_strarg("addfunds",rawtx));
 cJSON *chipsln_fundchannel(char *idstr,uint64_t satoshi)
 {
     return(chipsln_strnum("fundchannel",idstr,satoshi));
+}
+
+cJSON *chipsln_listinvoice(char *label)
+{
+    if ( label != 0 && label[0] != 0 )
+        return(chipsln_strarg("listinvoice",label));
+    else return(chipsln_noargs("listinvoice"));
 }
 
 cJSON *chipsln_invoice(uint64_t msatoshi,char *label)
