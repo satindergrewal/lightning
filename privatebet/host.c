@@ -306,6 +306,7 @@ int32_t BET_chipsln_update(struct privatebet_info *bet,struct privatebet_vars *v
             }
             if ( (invoices= chipsln_listinvoice("")) != 0 )
             {
+                printf("listinvoices.(%s)\n",jprint(invoices,0));
                 if ( is_cJSON_Array(invoices) != 0 && (n= cJSON_GetArraySize(invoices)) > 0 )
                 {
                     for (i=0; i<n; i++)

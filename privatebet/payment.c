@@ -90,7 +90,9 @@ int32_t BET_clientpay(uint64_t chipsize)
             // replace rhash in route
             if ( (retjson= chipsln_sendpay(array,rhash)) != 0 )
             {
-                printf("sendpay %.8f to %s -> %s\n",dstr(chipsize),jprint(array,0),jprint(retjson,0));
+                char str[65],str2[65];
+                preimage = jbits256(retjson,"preimage");
+                printf("sendpay rhash.(%s) %.8f to %s -> %s preimage.%s\n",bits256_str(str,rhash),dstr(chipsize),jprint(array,0),jprint(retjson,0),bits256_str(str2,preimage));
                 // if valid, reduce Host_rhashes[]
                 if ( Num_hostrhashes > 0 )
                 {
