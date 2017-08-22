@@ -255,14 +255,14 @@ static const struct json_command listinvoice_command = {
 };
 AUTODATA(json_command, &listinvoice_command);
 
-static void json_delinvoice(struct command *cmd,
-			    const char *buffer, const jsmntok_t *params)
+static void _json_delinvoice(int32_t paidflag,struct command *cmd,const char *buffer, const jsmntok_t *params)
 {
 	struct invoice *i;
 	jsmntok_t *labeltok;
 	struct json_result *response = new_json_result(cmd);
 	const char *label;
 	struct invoices *invs = cmd->dstate->invoices;
+    void *targetlist = (paidflag == 0) ? &invs->unpaid : &invs->paid;
 
 	if (!json_get_params(buffer, params,
 			     "label", &labeltok,
@@ -273,7 +273,7 @@ static void json_delinvoice(struct command *cmd,
 
 	label = tal_strndup(cmd, buffer + labeltok->start,
 			    labeltok->end - labeltok->start);
-	i = find_invoice_by_label(&invs->unpaid, label);
+	i = find_invoice_by_label(targetlist, label);
 	if (!i) {
 		command_fail(cmd, "Unknown invoice");
 		return;
@@ -282,7 +282,7 @@ static void json_delinvoice(struct command *cmd,
 		command_fail(cmd, "Database error");
 		return;
 	}
-	list_del_from(&invs->unpaid, &i->list);
+	list_del_from(targetlist, &i->list);
 
 	json_object_start(response, NULL);
 	json_add_string(response, "label", i->label);
@@ -293,6 +293,16 @@ static void json_delinvoice(struct command *cmd,
 	tal_free(i);
 }
 
+static void json_delinvoice(struct command *cmd,const char *buffer, const jsmntok_t *params)
+{
+    return(_json_delinvoice(0,cmd,buffer,params));
+}
+
+static void json_delpaidinvoice(struct command *cmd,const char *buffer, const jsmntok_t *params)
+{
+    return(_json_delinvoice(1,cmd,buffer,params));
+}
+
 static const struct json_command delinvoice_command = {
 	"delinvoice",
 	json_delinvoice,
@@ -300,6 +310,14 @@ static const struct json_command delinvoice_command = {
 	"Returns {label}, {rhash} and {msatoshi} on success. "
 };
 AUTODATA(json_command, &delinvoice_command);
+
+static const struct json_command delpaidinvoice_command = {
+    "delpaidinvoice",
+    json_delpaidinvoice,
+    "Delete paid invoice {label}))",
+    "Returns {label}, {rhash} and {msatoshi} on success. "
+};
+AUTODATA(json_command, &delpaidinvoice_command);
 
 static void json_waitanyinvoice(struct command *cmd,
 			    const char *buffer, const jsmntok_t *params)

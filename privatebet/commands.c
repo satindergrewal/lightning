@@ -97,6 +97,7 @@ cJSON *chipsln_getchannels() { return(chipsln_noargs("getchannels")); }
 cJSON *chipsln_devblockheight() { return(chipsln_noargs("dev-blockheight")); }
 
 cJSON *chipsln_delinvoice(char *label) { return(chipsln_strarg("delinvoice",label)); }
+cJSON *chipsln_delpaidinvoice(char *label) { return(chipsln_strarg("delpaidinvoice",label)); }
 cJSON *chipsln_waitanyinvoice(char *label) { return(chipsln_strarg("waitanyinvoice",label)); }
 cJSON *chipsln_waitinvoice(char *label) { return(chipsln_strarg("waitinvoice",label)); }
 

@@ -105,9 +105,9 @@ struct privatebet_peerln *BET_invoice_complete(char *nextlabel,cJSON *item,struc
                     }
                 }
                 BET_chip_recv(label,bet);
-                if ( (retjson= chipsln_delinvoice(label)) != 0 )
+                if ( (retjson= chipsln_delpaidinvoice(label)) != 0 )
                 {
-                    printf("delinvoice.(%s) -> (%s)\n",label,jprint(retjson,0));
+                    printf("delpaidinvoice.(%s) -> (%s)\n",label,jprint(retjson,0));
                     free_json(retjson);
                 }
             }
