@@ -54,7 +54,7 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
         if ( already_connected != 0 && Host_channel[0] == 0 )
         {
             BET_channels_parse();
-            if ( Host_channel[0] == 0 )
+            //if ( Host_channel[0] == 0 )
             {
                 if ( (retjson= chipsln_fundchannel(Host_peerid,100*bet->chipsize*BET_RESERVERATE)) != 0 )
                 {
