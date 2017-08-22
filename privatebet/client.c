@@ -75,6 +75,7 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
                         else
                         {
                             printf("channel is normal\n");
+                            sleep(10);
                             break;
                         }
                     }
