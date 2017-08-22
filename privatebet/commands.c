@@ -211,6 +211,27 @@ char *stats_JSON(void *ctx,char *myipaddr,int32_t mypubsock,cJSON *argjson,char 
     return(clonestr("{\"result\":\"success\"}"));
 }
 
+int32_t BET_peer_state(char *peerid,char *statestr)
+{
+    cJSON *retjson,*array,*item; int32_t i,n,retval = -1;
+    if ( (retjson= chipsln_getpeers()) != 0 )
+    {
+        if ( (array= jarray(&n,retjson,"peers")) != 0 && n > 0 )
+        {
+            for (i=0; i<n; i++)
+            {
+                item = jitem(array,i);
+                if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),Host_peerid) != 0 )
+                    continue;
+                if ( jstr(item,"state") != 0 && strcmp(jstr(item,"state"),statestr) == 0 )
+                    retval = 0;
+                break;
+            }
+        }
+        free_json(retjson);
+    }
+    return(retval);
+}
 
 /*void BET_status_disp(struct privatebet_info *bet,struct privatebet_vars *vars)
 {

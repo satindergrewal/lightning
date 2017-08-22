@@ -58,29 +58,25 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
             {
                 if ( (retjson= chipsln_fundchannel(Host_peerid,100*bet->chipsize*BET_RESERVERATE)) != 0 )
                 {
-                    printf("fundchannel -> (%s)\n",jprint(retjson,0));
+                    //printf("fundchannel -> (%s)\n",jprint(retjson,0));
                     free_json(retjson);
                     for (i=flag=0; i<10; i++)
                     {
-                        if ( (retjson= chipsln_getpeers()) != 0 )
+                        if ( BET_peer_state(Host_peerid,"CHANNELD_AWAITING_LOCKIN") == 0 )
                         {
-                            if ( (array= jarray(&n,retjson,"peers")) != 0 && n > 0 )
-                            {
-                                for (i=0; i<n; i++)
-                                {
-                                    item = jitem(array,i);
-                                    if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),Host_peerid) != 0 )
-                                        continue;
-                                    if ( jstr(item,"state") != 0 && strcmp(jstr(item,"state"),"CHANNELD_AWAITING_LOCKIN") == 0 )
-                                        flag = 1, printf("waiting\n");
-                                    break;
-                                }
-                            }
-                            free_json(retjson);
-                        }
-                        if ( flag == 0 )
+                            printf("waiting for CHANNELD_AWAITING_LOCKIN\n");
+                            sleep(10);
+                        } else break;
+                    }
+                    for (i=flag=0; i<10; i++)
+                    {
+                        if ( BET_peer_state(Host_peerid,"CHANNELD_NORMAL") != 0 )
+                            sleep(10);
+                        else
+                        {
+                            printf("channel is normal\n");
                             break;
-                        sleep(10);
+                        }
                     }
                     BET_channels_parse();
                 }
