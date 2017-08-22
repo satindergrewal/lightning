@@ -227,10 +227,10 @@ static u8 *funder_channel(struct state *state,
 
 	/* BOLT #2:
 	 *
-	 * The sender MUST set `funding_satoshis` to less than 2^24 satoshi. */
-	if (state->funding_satoshis >= 1 << 24)
+	 * The sender MUST set `funding_satoshis` to less than LIGHTNING_MAXFUNDING satoshi. */
+	if (state->funding_satoshis >= LIGHTNING_MAXFUNDING)
 		peer_failed(PEER_FD, &state->cs, NULL, WIRE_OPENING_BAD_PARAM,
-			      "funding_satoshis must be < 2^24");
+			      "funding_satoshis must be < LIGHTNING_MAXFUNDING");
 
 	/* BOLT #2:
 	 *
@@ -516,7 +516,7 @@ static u8 *fundee_channel(struct state *state,
 	 *
 	 * The receiving node ... MUST fail the channel if `funding-satoshis`
 	 * is greater than or equal to 2^24 */
-	if (state->funding_satoshis >= 1 << 24)
+	if (state->funding_satoshis >= LIGHTNING_MAXFUNDING)
 		peer_failed(PEER_FD, &state->cs, NULL, WIRE_OPENING_PEER_BAD_FUNDING,
 			      "funding_satoshis %"PRIu64" too large",
 			      state->funding_satoshis);
