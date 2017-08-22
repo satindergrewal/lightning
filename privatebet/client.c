@@ -129,7 +129,7 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
                 hash = jbits256i(array,i);
                 if ( bits256_cmp(hash,Mypubkey) == 0 && Host_peerid[0] != 0 && Host_channel[0] != 0 )
                 {
-                    printf("BET_sendpay.[%d] %s\n",i,bits256_str(str,Hostrhashes[i]));
+                    char str[65]; printf("BET_sendpay.[%d] %s\n",i,bits256_str(str,Hostrhashes[i]));
                     BET_sendpay(Hostrhashes[i],bet->chipsize);
                     break;
                 }
