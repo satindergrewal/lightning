@@ -13,6 +13,8 @@
  *                                                                            *
  ******************************************************************************/
 
+// https://lists.linuxfoundation.org/pipermail/lightning-dev/2016-January/000403.html
+// ^ is multisig
 
 #include "bet.h"
 char *LN_idstr,Host_ipaddr[64],Host_peerid[67],BET_ORACLEURL[64] = "127.0.0.1:7797";
