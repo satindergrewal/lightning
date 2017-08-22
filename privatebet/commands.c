@@ -253,7 +253,7 @@ int32_t BET_peer_state(char *peerid,char *statestr)
 
 int64_t BET_peer_chipsavail(char *peerid,int32_t chipsize)
 {
-    cJSON *retjson,*array,*item; uint64_t total,mine; int32_t i,n,retval = 0;
+    cJSON *retjson,*array,*item; uint64_t total; int32_t i,n,retval = 0;
     if ( (retjson= chipsln_getpeers()) != 0 )
     {
         if ( (array= jarray(&n,retjson,"peers")) != 0 && n > 0 )
@@ -263,10 +263,8 @@ int64_t BET_peer_chipsavail(char *peerid,int32_t chipsize)
                 item = jitem(array,i);
                 if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),Host_peerid) != 0 )
                     continue;
-                mine = j64bits(item,"msatoshi_to_us");
-                total = j64bits(item,"msatoshi_total");
-                if ( total != 0 )
-                    retval = ((total - mine) / 1000) / chipsize;
+                total = j64bits(item,"msatoshi_to_us");
+                retval = (total / 1000) / chipsize;
                 break;
             }
         }
