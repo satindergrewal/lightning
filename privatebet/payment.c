@@ -110,7 +110,7 @@ void BET_channels_parse()
     cJSON *channels,*array,*item; int32_t i,n,len; char *source,*dest,*short_id;
     if ( (channels= chipsln_getchannels()) != 0 )
     {
-        printf("got.(%s)\n",jprint(channels,0));
+        //printf("got.(%s)\n",jprint(channels,0));
         if ( (array= jarray(&n,channels,"channels")) != 0 )
         {
             for (i=0; i<n; i++)
@@ -119,7 +119,7 @@ void BET_channels_parse()
                 source = jstr(item,"source");
                 dest = jstr(item,"destination");
                 short_id = jstr(item,"short_id");
-                printf("source.%s dest.%s myid.%s Host.%s short.%s\n",source,dest,LN_idstr,Host_peerid,short_id);
+                //printf("source.%s dest.%s myid.%s Host.%s short.%s\n",source,dest,LN_idstr,Host_peerid,short_id);
                 if ( source != 0 && dest != 0 && strcmp(source,LN_idstr) == 0 && strcmp(dest,Host_peerid) == 0 && short_id != 0 )
                 {
                     len = strlen(short_id);

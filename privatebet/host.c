@@ -311,12 +311,13 @@ int32_t BET_chipsln_update(struct privatebet_info *bet,struct privatebet_vars *v
                     for (i=0; i<n; i++)
                     {
                         item = jitem(invoices,i);
+                        printf("%s\n",jprint(item,0));
                         if ( jobj(item,"complete") != 0 && is_cJSON_True(jobj(item,"complete")) != 0 )
                         {
                             if ( (p= BET_invoice_complete(nextlabel,item,bet)) != 0 )
                             {
                             }
-                        }
+                        } else printf("not complete %s\n",jprint(jobj(item,"complete"),0));
                     }
                 }
                 free_json(invoices);
