@@ -359,6 +359,8 @@ static void handle_localpay(struct htlc_in *hin,
 	 */
 	if (get_block_height(ld->topology) + ld->dstate.config.deadline_blocks
 	    >= cltv_expiry) {
+        printf("Expiry cltv %u too close to current %u + deadline %u",cltv_expiry,get_block_height(ld->topology),ld->dstate.config.deadline_blocks);
+
 		log_debug(hin->key.peer->log,
 			  "Expiry cltv %u too close to current %u + deadline %u",
 			  cltv_expiry,
