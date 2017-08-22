@@ -73,7 +73,7 @@ bits256 BET_hosthash_extract(cJSON *argjson,int32_t chipsize)
 
 int32_t BET_clientpay(uint64_t chipsize)
 {
-    bits256 rhash; cJSON *routejson,*retjson,*array; int32_t n,retval = -1;
+    bits256 rhash,preimage; cJSON *routejson,*retjson,*array; int32_t n,retval = -1;
     if ( Host_channel[0] != 0 && (n= Num_hostrhashes) > 0 )
     {
         rhash = Host_rhashes[n-1];
