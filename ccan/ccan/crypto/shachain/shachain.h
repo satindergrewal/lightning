@@ -38,7 +38,7 @@
  * }
  */
 void shachain_from_seed(const struct sha256 *seed, uint64_t index,
-			struct sha256 *hash);
+                        struct sha256 *hash);
 
 /**
  * shachain - structure for recording/deriving decrementing chain members
@@ -50,12 +50,12 @@ void shachain_from_seed(const struct sha256 *seed, uint64_t index,
  * added.
  */
 struct shachain {
-	uint64_t min_index;
-	unsigned int num_valid;
-	struct {
-		uint64_t index;
-		struct sha256 hash;
-	} known[SHACHAIN_BITS + 1];
+    uint64_t min_index;
+    unsigned int num_valid;
+    struct {
+        uint64_t index;
+        struct sha256 hash;
+    } known[SHACHAIN_BITS + 1];
 };
 
 /**
@@ -101,7 +101,7 @@ uint64_t shachain_next_index(const struct shachain *chain);
  * }
  */
 bool shachain_add_hash(struct shachain *chain,
-		       uint64_t index, const struct sha256 *hash);
+                       uint64_t index, const struct sha256 *hash);
 
 /**
  * shachain_get_hash - get the hash for a given index.
@@ -132,5 +132,5 @@ bool shachain_add_hash(struct shachain *chain,
  * }
  */
 bool shachain_get_hash(const struct shachain *chain,
-		       uint64_t index, struct sha256 *hash);
+                       uint64_t index, struct sha256 *hash);
 #endif /* CCAN_CRYPTO_SHACHAIN_H */
