@@ -32,15 +32,17 @@
  *    * [`2`:`max_accepted_htlcs`]
  */
 struct channel_config {
-	u64 dust_limit_satoshis;
-	u64 max_htlc_value_in_flight_msat;
-	u64 channel_reserve_satoshis;
-	u64 htlc_minimum_msat;
-	u16 to_self_delay;
-	u16 max_accepted_htlcs;
+    /* Database ID */
+    u64 id;
+    u64 dust_limit_satoshis;
+    u64 max_htlc_value_in_flight_msat;
+    u64 channel_reserve_satoshis;
+    u64 htlc_minimum_msat;
+    u16 to_self_delay;
+    u16 max_accepted_htlcs;
 };
 
 void towire_channel_config(u8 **pptr, const struct channel_config *config);
 void fromwire_channel_config(const u8 **ptr, size_t *max,
-			     struct channel_config *config);
+                             struct channel_config *config);
 #endif /* LIGHTNING_LIGHTNINGD_CHANNEL_CONFIG_H */
