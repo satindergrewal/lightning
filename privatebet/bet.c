@@ -26,7 +26,8 @@ struct BET_shardsinfo *BET_shardsinfos;
 portable_mutex_t LP_peermutex,LP_commandmutex,LP_networkmutex,LP_psockmutex,LP_messagemutex,BET_shardmutex;
 int32_t LP_canbind,IAMLP,IAMHOST,IAMORACLE;
 struct LP_peerinfo  *LP_peerinfos,*LP_mypeer;
-bits256 Mypubkey,Myprivkey;
+bits256 Mypubkey,Myprivkey,Clientrhash,Hostrhashes[CARDS777_MAXPLAYERS+1];
+char Host_channel[64];
 
 #include "../../SuperNET/iguana/exchanges/LP_network.c"
 #include "../../SuperNET/iguana/exchanges/LP_secp.c"
@@ -43,6 +44,7 @@ void randombytes_buf(void * const buf, const size_t size)
 #include "oracle.c"
 #include "commands.c"
 #include "table.c"
+#include "payment.c"
 #include "client.c"
 #include "host.c"
 #include "states.c"

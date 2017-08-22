@@ -29,6 +29,47 @@ struct privatebet_peerln *BET_peerln_find(char *peerid)
     return(0);
 }
 
+// { "label" : "0", "rhash" : "366a0c6add6c09a47f001ca92dcf2635012663c52d0a1e4bd634e5f876d29a5e", "msatoshi" : 1000000000, "complete" : false }
+struct privatebet_peerln *BET_invoice_complete(char *nextlabel,cJSON *item,struct privatebet_info *bet)
+{
+    char *label,peerstr[67]; cJSON *retjson; uint8_t peerid[33]; struct privatebet_peerln *p = 0; bits256 rhash;
+    rhash = jbits256(item,"rhash");
+    if ( (label= jstr(item,"label")) != 0 )
+    {
+        if ( is_hexstr(label,0) == 66 )
+        {
+            decode_hex(peerid,sizeof(peerid),label);
+            memcpy(peerstr,label,66);
+            peerstr[66] = 0;
+            if ( (p= BET_peerln_find(peerstr)) != 0 )
+            {
+                label += 66;
+                if ( label[0] == '_' )
+                {
+                    ind = atoi(label+1);
+                    if ( ind >= 0 )
+                    {
+                        if ( bits256_cmp(p->hostrhash,rhash) != 0 )
+                            printf("warning rhash mismatch %s != %s\n",bits256_str(str,rhash),bits256_str(str2,p->hostrhash));
+                        else
+                        {
+                            sprintf(nextlabel,"%s_%d",bits256_strind+1);
+                            p->hostrhash = chipsln_rhash_create(bet->chipsize,nextlabel);
+                        }
+                    }
+                }
+                BET_chip_recv(label,bet);
+                if ( (retjson= chipsln_delinvoice(label)) != 0 )
+                {
+                    printf("delinvoice.(%s) -> (%s)\n",label,jprint(retjson,0));
+                    free_json(retjson);
+                }
+            }
+        }
+    }
+    return(p);
+}
+
 struct privatebet_peerln *BET_peerln_create(struct privatebet_rawpeerln *raw,int32_t maxplayers,int32_t maxchips,int32_t chipsize)
 {
     struct privatebet_peerln *p; cJSON *inv; char label[64];
@@ -37,9 +78,9 @@ struct privatebet_peerln *BET_peerln_create(struct privatebet_rawpeerln *raw,int
         p = &Peersln[Num_peersln++];
         p->raw = *raw;
     }
-    if ( IAMHOST != 0 && p != 0 )
+    if ( IAMHOST != 0 && p != 0 )//&& strcmp(Host_peerid,LN_idstr) != 0 )
     {
-        sprintf(label,"%s_%d",LN_idstr,0);
+        sprintf(label,"%s_%d",raw->peerid,0);
         p->hostrhash = chipsln_rhash_create(chipsize,label);
     }
     return(p);
@@ -236,7 +277,7 @@ cJSON *BET_hostrhashes(struct privatebet_info *bet)
 
 int32_t BET_chipsln_update(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-    struct privatebet_rawpeerln raw; cJSON *rawpeers,*channels,*invoices,*array,*item; int32_t i,n,isnew = 0,waspaid = 0,retval = 0;
+    struct privatebet_rawpeerln raw; char nextlabel[512]; struct privatebet_peerln *p; cJSON *rawpeers,*channels,*invoices,*array,*item; int32_t i,n,isnew = 0,waspaid = 0,retval = 0;
     oldNum_rawpeersln = Num_rawpeersln;
     memcpy(oldRawpeersln,Rawpeersln,sizeof(Rawpeersln));
     memset(Rawpeersln,0,sizeof(Rawpeersln));
@@ -262,22 +303,23 @@ int32_t BET_chipsln_update(struct privatebet_info *bet,struct privatebet_vars *v
                     }
                 }
             }
-        }
-        if ( 0 && (channels= chipsln_getchannels()) != 0 )
-        {
             if ( (invoices= chipsln_listinvoice("")) != 0 )
             {
-                // update player info
-                if ( waspaid != 0 )
+                if ( is_cJSON_Array(invoices) != 0 && (n= cJSON_GetArraySize()) > 0 )
                 {
-                    // find player
-                    // raw->hostfee <- first
-                    // raw->tablebet <- sendpays
-                    // broadcast bet amount
+                    for (i=0; i<n; i++)
+                    {
+                        item = jitem(invoices,i);
+                        if ( jobj(item,"complete") != 0 && is_cJSON_True(jobj(item,"complete")) != 0 )
+                        {
+                            if ( (p= BET_invoice_complete(nextlabel,item,bet)) != 0 )
+                            {
+                            }
+                        }
+                    }
                 }
                 free_json(invoices);
             }
-            free_json(channels);
         }
         free_json(rawpeers);
     }

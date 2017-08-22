@@ -13,62 +13,10 @@
  *                                                                            *
  ******************************************************************************/
 
-bits256 Clientrhash,Hostrhashes[CARDS777_MAXPLAYERS+1];
-char Host_channel[64];
-
-bits256 BET_clientrhash()
+int32_t BET_client_onechip(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
 {
-    return(Clientrhash);
-}
-
-void BET_sendpay(bits256 rhash,uint64_t satoshis)
-{
-    cJSON *routejson,*retjson,*array = cJSON_CreateArray();
-    routejson = cJSON_CreateObject();
-    jaddstr(routejson,"id",Host_peerid);
-    jaddstr(routejson,"channel",Host_channel);
-    jaddnum(routejson,"msatoshi",satoshis*1000);
-    jaddnum(routejson,"delay",10);
-    jaddi(array,routejson);
-    // route { "id" : "02779b57b66706778aa1c7308a817dc080295f3c2a6af349bb1114b8be328c28dc", "channel" : "27446:1:0", "msatoshi" : 1000000, "delay" : 10 }
-    // replace rhash in route
-    if ( (retjson= chipsln_sendpay(array,rhash)) != 0 )
-    {
-        printf("sendpay %.8f to %s -> %s\n",dstr(satoshis),jprint(array,0),jprint(retjson,0));
-        free_json(retjson);
-    }
-    free_json(array);
-}
-
-void BET_channels_parse()
-{
-    cJSON *channels,*array,*item; int32_t i,n,len; char *source,*dest,*short_id;
-    if ( (channels= chipsln_getchannels()) != 0 )
-    {
-        printf("got.(%s)\n",jprint(channels,0));
-        if ( (array= jarray(&n,channels,"channels")) != 0 )
-        {
-            for (i=0; i<n; i++)
-            {
-                item = jitem(array,i);
-                source = jstr(item,"source");
-                dest = jstr(item,"destination");
-                short_id = jstr(item,"short_id");
-                printf("source.%s dest.%s myid.%s Host.%s short.%s\n",source,dest,LN_idstr,Host_peerid,short_id);
-                if ( source != 0 && dest != 0 && strcmp(source,LN_idstr) == 0 && strcmp(dest,Host_peerid) == 0 && short_id != 0 )
-                {
-                    len = strlen(short_id);
-                    if ( len > 3 && short_id[len-2] == '/' )
-                    {
-                        strcpy(Host_channel,short_id);
-                        Host_channel[len-2] = 0;
-                        printf("Host_channel.(%s)\n",Host_channel);
-                    }
-                }
-            }
-        }
-        free_json(channels);
-    }
+    printf("client onechop.(%s)\n",jprint(argjson,0));
+    return(0);
 }
 
 int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
@@ -137,27 +85,9 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
                     BET_channels_parse();
                 }
             }
-//{ "channels" :[{ "source" : "02779b57b66706778aa1c7308a817dc080295f3c2a6af349bb1114b8be328c28dc", "destination" : "03b03efcf647e6dd48b949e5b1f7e9e064257a5c48c2d56b1334b283b48338f821", "active" : true, "fee_per_kw" : 10, "last_update" : 1502988553, "flags" : 0, "delay" : 10, "short_id" : "27446:1:0/0" }, { "source" : "03b03efcf647e6dd48b949e5b1f7e9e064257a5c48c2d56b1334b283b48338f821", "destination" : "02779b57b66706778aa1c7308a817dc080295f3c2a6af349bb1114b8be328c28dc", "active" : true, "fee_per_kw" : 10, "last_update" : 1502988553, "flags" : 1, "delay" : 10, "short_id" : "27446:1:0/1" } ] }
         }
     }
-    if ( (array= jarray(&n,argjson,"hostrhash")) != 0 )
-    {
-        for (i=0; i<n; i++)
-            Hostrhashes[i] = jbits256i(array,i);
-        if ( (array= jarray(&n,argjson,"pubkeys")) != 0 && bet->chipsize == jint(argjson,"chipsize") )
-        {
-            for (i=0; i<n; i++)
-            {
-                hash = jbits256i(array,i);
-                if ( bits256_cmp(hash,Mypubkey) == 0 && Host_peerid[0] != 0 && Host_channel[0] != 0 )
-                {
-                    char str[65]; printf("BET_sendpay.[%d] %s\n",i,bits256_str(str,Hostrhashes[i]));
-                    BET_sendpay(Hostrhashes[i],bet->chipsize);
-                    break;
-                }
-            }
-        }
-    }
+    BET_clientpay(bet->chipsize);
     printf("JOIN broadcast.(%s)\n",jprint(argjson,0));
     return(0);
 }
@@ -391,11 +321,15 @@ int32_t BET_clientupdate(cJSON *argjson,uint8_t *ptr,int32_t recvlen,struct priv
     if ( (method= jstr(argjson,"method")) != 0 )
     {
         senderid = BET_senderid(argjson,bet);
-        //printf("BET_clientupdate: pushsock.%d subsock.%d method.%s sender.%d\n",bet->pushsock,bet->subsock,method,senderid);
+        if ( IAMHOST == 0 )
+            BET_hosthash_extract(argjson,bet->chipsize);
+ //printf("BET_clientupdate: pushsock.%d subsock.%d method.%s sender.%d\n",bet->pushsock,bet->subsock,method,senderid);
         if ( strcmp(method,"tablestatus") == 0 )
             return(BET_client_tablestatus(argjson,bet,vars));
         else if ( strcmp(method,"turni") == 0 )
             return(BET_client_turni(argjson,bet,vars,senderid));
+        else if ( strcmp(method,"onechip") == 0 )
+            return(BET_client_onechip(argjson,bet,vars,senderid));
         else if ( strcmp(method,"roundend") == 0 )
             return(BET_client_endround(argjson,bet,vars,senderid));
         else if ( strcmp(method,"start0") == 0 )
@@ -458,6 +392,8 @@ void BET_clientloop(void *_ptr)
                 {
                     if ( BET_clientupdate(msgjson,ptr,recvlen,bet,VARS) < 0 )
                         printf("unknown clientupdate msg.(%s)\n",jprint(msgjson,0));
+                    if ( Num_hostrhashes > 0 )
+                        Bet_clientpay(bet->chipsize);
                     free_json(msgjson);
                 }
                 nn_freemsg(ptr);
