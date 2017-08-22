@@ -314,7 +314,7 @@ void BET_hostloop(void *_ptr)
             {
                 //BETS_players_update(bet,VARS);
             }
-            if ( time(NULL) > lasttime+5 )
+            if ( time(NULL) > lasttime+50 )
             {
                 printf("%s round.%d turni.%d myid.%d\n",bet->game,VARS->round,VARS->turni,bet->     myplayerid);
                 lasttime = (uint32_t)time(NULL);
