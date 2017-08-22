@@ -83,6 +83,7 @@ struct peer {
 	 */
 	u64 htlc_id;
 
+	struct sha256_double chain_hash;
 	struct channel_id channel_id;
 	struct channel *channel;
 
@@ -225,7 +226,8 @@ static void send_channel_update(struct peer *peer, bool disabled)
 	flags = peer->channel_direction | (disabled << 1);
 	/* FIXME: Add configuration option to specify `htlc_minimum_msat` */
 	cupdate = towire_channel_update(
-	    tmpctx, sig, &peer->short_channel_ids[LOCAL], timestamp, flags,
+	    tmpctx, sig, &peer->chain_hash,
+	    &peer->short_channel_ids[LOCAL], timestamp, flags,
 	    peer->cltv_delta, 1, peer->fee_base, peer->fee_per_satoshi);
 
 	msg = towire_hsm_cupdate_sig_req(tmpctx, cupdate);
@@ -266,6 +268,7 @@ static u8 *create_channel_announcement(const tal_t *ctx, struct peer *peer)
 	    &peer->announcement_bitcoin_sigs[first],
 	    &peer->announcement_bitcoin_sigs[second],
 	    features,
+	    &peer->chain_hash,
 	    &peer->short_channel_ids[LOCAL], &peer->node_ids[first],
 	    &peer->node_ids[second], &peer->channel->funding_pubkey[first],
 	    &peer->channel->funding_pubkey[second]);
@@ -1545,7 +1548,7 @@ again:
 	/* BOLT #2:
 	 *
 	 * If `next_remote_revocation_number` is equal to the commitment
-	 * number of the last `revoke_and_ack` the receiving node has sent, it
+	 * number of the last `revoke_and_ack` the receiving node has sent and the receiving node has not already received a `closing_signed`, it
 	 * MUST re-send the `revoke_and_ack`, otherwise if
 	 * `next_remote_revocation_number` is not equal to one greater than
 	 * the commitment number of the last `revoke_and_ack` the receiving
@@ -1614,9 +1617,11 @@ again:
 
 	/* BOLT #2:
 	 *
-	 * On reconnection if the node has sent a previous `shutdown` it MUST
-	 * retransmit it
+	 * On reconnection if the node has sent a previous `closing_signed` it
+	 * MUST send another `closing_signed`, otherwise if the node has sent
+	 * a previous `shutdown` it MUST retransmit it.
 	 */
+	/* If we had sent `closing_signed`, we'd be in closingd. */
 	maybe_send_shutdown(peer);
 
 	/* Corner case: we didn't send shutdown before because update_add_htlc
@@ -1999,6 +2004,7 @@ static void init_channel(struct peer *peer)
 
 	msg = wire_sync_read(peer, REQ_FD);
 	if (!fromwire_channel_init(peer, msg, NULL,
+				   &peer->chain_hash,
 				   &funding_txid, &funding_txout,
 				   &funding_satoshi,
 				   &peer->conf[LOCAL], &peer->conf[REMOTE],

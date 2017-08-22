@@ -37,10 +37,11 @@ In order to start `lightningd` you will need to have a local `chipsd` node runni
 chipsd -daemon
 ```
 
+
 Once `chipsd` has synchronized with the network, you can start `lightningd` with the following command:
 
 ```
-lightningd/lightningd --log-level=debug
+lightningd/lightningd --network=testnet --log-level=debug
 ```
 
 ### Opening a channel on the Bitcoin testnet
