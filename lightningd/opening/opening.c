@@ -207,9 +207,8 @@ static u8 *funder_channel(struct state *state,
 			  u64 change_satoshis, u32 change_keyindex,
 			  u8 channel_flags,
 			  const struct utxo *utxos,
-			  const u8 *bip32_seed)
+			  const struct ext_key *bip32_base)
 {
-	const tal_t *tmpctx = tal_tmpctx(state);
 	struct channel_id channel_id, id_in;
 	u8 *msg;
 	struct bitcoin_tx **txs;
@@ -219,13 +218,7 @@ static u8 *funder_channel(struct state *state,
 	u32 minimum_depth;
 	const u8 **wscripts;
 	struct bitcoin_tx *funding;
-	struct ext_key bip32_base;
 	const struct utxo **utxomap;
-
-	if (bip32_key_unserialize(bip32_seed, tal_len(bip32_seed), &bip32_base)
-	    != WALLY_OK)
-		status_failed(WIRE_OPENING_BAD_PARAM,
-			      "Bad BIP32 key %s", tal_hex(trc, bip32_seed));
 
 	set_reserve(&state->localconf.channel_reserve_satoshis,
 		    state->funding_satoshis);
@@ -249,7 +242,7 @@ static u8 *funder_channel(struct state *state,
 			      "push-msat must be < %"PRIu64,
 			      1000 * state->funding_satoshis);
 
-	msg = towire_open_channel(tmpctx,
+	msg = towire_open_channel(state,
 				  &state->chainparams->genesis_blockhash.sha,
 				  &channel_id,
 				  state->funding_satoshis, state->push_msat,
@@ -272,7 +265,7 @@ static u8 *funder_channel(struct state *state,
 
 	state->remoteconf = tal(state, struct channel_config);
 
-	msg = read_next_peer_msg(state, tmpctx);
+	msg = read_next_peer_msg(state, state);
 	if (!msg)
 		peer_failed(PEER_FD, &state->cs, NULL, WIRE_OPENING_PEER_READ_FAILED,
 			      "Reading accept_channel");
@@ -328,7 +321,7 @@ static u8 *funder_channel(struct state *state,
 
 	/* Now, ask create funding transaction to pay those two addresses. */
 	if (change_satoshis) {
-		if (!bip32_pubkey(&bip32_base, &changekey, change_keyindex))
+		if (!bip32_pubkey(bip32_base, &changekey, change_keyindex))
 			status_failed(WIRE_OPENING_BAD_PARAM,
 				      "Bad change key %u", change_keyindex);
 	}
@@ -339,7 +332,7 @@ static u8 *funder_channel(struct state *state,
 			     our_funding_pubkey,
 			     &their_funding_pubkey,
 			     change_satoshis, &changekey,
-			     &bip32_base);
+			     bip32_base);
 	bitcoin_txid(funding, &state->funding_txid);
 
 	state->channel = new_channel(state,
@@ -367,7 +360,7 @@ static u8 *funder_channel(struct state *state,
 	 * for the initial commitment transactions.  After receiving the
 	 * peer's signature, it will broadcast the funding transaction.
 	 */
-	txs = channel_txs(tmpctx, NULL, &wscripts, state->channel,
+	txs = channel_txs(state, NULL, &wscripts, state->channel,
 			  &state->next_per_commit[REMOTE], 0, REMOTE);
 
 	sign_tx_input(txs[0], 0, NULL, wscripts[0],
@@ -378,7 +371,7 @@ static u8 *funder_channel(struct state *state,
 		     type_to_string(trc, struct bitcoin_tx, txs[0]),
 		     type_to_string(trc, struct pubkey, our_funding_pubkey));
 
-	msg = towire_funding_created(tmpctx, &channel_id,
+	msg = towire_funding_created(state, &channel_id,
 				     &state->funding_txid.sha,
 				     state->funding_txout,
 				     &sig);
@@ -394,7 +387,7 @@ static u8 *funder_channel(struct state *state,
 	 * commitment transaction, so they can broadcast it knowing they can
 	 * redeem their funds if they need to.
 	 */
-	msg = read_next_peer_msg(state, tmpctx);
+	msg = read_next_peer_msg(state, state);
 	if (!msg)
 		peer_failed(PEER_FD, &state->cs, NULL, WIRE_OPENING_PEER_READ_FAILED,
 			      "Reading funding_signed");
@@ -425,7 +418,7 @@ static u8 *funder_channel(struct state *state,
 	 *
 	 * The recipient MUST fail the channel if `signature` is incorrect.
 	 */
-	txs = channel_txs(tmpctx, NULL, &wscripts, state->channel,
+	txs = channel_txs(state, NULL, &wscripts, state->channel,
 			  &state->next_per_commit[LOCAL], 0, LOCAL);
 
 	if (!check_tx_sig(txs[0], 0, NULL, wscripts[0], &their_funding_pubkey,
@@ -439,8 +432,6 @@ static u8 *funder_channel(struct state *state,
 					     &their_funding_pubkey));
 	}
 
-	tal_free(tmpctx);
-
 	/* BOLT #2:
 	 *
 	 * Once the channel funder receives the `funding_signed` message, they
@@ -448,6 +439,7 @@ static u8 *funder_channel(struct state *state,
 	 */
 	return towire_opening_funder_reply(state,
 					   state->remoteconf,
+					   txs[0],
 					   &sig,
 					   &state->cs,
 					   &theirs.revocation,
@@ -665,6 +657,7 @@ static u8 *fundee_channel(struct state *state,
 
 	return towire_opening_fundee_reply(state,
 					   state->remoteconf,
+					   txs[0],
 					   &theirsig,
 					   &state->cs,
 					   &theirs.revocation,
@@ -695,7 +688,7 @@ int main(int argc, char *argv[])
 	u32 change_keyindex;
 	u8 channel_flags;
 	struct utxo *utxos;
-	u8 *bip32_seed;
+	struct ext_key bip32_base;
 	u32 network_index;
 
 	if (argc == 2 && streq(argv[1], "--version")) {
@@ -751,11 +744,11 @@ int main(int argc, char *argv[])
 				    &state->push_msat,
 				    &state->feerate_per_kw, &max_minimum_depth,
 				    &change_satoshis, &change_keyindex,
-				    &channel_flags, &utxos, &bip32_seed))
+				    &channel_flags, &utxos, &bip32_base))
 		msg = funder_channel(state, &our_funding_pubkey, &our_points,
 				     max_minimum_depth, change_satoshis,
 				     change_keyindex, channel_flags,
-				     utxos, bip32_seed);
+				     utxos, &bip32_base);
 	else if (fromwire_opening_fundee(state, msg, NULL, &minimum_depth,
 					 &min_feerate, &max_feerate, &peer_msg))
 		msg = fundee_channel(state, &our_funding_pubkey, &our_points,

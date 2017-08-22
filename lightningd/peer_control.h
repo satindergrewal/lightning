@@ -75,6 +75,11 @@ struct peer {
 	/* Amount going to us, not counting unfinished HTLCs; if we have one. */
 	u64 *our_msatoshi;
 
+	/* Last tx they gave us (if any). */
+	struct bitcoin_tx *last_tx;
+	secp256k1_ecdsa_signature *last_sig;
+	secp256k1_ecdsa_signature *last_htlc_sigs;
+
 	/* Keys for channel. */
 	struct channel_info *channel_info;
 
@@ -86,13 +91,12 @@ struct peer {
 	/* Our key for shutdown (-1 if not chosen yet) */
 	s64 local_shutdown_idx;
 
-	/* Closing stuff. */
-	u64 closing_fee_received;
-	secp256k1_ecdsa_signature *closing_sig_received;
-
 	/* Reestablishment stuff: last sent commit and revocation details. */
 	bool last_was_revoke;
 	struct changed_htlc *last_sent_commit;
+
+	/* FIXME: Just leave this in the db. */
+	struct htlc_stub *htlcs;
 };
 
 static inline bool peer_can_add_htlc(const struct peer *peer)
@@ -136,6 +140,9 @@ struct peer *peer_by_id(struct lightningd *ld, const struct pubkey *id);
 struct peer *peer_from_json(struct lightningd *ld,
 			    const char *buffer,
 			    jsmntok_t *peeridtok);
+
+void peer_last_tx(struct peer *peer, struct bitcoin_tx *tx,
+		  const secp256k1_ecdsa_signature *sig);
 
 void peer_fundee_open(struct peer *peer, const u8 *msg,
 		      const struct crypto_state *cs,

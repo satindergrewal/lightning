@@ -3,7 +3,6 @@
 #include "subd.h"
 #include <bitcoin/script.h>
 #include <bitcoin/tx.h>
-#include <ccan/crypto/ripemd160/ripemd160.h>
 #include <ccan/fdpass/fdpass.h>
 #include <ccan/io/io.h>
 #include <ccan/noerr/noerr.h>
@@ -23,6 +22,7 @@
 #include <lightningd/channel/gen_channel_wire.h>
 #include <lightningd/closing/gen_closing_wire.h>
 #include <lightningd/commit_tx.h>
+#include <lightningd/dev_disconnect.h>
 #include <lightningd/funding_tx.h>
 #include <lightningd/gen_peer_state_names.h>
 #include <lightningd/gossip/gen_gossip_wire.h>
@@ -30,6 +30,7 @@
 #include <lightningd/hsm_control.h>
 #include <lightningd/key_derive.h>
 #include <lightningd/new_connection.h>
+#include <lightningd/onchain/onchain_wire.h>
 #include <lightningd/opening/gen_opening_wire.h>
 #include <lightningd/peer_htlcs.h>
 #include <lightningd/status.h>
@@ -48,6 +49,17 @@ static void destroy_peer(struct peer *peer)
 	list_del_from(&peer->ld->peers, &peer->list);
 }
 
+/* FIXME: Remove this with legacy daemon! */
+void peer_debug(struct peer *peer, const char *fmt, ...);
+void peer_debug(struct peer *peer, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	logv(peer->log, LOG_DBG, fmt, ap);
+	va_end(ap);
+}
+
 /* Mutual recursion, sets timer. */
 static void peer_reconnect(struct peer *peer);
 
@@ -58,6 +70,8 @@ static void reconnect_failed(struct lightningd_state *dstate,
 	struct lightningd *ld = ld_from_dstate(dstate);
 	struct peer *peer = peer_by_id(ld, connection_known_id(c));
 
+	log_debug(peer->log, "reconnect_failed");
+
 	tal_free(c);
 	peer_reconnect(peer);
 }
@@ -66,6 +80,8 @@ static void try_reconnect(struct peer *peer)
 {
 	struct connection *c;
 	struct netaddr *addrs;
+
+	log_debug(peer->log, "try_reconnect: trying to reconnect");
 
 	/* We may already be reconnected (another incoming connection) */
 	if (peer->owner) {
@@ -92,7 +108,38 @@ static void peer_reconnect(struct peer *peer)
 
 static void drop_to_chain(struct peer *peer)
 {
-	/* FIXME: Implement. */
+	const tal_t *tmpctx = tal_tmpctx(peer);
+	u8 *funding_wscript;
+	struct pubkey local_funding_pubkey;
+	struct secrets secrets;
+	secp256k1_ecdsa_signature sig;
+
+	derive_basepoints(peer->seed, &local_funding_pubkey, NULL, &secrets,
+			  NULL);
+
+	funding_wscript = bitcoin_redeem_2of2(tmpctx,
+					      &local_funding_pubkey,
+					      &peer->channel_info->remote_fundingkey);
+	/* Need input amount for signing */
+	peer->last_tx->input[0].amount = tal_dup(peer->last_tx->input, u64,
+						 &peer->funding_satoshi);
+	sign_tx_input(peer->last_tx, 0, NULL, funding_wscript,
+		      &secrets.funding_privkey,
+		      &local_funding_pubkey,
+		      &sig);
+
+	peer->last_tx->input[0].witness
+		= bitcoin_witness_2of2(peer->last_tx->input,
+				       peer->last_sig,
+				       &sig,
+				       &peer->channel_info->remote_fundingkey,
+				       &local_funding_pubkey);
+
+	/* Keep broadcasting until we say stop (can fail due to dup,
+	 * if they beat us to the broadcast). */
+	broadcast_tx(peer->ld->topology, peer, peer->last_tx, NULL);
+
+	tal_free(tmpctx);
 }
 
 void peer_fail_permanent(struct peer *peer, const u8 *msg)
@@ -108,7 +155,7 @@ void peer_fail_permanent(struct peer *peer, const u8 *msg)
 		    peer_state_name(peer->state),
 		    (int)tal_len(msg), (char *)msg);
 	peer->error = towire_error(peer, &all_channels, msg);
-	peer->owner = NULL;
+	peer->owner = tal_free(peer->owner);
 	if (taken(msg))
 		tal_free(msg);
 
@@ -117,6 +164,15 @@ void peer_fail_permanent(struct peer *peer, const u8 *msg)
 	else
 		tal_free(peer);
 	return;
+}
+
+static void peer_fail_permanent_str(struct peer *peer, const char *str TAKES)
+{
+	/* Don't use tal_strdup, since we need tal_len */
+	u8 *msg = tal_dup_arr(peer, u8, (const u8 *)str, strlen(str) + 1, 0);
+	if (taken(str))
+		tal_free(str);
+	peer_fail_permanent(peer, take(msg));
 }
 
 void peer_internal_error(struct peer *peer, const char *fmt, ...)
@@ -129,8 +185,7 @@ void peer_internal_error(struct peer *peer, const char *fmt, ...)
 	logv_add(peer->log, fmt, ap);
 	va_end(ap);
 
-	peer_fail_permanent(peer,
-			    take((u8 *)tal_strdup(peer, "Internal error")));
+	peer_fail_permanent_str(peer, "Internal error");
 }
 
 void peer_fail_transient(struct peer *peer, const char *fmt, ...)
@@ -142,6 +197,11 @@ void peer_fail_transient(struct peer *peer, const char *fmt, ...)
 		 peer_state_name(peer->state));
 	logv_add(peer->log, fmt, ap);
 	va_end(ap);
+
+	if (dev_disconnect_permanent(peer->ld)) {
+		peer_internal_error(peer, "dev_disconnect permfail");
+		return;
+	}
 
 	peer->owner = NULL;
 
@@ -188,6 +248,7 @@ static void peer_start_closingd(struct peer *peer,
 static struct io_plan *send_error(struct io_conn *conn,
 				  struct peer_crypto_state *pcs)
 {
+	log_debug(pcs->peer->log, "Sending canned error");
 	return peer_write_message(conn, pcs, pcs->peer->error, (void *)io_close_cb);
 }
 
@@ -470,6 +531,9 @@ void add_peer(struct lightningd *ld, u64 unique_id,
 	peer->our_msatoshi = NULL;
 	peer->state = UNINITIALIZED;
 	peer->channel_info = NULL;
+	peer->last_tx = NULL;
+	peer->last_sig = NULL;
+	peer->last_htlc_sigs = NULL;
 	peer->last_was_revoke = false;
 	peer->last_sent_commit = NULL;
 	peer->remote_shutdown_scriptpubkey = NULL;
@@ -478,8 +542,13 @@ void add_peer(struct lightningd *ld, u64 unique_id,
 		= peer->next_index[REMOTE]
 		= peer->num_revocations_received = 0;
 	peer->next_htlc_id = 0;
-	shachain_init(&peer->their_shachain);
-	peer->closing_sig_received = NULL;
+//<<<<<<< HEAD
+//	shachain_init(&peer->their_shachain);
+//	peer->closing_sig_received = NULL;
+//=======
+	peer->htlcs = tal_arr(peer, struct htlc_stub, 0);
+	wallet_shachain_init(ld->wallet, &peer->their_shachain);
+//>>>>>>> ElementsProject/master
 
 	idname = type_to_string(peer, struct pubkey, id);
 
@@ -706,6 +775,38 @@ static const struct json_command connect_command = {
 };
 AUTODATA(json_command, &connect_command);
 
+static void json_dev_fail(struct command *cmd,
+			  const char *buffer, const jsmntok_t *params)
+{
+	struct lightningd *ld = ld_from_dstate(cmd->dstate);
+	jsmntok_t *peertok;
+	struct peer *peer;
+
+	if (!json_get_params(buffer, params,
+			     "id", &peertok,
+			     NULL)) {
+		command_fail(cmd, "Need id");
+		return;
+	}
+
+	peer = peer_from_json(ld, buffer, peertok);
+	if (!peer) {
+		command_fail(cmd, "Could not find peer with that id");
+		return;
+	}
+
+	peer_internal_error(peer, "Failing due to dev-fail command");
+	command_success(cmd, null_response(cmd));
+}
+
+static const struct json_command dev_fail_command = {
+	"dev-fail",
+	json_dev_fail,
+	"Fail with peer {id}",
+	"Returns {} on success"
+};
+AUTODATA(json_command, &dev_fail_command);
+
 struct log_info {
 	enum log_level level;
 	struct json_result *response;
@@ -828,15 +929,13 @@ static void fail_fundchannel_command(struct funding_channel *fc)
 static void funding_broadcast_failed(struct peer *peer,
 				     int exitstatus, const char *err)
 {
-	log_unusual(peer->log, "Funding broadcast exited with %i: %s",
-		    exitstatus, err);
-	/* FIXME: send PKT_ERR to peer if this happens. */
-	tal_free(peer);
+	peer_internal_error(peer, "Funding broadcast exited with %i: %s",
+			    exitstatus, err);
 }
 
 static enum watch_result funding_announce_cb(struct peer *peer,
+					     const struct bitcoin_tx *tx,
 					     unsigned int depth,
-					     const struct sha256_double *txid,
 					     void *unused)
 {
 	if (depth < ANNOUNCE_MIN_DEPTH) {
@@ -855,14 +954,17 @@ static enum watch_result funding_announce_cb(struct peer *peer,
 }
 
 static enum watch_result funding_lockin_cb(struct peer *peer,
+					   const struct bitcoin_tx *tx,
 					   unsigned int depth,
-					   const struct sha256_double *txid,
 					   void *unused)
 {
-	const char *txidstr = type_to_string(peer, struct sha256_double, txid);
+	struct sha256_double txid;
+	const char *txidstr;
 	struct txlocator *loc;
 	bool peer_ready;
 
+	bitcoin_txid(tx, &txid);
+	txidstr = type_to_string(peer, struct sha256_double, &txid);
 	log_debug(peer->log, "Funding tx %s depth %u of %u",
 		  txidstr, depth, peer->minimum_depth);
 	tal_free(txidstr);
@@ -870,7 +972,7 @@ static enum watch_result funding_lockin_cb(struct peer *peer,
 	if (depth < peer->minimum_depth)
 		return KEEP_WATCHING;
 
-	loc = locate_tx(peer, peer->ld->topology, txid);
+	loc = locate_tx(peer, peer->ld->topology, &txid);
 
 	peer->scid = tal(peer, struct short_channel_id);
 	peer->scid->blocknum = loc->blkheight;
@@ -912,7 +1014,7 @@ static enum watch_result funding_lockin_cb(struct peer *peer,
 			      take(towire_channel_funding_announce_depth(peer)));
 	} else {
 		/* Worst case, we'll send next block. */
-		watch_txid(peer, peer->ld->topology, peer, txid,
+		watch_txid(peer, peer->ld->topology, peer, &txid,
 			   funding_announce_cb, NULL);
 	}
 	return DELETE_WATCH;
@@ -1092,9 +1194,9 @@ static int peer_got_shutdown(struct peer *peer, const u8 *msg)
 	 * is not one of those forms. */
 	if (!is_p2pkh(scriptpubkey) && !is_p2sh(scriptpubkey)
 	    && !is_p2wpkh(scriptpubkey) && !is_p2wsh(scriptpubkey)) {
-		u8 *msg = (u8 *)tal_fmt(peer, "Bad shutdown scriptpubkey %s",
-					tal_hex(peer, scriptpubkey));
-		peer_fail_permanent(peer, take(msg));
+		char *str = tal_fmt(peer, "Bad shutdown scriptpubkey %s",
+				    tal_hex(peer, scriptpubkey));
+		peer_fail_permanent_str(peer, take(str));
 		return -1;
 	}
 
@@ -1150,8 +1252,10 @@ static int channeld_got_bad_message(struct peer *peer, const u8 *msg)
 	/* Don't try to fail this (again!) when owner dies. */
 	peer->owner = NULL;
 	if (!fromwire_channel_peer_bad_message(peer, NULL, NULL, &err))
-		err = (u8 *)tal_strdup(peer, "Internal error after bad message");
-	peer_fail_permanent(peer, take(err));
+		peer_fail_permanent_str(peer,
+					"Internal error after bad message");
+	else
+		peer_fail_permanent(peer, take(err));
 
 	/* Kill daemon (though it's dying anyway) */
 	return -1;
@@ -1164,8 +1268,10 @@ static int closingd_got_bad_message(struct peer *peer, const u8 *msg)
 	/* Don't try to fail this (again!) when owner dies. */
 	peer->owner = NULL;
 	if (!fromwire_closing_peer_bad_message(peer, NULL, NULL, &err))
-		err = (u8 *)tal_strdup(peer, "Internal error after bad message");
-	peer_fail_permanent(peer, take(err));
+		peer_fail_permanent_str(peer,
+					"Internal error after bad message");
+	else
+		peer_fail_permanent(peer, take(err));
 
 	/* Kill daemon (though it's dying anyway) */
 	return -1;
@@ -1185,39 +1291,57 @@ static int closingd_got_negotiation_error(struct peer *peer, const u8 *msg)
 	return -1;
 }
 
-static bool better_closing_fee(struct peer *peer, u64 fee_satoshi)
+void peer_last_tx(struct peer *peer, struct bitcoin_tx *tx,
+		  const secp256k1_ecdsa_signature *sig)
 {
-	/* FIXME: Use estimatefee 24 or something? */
-	u64 min_feerate = get_feerate(peer->ld->topology) / 2;
-	/* FIXME: Real fee, using real tx, and estimatefee 6 */
-	u64 ideal_fee = commit_tx_base_fee(get_feerate(peer->ld->topology), 0);
-	s64 old_diff, new_diff;
+	/* FIXME: save to db. */
 
-	/* FIXME: Use real tx here! (+ 74 for sig). */
-	if (fee_satoshi < commit_tx_base_fee(min_feerate, 0))
+	tal_free(peer->last_sig);
+	peer->last_sig = tal_dup(peer, secp256k1_ecdsa_signature, sig);
+	tal_free(peer->last_tx);
+	peer->last_tx = tal_steal(peer, tx);
+}
+
+/* Is this better than the last tx we were holding? */
+static bool better_closing_fee(struct peer *peer, const struct bitcoin_tx *tx)
+{
+	u64 weight, fee, last_fee, ideal_fee, min_fee;
+	s64 old_diff, new_diff;
+	size_t i;
+
+	/* Calculate actual fee. */
+	fee = peer->funding_satoshi;
+	for (i = 0; i < tal_count(tx->output); i++)
+		fee -= tx->output[i].amount;
+
+	last_fee = peer->funding_satoshi;
+	for (i = 0; i < tal_count(peer->last_tx); i++)
+		last_fee -= peer->last_tx->output[i].amount;
+
+	/* Weight once we add in sigs. */
+	weight = measure_tx_cost(tx) + 74 * 2;
+
+	/* FIXME: Use estimatefee 24 or something? */
+	min_fee = get_feerate(peer->ld->topology) / 5 * weight / 1000;
+	if (fee < min_fee)
 		return false;
 
-	/* FIXME: Derive old fee from last tx, which would work even
-	 * for the case where we're using the final commitment tx. */
-	if (!peer->closing_sig_received)
-		return true;
-
-	/* FIXME: Real fee, using real tx, and estimatefee 6 */
+	/* FIXME: Use estimatefee 6 */
+	ideal_fee = get_feerate(peer->ld->topology) / 2 * weight / 1000;
 
 	/* We prefer fee which is closest to our ideal. */
-	old_diff = imaxabs((s64)ideal_fee - (s64)peer->closing_fee_received);
-	new_diff = imaxabs((s64)ideal_fee - (s64)fee_satoshi);
+	old_diff = imaxabs((s64)ideal_fee - (s64)last_fee);
+	new_diff = imaxabs((s64)ideal_fee - (s64)fee);
 
 	return (new_diff < old_diff);
 }
 
 static int peer_received_closing_signature(struct peer *peer, const u8 *msg)
 {
-	u64 fee_satoshi;
 	secp256k1_ecdsa_signature sig;
+	struct bitcoin_tx *tx = tal(msg, struct bitcoin_tx);
 
-	if (!fromwire_closing_received_signature(msg, NULL,
-						 &fee_satoshi, &sig)) {
+	if (!fromwire_closing_received_signature(msg, NULL, &sig, tx)) {
 		peer_internal_error(peer, "Bad closing_received_signature %s",
 				    tal_hex(peer, msg));
 		return -1;
@@ -1225,14 +1349,8 @@ static int peer_received_closing_signature(struct peer *peer, const u8 *msg)
 
 	/* FIXME: Make sure signature is correct! */
 
-	if (better_closing_fee(peer, fee_satoshi)) {
-		/* FIXME: save to db. */
-
-		peer->closing_fee_received = fee_satoshi;
-		tal_free(peer->closing_sig_received);
-		peer->closing_sig_received
-			= tal_dup(peer, secp256k1_ecdsa_signature, &sig);
-	}
+	if (better_closing_fee(peer, tx))
+		peer_last_tx(peer, tx, &sig);
 
 	/* OK, you can continue now. */
 	subd_send_msg(peer->owner,
@@ -1242,13 +1360,6 @@ static int peer_received_closing_signature(struct peer *peer, const u8 *msg)
 
 static int peer_closing_complete(struct peer *peer, const u8 *msg)
 {
-	struct bitcoin_tx *tx;
-	u8 *local_scriptpubkey, *funding_wscript;
-	u64 out_amounts[NUM_SIDES];
-	struct pubkey local_funding_pubkey;
-	struct secrets secrets;
-	secp256k1_ecdsa_signature sig;
-
 	if (!fromwire_closing_complete(msg, NULL)) {
 		peer_internal_error(peer, "Bad closing_complete %s",
 				    tal_hex(peer, msg));
@@ -1259,60 +1370,7 @@ static int peer_closing_complete(struct peer *peer, const u8 *msg)
 	if (peer->state == CLOSINGD_COMPLETE)
 		return -1;
 
-	if (!peer->closing_sig_received) {
-		peer_internal_error(peer,
-				    "closing_complete without sending sig!");
-		return -1;
-	}
-
-	local_scriptpubkey = p2wpkh_for_keyidx(msg, peer->ld,
-					       peer->local_shutdown_idx);
-	if (!local_scriptpubkey) {
-		peer_internal_error(peer,
-				   "Can't generate local shutdown scriptpubkey");
-		return -1;
-	}
-
-	/* BOLT #3:
-	 *
-	 * The amounts for each output MUST BE rounded down to whole satoshis.
-	 */
-	out_amounts[LOCAL] = *peer->our_msatoshi / 1000;
-	out_amounts[REMOTE] = peer->funding_satoshi
-		- (*peer->our_msatoshi / 1000);
-	out_amounts[peer->funder] -= peer->closing_fee_received;
-
-	derive_basepoints(peer->seed, &local_funding_pubkey, NULL, &secrets,
-			  NULL);
-
-	tx = create_close_tx(msg, local_scriptpubkey,
-			     peer->remote_shutdown_scriptpubkey,
-			     peer->funding_txid,
-			     peer->funding_outnum,
-			     peer->funding_satoshi,
-			     out_amounts[LOCAL],
-			     out_amounts[REMOTE],
-			     peer->our_config.dust_limit_satoshis);
-
-	funding_wscript = bitcoin_redeem_2of2(msg,
-					      &local_funding_pubkey,
-					      &peer->channel_info->remote_fundingkey);
-	sign_tx_input(tx, 0, NULL, funding_wscript,
-		      &secrets.funding_privkey,
-		      &local_funding_pubkey,
-		      &sig);
-
-	tx->input[0].witness
-		= bitcoin_witness_2of2(tx->input,
-				       peer->closing_sig_received,
-				       &sig,
-				       &peer->channel_info->remote_fundingkey,
-				       &local_funding_pubkey);
-
-	/* Keep broadcasting until we say stop (can fail due to dup,
-	 * if they beat us to the broadcast). */
-	broadcast_tx(peer->ld->topology, peer, tx, NULL);
-
+	drop_to_chain(peer);
 	peer_set_condition(peer, CLOSINGD_SIGEXCHANGE, CLOSINGD_COMPLETE);
 	return -1;
 }
@@ -1596,7 +1654,7 @@ static bool peer_start_channeld(struct peer *peer,
 				      &peer->our_config,
 				      &peer->channel_info->their_config,
 				      peer->channel_info->feerate_per_kw,
-				      &peer->channel_info->commit_sig,
+				      peer->last_sig,
 				      cs,
 				      &peer->channel_info->remote_fundingkey,
 				      &peer->channel_info->theirbase.revocation,
@@ -1657,16 +1715,20 @@ static bool opening_funder_finished(struct subd *opening, const u8 *resp,
 	struct pubkey changekey;
 	struct pubkey local_fundingkey;
 	struct crypto_state cs;
+	secp256k1_ecdsa_signature remote_commit_sig;
+	struct bitcoin_tx *remote_commit;
 
 	assert(tal_count(fds) == 2);
 
 	/* At this point, we care about peer */
 	fc->peer->channel_info = channel_info
 		= tal(fc->peer, struct channel_info);
+	remote_commit = tal(resp, struct bitcoin_tx);
 
 	if (!fromwire_opening_funder_reply(resp, NULL,
 					   &channel_info->their_config,
-					   &channel_info->commit_sig,
+					   remote_commit,
+					   &remote_commit_sig,
 					   &cs,
 					   &channel_info->theirbase.revocation,
 					   &channel_info->theirbase.payment,
@@ -1676,14 +1738,16 @@ static bool opening_funder_finished(struct subd *opening, const u8 *resp,
 					   &channel_info->remote_fundingkey,
 					   &funding_txid,
 					   &channel_info->feerate_per_kw)) {
-		log_broken(fc->peer->log, "bad OPENING_FUNDER_REPLY %s",
-			   tal_hex(resp, resp));
-		tal_free(fc->peer);
+		peer_internal_error(fc->peer, "bad shutdown_complete: %s",
+				    tal_hex(resp, resp));
 		return false;
 	}
 
 	/* old_remote_per_commit not valid yet, copy valid one. */
 	channel_info->old_remote_per_commit = channel_info->remote_per_commit;
+
+	/* Now, keep the initial commit as our last-tx-to-broadast. */
+	peer_last_tx(fc->peer, remote_commit, &remote_commit_sig);
 
 	/* Generate the funding tx. */
 	if (fc->change
@@ -1753,16 +1817,21 @@ static bool opening_fundee_finished(struct subd *opening,
 	u8 *funding_signed;
 	struct channel_info *channel_info;
 	struct crypto_state cs;
+	secp256k1_ecdsa_signature remote_commit_sig;
+	struct bitcoin_tx *remote_commit;
 
 	log_debug(peer->log, "Got opening_fundee_finish_response");
 	assert(tal_count(fds) == 2);
+
+	remote_commit = tal(reply, struct bitcoin_tx);
 
 	/* At this point, we care about peer */
 	peer->channel_info = channel_info = tal(peer, struct channel_info);
 	peer->funding_txid = tal(peer, struct sha256_double);
 	if (!fromwire_opening_fundee_reply(peer, reply, NULL,
 					   &channel_info->their_config,
-					   &channel_info->commit_sig,
+					   remote_commit,
+					   &remote_commit_sig,
 					   &cs,
 					   &channel_info->theirbase.revocation,
 					   &channel_info->theirbase.payment,
@@ -1782,6 +1851,9 @@ static bool opening_fundee_finished(struct subd *opening,
 	}
 	/* old_remote_per_commit not valid yet, copy valid one. */
 	channel_info->old_remote_per_commit = channel_info->remote_per_commit;
+
+	/* Now, keep the initial commit as our last-tx-to-broadast. */
+	peer_last_tx(peer, remote_commit, &remote_commit_sig);
 
 	if (!peer_commit_initial(peer))
 		return false;
@@ -1864,7 +1936,7 @@ void peer_fundee_open(struct peer *peer, const u8 *from_peer,
 				    wire_type_name(fromwire_peektype(from_peer)));
 		log_unusual(peer->log, "Strange message to exit gossip: %u",
 			    fromwire_peektype(from_peer));
-		peer_fail_permanent(peer, (u8 *)take(msg));
+		peer_fail_permanent_str(peer, take(msg));
 		return;
 	}
 
@@ -1910,8 +1982,7 @@ void peer_fundee_open(struct peer *peer, const u8 *from_peer,
 
 	/* Careful here!  Their message could push us overlength! */
 	if (tal_len(msg) >= 65536) {
-		char *err = tal_strdup(peer, "Unacceptably long open_channel");
-		peer_fail_permanent(peer, (u8 *)take(err));
+		peer_fail_permanent_str(peer, "Unacceptably long open_channel");
 		return;
 	}
 	subd_req(peer, peer->owner, take(msg), -1, 2,
@@ -1930,7 +2001,6 @@ static bool gossip_peer_released(struct subd *gossip,
 	u8 *msg;
 	struct subd *opening;
 	struct utxo *utxos;
-	u8 *bip32_base;
 	struct crypto_state cs;
 
 	if (!fromwire_gossipctl_release_peer_reply(resp, NULL, &cs)) {
@@ -1977,11 +2047,6 @@ static bool gossip_peer_released(struct subd *gossip,
 	subd_send_msg(opening, take(msg));
 
 	utxos = from_utxoptr_arr(fc, fc->utxomap);
-	bip32_base = tal_arr(fc, u8, BIP32_SERIALIZED_LEN);
-	if (bip32_key_serialize(fc->peer->ld->bip32_base, BIP32_FLAG_KEY_PUBLIC,
-				bip32_base, tal_len(bip32_base))
-	    != WALLY_OK)
-		fatal("Can't serialize bip32 public key");
 
 	/* FIXME: Real feerate! */
 	msg = towire_opening_funder(fc, fc->peer->funding_satoshi,
@@ -1989,7 +2054,7 @@ static bool gossip_peer_released(struct subd *gossip,
 				    15000, max_minimum_depth,
 				    fc->change, fc->change_keyindex,
 				    fc->peer->channel_flags,
-				    utxos, bip32_base);
+				    utxos, fc->peer->ld->bip32_base);
 	subd_req(fc, opening, take(msg), -1, 2, opening_funder_finished, fc);
 	return true;
 }

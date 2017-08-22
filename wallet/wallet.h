@@ -112,4 +112,57 @@ bool wallet_can_spend(struct wallet *w, const u8 *script,u32 *index, bool *outpu
  */
 s64 wallet_get_newindex(struct lightningd *ld);
 
+/**
+ * wallet_shachain_init -- wallet wrapper around shachain_init
+ */
+bool wallet_shachain_init(struct wallet *wallet, struct wallet_shachain *chain);
+
+/**
+ * wallet_shachain_add_hash -- wallet wrapper around shachain_add_hash
+ */
+bool wallet_shachain_add_hash(struct wallet *wallet,
+			      struct wallet_shachain *chain,
+			      uint64_t index,
+			      const struct sha256 *hash);
+
+/* Simply passes through to shachain_get_hash since it doesn't touch
+ * the DB */
+static inline bool wallet_shachain_get_hash(struct wallet *w,
+					    struct wallet_shachain *chain,
+					    u64 index, struct sha256 *hash)
+{
+	return shachain_get_hash(&chain->chain, index, hash);
+}
+/**
+ * wallet_shachain_load -- Load an existing shachain from the wallet.
+ *
+ * @wallet: the wallet to load from
+ * @id: the shachain id to load
+ * @chain: where to load the shachain into
+ */
+bool wallet_shachain_load(struct wallet *wallet, u64 id,
+			  struct wallet_shachain *chain);
+
+bool wallet_channel_load(struct wallet *w, const u64 id,
+			 struct wallet_channel *chan);
+
+/**
+ * wallet_channel_save -- Upsert the channel into the database
+ *
+ * @wallet: the wallet to save into
+ * @chan: the instance to store (not const so we can update the unique_id upon
+ *   insert)
+ */
+bool wallet_channel_save(struct wallet *w, struct wallet_channel *chan);
+
+/**
+ * wallet_channel_config_save -- Upsert a channel_config into the database
+ */
+bool wallet_channel_config_save(struct wallet *w, struct channel_config *cc);
+
+/**
+ * wallet_channel_config_load -- Load channel_config from database into cc
+ */
+bool wallet_channel_config_load(struct wallet *w, const u64 id,
+				struct channel_config *cc);
 #endif /* WALLET_WALLET_H */

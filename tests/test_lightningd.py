@@ -9,10 +9,12 @@ import json
 import logging
 import os
 import random
+import re
 import sqlite3
 import string
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import utils
@@ -114,7 +116,7 @@ class NodeFactory(object):
                 '--trace-children=yes',
                 '--trace-children-skip=*bitcoin-cli*',
                 '--error-exitcode=7',
-                '--log-file={}/valgrind-errors'.format(node.daemon.lightning_dir)
+                '--log-file={}/valgrind-errors.%p'.format(node.daemon.lightning_dir)
             ] + node.daemon.cmd_line
 
         node.daemon.start()
@@ -135,10 +137,14 @@ class BaseLightningDTests(unittest.TestCase):
         self.node_factory = NodeFactory(self, self.executor)
 
     def getValgrindErrors(self, node):
-        error_file = '{}valgrind-errors'.format(node.daemon.lightning_dir)
-        with open(error_file, 'r') as f:
-            errors = f.read().strip()
-        return errors, error_file
+        for error_file in os.listdir(node.daemon.lightning_dir):
+            if not re.match("valgrind-errors.\d+", error_file):
+                continue;
+            with open(os.path.join(node.daemon.lightning_dir, error_file), 'r') as f:
+                errors = f.read().strip()
+                if errors:
+                    return errors, error_file
+        return None, None
 
     def printValgrindErrors(self, node):
         errors, fname = self.getValgrindErrors(node)
@@ -190,21 +196,38 @@ class LightningDTests(BaseLightningDTests):
         l1.daemon.wait_for_log('-> CHANNELD_NORMAL')
         l2.daemon.wait_for_log('-> CHANNELD_NORMAL')
 
-    def pay(self, lsrc, ldst, amt, label=None):
+    def pay(self, lsrc, ldst, amt, label=None, async=False):
         if not label:
             label = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(20))
 
         rhash = ldst.rpc.invoice(amt, label)['rhash']
         assert ldst.rpc.listinvoice(label)[0]['complete'] == False
 
-        routestep = {
-            'msatoshi' : amt,
-            'id' : ldst.info['id'],
-            'delay' : 5,
-            'channel': '1:1:1'
-        }
-        lsrc.rpc.sendpay(to_json([routestep]), rhash)
-        assert ldst.rpc.listinvoice(label)[0]['complete'] == True
+        def call_pay():
+            routestep = {
+                'msatoshi' : amt,
+                'id' : ldst.info['id'],
+                'delay' : 5,
+                'channel': '1:1:1'
+            }
+            lsrc.rpc.sendpay(to_json([routestep]), rhash, async=False)
+
+        t = threading.Thread(target=call_pay)
+        t.daemon = True
+        t.start()
+
+        def wait_pay():
+            # Up to 10 seconds for payment to succeed.
+            start_time = time.time()
+            while not ldst.rpc.listinvoice(label)[0]['complete']:
+                if time.time() > start_time + 10:
+                    raise TimeoutError('Payment timed out')
+                time.sleep(0.1)
+
+        if async:
+            return self.executor.submit(wait_pay)
+        else:
+            return wait_pay()
 
     def test_connect(self):
         l1,l2 = self.connect()
@@ -330,7 +353,21 @@ class LightningDTests(BaseLightningDTests):
         l1.daemon.wait_for_log('sendrawtx exit 0')
         l2.daemon.wait_for_log('sendrawtx exit 0')
         assert l1.bitcoin.rpc.getmempoolinfo()['size'] == 1
-        
+
+    def test_permfail(self):
+        l1,l2 = self.connect()
+
+        self.fund_channel(l1, l2, 10**6)
+        self.pay(l1,l2,200000000)
+
+        # We fail l2, so l1 will reconnect to it.
+        l2.rpc.dev_fail(l1.info['id']);
+        l2.daemon.wait_for_log('Failing due to dev-fail command')
+        l2.daemon.wait_for_log('sendrawtx exit 0')
+
+        # "Internal error" in hex
+        l1.daemon.wait_for_log('WIRE_ERROR.*496e7465726e616c206572726f72')
+
     def test_gossip_jsonrpc(self):
         l1,l2 = self.connect()
 

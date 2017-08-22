@@ -1,4 +1,6 @@
+#include <bitcoin/tx.h>
 #include <ccan/build_assert/build_assert.h>
+#include <ccan/crypto/ripemd160/ripemd160.h>
 #include <ccan/mem/mem.h>
 #include <ccan/tal/str/str.h>
 #include <daemon/chaintopology.h>
@@ -10,6 +12,7 @@
 #include <lightningd/htlc_end.h>
 #include <lightningd/htlc_wire.h>
 #include <lightningd/lightningd.h>
+#include <lightningd/onchain/onchain_wire.h>
 #include <lightningd/pay.h>
 #include <lightningd/peer_control.h>
 #include <lightningd/peer_htlcs.h>
@@ -79,7 +82,14 @@ static void save_htlc_stub(struct lightningd *ld,
 			   u32 cltv_value,
 			   const struct sha256 *payment_hash)
 {
-	/* FIXME: remember peer, side, cltv and RIPEMD160(hash) */
+	size_t n = tal_count(peer->htlcs);
+	tal_resize(&peer->htlcs, n+1);
+	peer->htlcs[n].owner = owner;
+	peer->htlcs[n].cltv_expiry = cltv_value;
+	ripemd160(&peer->htlcs[n].ripemd,
+		  payment_hash->u.u8, sizeof(payment_hash->u));
+
+	/* FIXME: save to db instead! */
 }
 
 static void fail_in_htlc(struct htlc_in *hin,
@@ -1003,6 +1013,7 @@ int peer_got_commitsig(struct peer *peer, const u8 *msg)
 	struct fulfilled_htlc *fulfilled;
 	struct failed_htlc *failed;
 	struct changed_htlc *changed;
+	struct bitcoin_tx *tx = tal(msg, struct bitcoin_tx);
 	size_t i;
 
 	if (!fromwire_channel_got_commitsig(msg, msg, NULL,
@@ -1013,7 +1024,8 @@ int peer_got_commitsig(struct peer *peer, const u8 *msg)
 					    &shared_secrets,
 					    &fulfilled,
 					    &failed,
-					    &changed)) {
+					    &changed,
+					    tx)) {
 		peer_internal_error(peer,
 				    "bad fromwire_channel_got_commitsig %s",
 				    tal_hex(peer, msg));
@@ -1055,9 +1067,13 @@ int peer_got_commitsig(struct peer *peer, const u8 *msg)
 	if (!peer_sending_revocation(peer, added, fulfilled, failed, changed))
 		return -1;
 
-	peer->channel_info->commit_sig = commit_sig;
 	if (!peer_save_commitsig_received(peer, commitnum))
 		return -1;
+
+	peer_last_tx(peer, tx, &commit_sig);
+	/* FIXME: Put these straight in the db! */
+	tal_free(peer->last_htlc_sigs);
+	peer->last_htlc_sigs = tal_steal(peer, htlc_sigs);
 
 	/* Tell it we've committed, and to go ahead with revoke. */
 	msg = towire_channel_got_commitsig_reply(msg);

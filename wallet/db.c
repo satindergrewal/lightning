@@ -25,6 +25,73 @@ char *dbmigrations[] = {
        PRIMARY KEY (prev_out_tx, prev_out_index) \
     );",
     "CREATE TABLE vars (name VARCHAR(32), val VARCHAR(255), PRIMARY KEY (name));",
+    "CREATE TABLE shachains (                    \
+       id INTEGER,				 \
+       min_index INTEGER,			 \
+       num_valid INTEGER,			 \
+       PRIMARY KEY (id));",
+    "CREATE TABLE shachain_known (                                      \
+       shachain_id INTEGER REFERENCES shachains(id) ON DELETE CASCADE,	\
+       pos INTEGER,							\
+       idx INTEGER,							\
+       hash BLOB,							\
+       PRIMARY KEY (shachain_id, pos));",
+    "CREATE TABLE channels ("
+    "  id INTEGER," /* unique_id */
+    "  peer_id INTEGER REFERENCES peers(id) ON DELETE CASCADE,"
+    "  short_channel_id BLOB,"
+    "  channel_config_local INTEGER,"
+    "  channel_config_remote INTEGER,"
+    "  state INTEGER,"
+    "  funder INTEGER,"
+    "  channel_flags INTEGER,"
+    "  minimum_depth INTEGER,"
+    "  next_index_local INTEGER,"
+    "  next_index_remote INTEGER,"
+    "  num_revocations_received INTEGER,"
+    "  next_htlc_id INTEGER, "
+    "  funding_tx_id BLOB,"
+    "  funding_tx_outnum INTEGER,"
+    "  funding_satoshi INTEGER,"
+    "  funding_locked_remote INTEGER,"
+    "  push_msatoshi INTEGER,"
+    "  msatoshi_local INTEGER," /* our_msatoshi */
+    /* START channel_info */
+    "  fundingkey_remote BLOB,"
+    "  revocation_basepoint_remote BLOB,"
+    "  payment_basepoint_remote BLOB,"
+    "  delayed_payment_basepoint_remote BLOB,"
+    "  per_commit_remote BLOB,"
+    "  old_per_commit_remote BLOB,"
+    "  feerate_per_kw INTEGER,"
+    /* END channel_info */
+    "  shachain_remote_id INTEGER,"
+    "  shutdown_scriptpubkey_remote BLOB,"
+    "  shutdown_keyidx_local INTEGER,"
+    "  last_sent_commit_state INTEGER,"
+    "  last_sent_commit_id INTEGER,"
+    "  last_tx BLOB,"
+    "  last_sig BLOB,"
+    "  closing_fee_received INTEGER,"
+    "  closing_sig_received BLOB,"
+    "  PRIMARY KEY (id)"
+    ");",
+    "CREATE TABLE peers ("
+    "  id INTEGER,"
+    "  node_id BLOB," /* pubkey */
+    "  address TEXT,"
+    "  PRIMARY KEY (id)"
+    ");",
+    "CREATE TABLE channel_configs ("
+    "  id INTEGER,"
+    "  dust_limit_satoshis INTEGER,"
+    "  max_htlc_value_in_flight_msat INTEGER,"
+    "  channel_reserve_satoshis INTEGER,"
+    "  htlc_minimum_msat INTEGER,"
+    "  to_self_delay INTEGER,"
+    "  max_accepted_htlcs INTEGER,"
+    "  PRIMARY KEY (id)"
+    ");",
     NULL,
 };
 
