@@ -247,6 +247,7 @@ https://crypto.stanford.edu/~pgolle/papers/poker.pdf
 #define CARDS777_CHIPSIZE (SATOSHIDEN / 100)
 #define BET_PLAYERTIMEOUT 15
 #define BET_GAMESTART_DELAY 0
+#define BET_RESERVERATE 1.011
 
 struct BET_shardsinfo
 {
