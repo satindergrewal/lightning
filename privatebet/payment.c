@@ -118,22 +118,23 @@ struct privatebet_peerln *BET_invoice_complete(char *nextlabel,cJSON *item,struc
 
 int32_t BET_clientpay(uint64_t chipsize)
 {
-    bits256 rhash,preimage; cJSON *routejson,*retjson,*array; int32_t n,retval = -1;
+    bits256 rhash,preimage; cJSON *routejson,*retjson,*array; int32_t avail,n,retval = -1;
     printf("BET_clientpay.%llu %.8f -> (%s)\n",(long long)chipsize,dstr(chipsize),Host_peerid);
     if ( Host_peerid[0] != 0 && Host_channel[0] != 0 && (n= Num_hostrhashes) > 0 )
     {
-        if ( BET_peer_chipsavail(Host_peerid,chipsize) < 2 )
+        if ( (avail= (int32_t)BET_peer_chipsavail(Host_peerid,chipsize)) < 2 )
         {
             if ( (retjson= chipsln_close(Host_channel)) != 0 )
             {
                 printf("close.(%s) -> (%s)\n",Host_channel,jprint(retjson,0));
                 free_json(retjson);
             }
-            printf("%s numchips.%d error\n",Host_peerid,(int32_t)BET_peer_chipsavail(Host_peerid,chipsize));
+            printf("%s numchips.%d error\n",Host_peerid,avail);
             Host_channel[0] = 0;
             system("./fund"); // addfunds
             return(-2);
         }
+        printf("chips avail.%d\n",avail);
         rhash = Host_rhashes[n-1];
         if ( bits256_nonz(rhash) != 0 )
         {

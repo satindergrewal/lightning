@@ -265,6 +265,7 @@ int64_t BET_peer_chipsavail(char *peerid,int32_t chipsize)
                     continue;
                 total = j64bits(item,"msatoshi_to_us");
                 retval = (total / 1000) / chipsize;
+                printf("numchips.%d <- total.%llu / chipsize.%d\n",retval,(long long)total,chipsize);
                 break;
             }
         }
