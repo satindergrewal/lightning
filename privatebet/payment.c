@@ -122,7 +122,10 @@ int32_t BET_clientpay(uint64_t chipsize)
     if ( Host_channel[0] != 0 && (n= Num_hostrhashes) > 0 )
     {
         if ( BET_peer_chipsavail(Host_peerid,chipsize) <= 2 )
+        {
+            // addfunds
             return(-2);
+        }
         rhash = Host_rhashes[n-1];
         if ( bits256_nonz(rhash) != 0 )
         {
