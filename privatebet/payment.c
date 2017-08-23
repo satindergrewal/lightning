@@ -168,7 +168,30 @@ int32_t BET_clientpay(uint64_t chipsize)
 
 void BET_channels_parse()
 {
-    cJSON *channels,*array,*item; int32_t i,n,len; char *source,*dest,*short_id;
+    cJSON *channels,*array,*item,*peers; int32_t i,n,len; char *peerid,*source,*dest,*short_id;
+    if ( (peers= chipsln_getpeers()) != 0 )
+    {
+        //printf("got.(%s)\n",jprint(channels,0));
+        if ( (array= jarray(&n,peers,"peers")) != 0 )
+        {
+            for (i=0; i<n; i++)
+            {
+                item = jitem(array,i);
+                if ( (peerid= jstr(item,"peerid")) != 0 && strcmp(peerid,Host_peerid) == 0 )
+                {
+                    if ( (channel= jstr(item,"channel")) != 0 )
+                    {
+                        safecopy(Host_channel,channel,sizeof(Host_channel));
+                        printf("Got Host_channel from channel.(%s)\n",channel);
+                        free_json(peers);
+                        return;
+                    }
+                    break;
+                }
+            }
+        }
+        free_json(peers);
+    }
     if ( (channels= chipsln_getchannels()) != 0 )
     {
         //printf("got.(%s)\n",jprint(channels,0));
