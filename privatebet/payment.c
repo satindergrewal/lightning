@@ -119,6 +119,7 @@ struct privatebet_peerln *BET_invoice_complete(char *nextlabel,cJSON *item,struc
 int32_t BET_clientpay(uint64_t chipsize)
 {
     bits256 rhash,preimage; cJSON *routejson,*retjson,*array; int32_t n,retval = -1;
+    printf("BET_clientpay.%llu %.8f\n",(long long)chipsize,dstr(chipsize));
     if ( Host_channel[0] != 0 && (n= Num_hostrhashes) > 0 )
     {
         if ( BET_peer_chipsavail(Host_peerid,chipsize) <= 2 )
@@ -150,7 +151,7 @@ int32_t BET_clientpay(uint64_t chipsize)
                     retval = 0;
                 }
                 free_json(retjson);
-            }
+            } else printf("sendpay null return?\n");
             free_json(array);
         }
     } else printf("cant pay Host_channel.(%s) numchips.%d\n",Host_channel,n);
