@@ -46,12 +46,6 @@ struct peer *find_peer_by_unique_id(struct lightningd *ld, u64 unique_id)
 	return NULL;
 }
 
-void peer_debug(struct peer *peer, const char *fmt, ...);
-void peer_debug(struct peer *peer, const char *fmt, ...)
-{
-	FIXME_IMPLEMENT();
-}
-
 void debug_dump_peers(struct lightningd_state *dstate);
 void debug_dump_peers(struct lightningd_state *dstate)
 {
@@ -120,7 +114,7 @@ static struct lightningd *new_lightningd(const tal_t *ctx)
 	list_head_init(&ld->dstate.peers);
 	list_head_init(&ld->dstate.pay_commands);
 	ld->dstate.portnum = DEFAULT_PORT;
-	ld->dstate.testnet = true;
+    ld->dstate.testnet = false;//true;
 	timers_init(&ld->dstate.timers, time_mono());
 	list_head_init(&ld->dstate.wallet);
 	list_head_init(&ld->dstate.addresses);
@@ -130,7 +124,7 @@ static struct lightningd *new_lightningd(const tal_t *ctx)
 	ld->dstate.announce = NULL;
 	ld->topology = ld->dstate.topology = new_topology(ld, ld->log);
 	ld->bitcoind = ld->dstate.bitcoind = new_bitcoind(ld, ld->log);
-	ld->chainparams = chainparams_for_network("testnet");
+	ld->chainparams = chainparams_for_network("chips");
 
 	/* FIXME: Move into invoice daemon. */
 	ld->dstate.invoices = invoices_init(&ld->dstate);
@@ -157,8 +151,7 @@ static void test_daemons(const struct lightningd *ld)
 		int outfd;
 		const char *dpath = path_join(ctx, ld->daemon_dir, daemons[i]);
 		const char *verstring;
-		pid_t pid = pipecmd(&outfd, NULL, &outfd,
-				    dpath, "--version", NULL);
+		pid_t pid = pipecmd(&outfd, NULL, &outfd,dpath, "--version", NULL);
 
 		log_debug(ld->dstate.base_log, "testing %s", dpath);
 		if (pid == -1)
@@ -166,9 +159,8 @@ static void test_daemons(const struct lightningd *ld)
 		verstring = grab_fd(ctx, outfd);
 		if (!verstring)
 			err(1, "Could not get output from %s", dpath);
-		if (!strstarts(verstring, version())
-		    || verstring[strlen(version())] != '\n')
-			errx(1, "%s: bad version '%s'", daemons[i], verstring);
+		//if (!strstarts(verstring, version()) || verstring[strlen(version())] != '\n')
+		//	errx(1, "(%s): bad version (%s)", daemons[i], verstring);
 	}
 	tal_free(ctx);
 }
@@ -268,13 +260,15 @@ int main(int argc, char *argv[])
 	gossip_init(ld);
 
 	/* Initialize block topology. */
-	setup_topology(ld->topology, ld->bitcoind, &ld->dstate.timers,
+    printf("call setup_topology\n");
+    setup_topology(ld->topology, ld->bitcoind, &ld->dstate.timers,
 		       ld->dstate.config.poll_time,
 		       /* FIXME: Load from peers. */
 		       0);
 
 	/* Create RPC socket (if any) */
-	setup_jsonrpc(&ld->dstate, ld->dstate.rpc_filename);
+    printf("call jsonrpc\n");
+    setup_jsonrpc(&ld->dstate, ld->dstate.rpc_filename);
 
 	/* Ready for connections from peers. */
 	setup_listeners(ld);

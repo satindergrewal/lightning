@@ -175,6 +175,7 @@ static struct io_plan *handle_channel_update_sig(struct io_conn *conn,
 	u32 timestamp, fee_base_msat, fee_proportional_mill;
 	u64 htlc_minimum_msat;
 	u16 flags, cltv_expiry_delta;
+	struct sha256_double chain_hash;
 	u8 *cu;
 
 	if (!fromwire_hsm_cupdate_sig_req(tmpctx, dc->msg_in, NULL, &cu)) {
@@ -184,7 +185,8 @@ static struct io_plan *handle_channel_update_sig(struct io_conn *conn,
 		return io_close(conn);
 	}
 
-	if (!fromwire_channel_update(cu, NULL, &sig, &scid, &timestamp, &flags,
+	if (!fromwire_channel_update(cu, NULL, &sig, &chain_hash,
+				     &scid, &timestamp, &flags,
 				     &cltv_expiry_delta, &htlc_minimum_msat,
 				     &fee_base_msat, &fee_proportional_mill)) {
 		status_trace("Failed to parse inner channel_update: %s",
@@ -202,7 +204,8 @@ static struct io_plan *handle_channel_update_sig(struct io_conn *conn,
 
 	sign_hash(&node_pkey, &hash, &sig);
 
-	cu = towire_channel_update(tmpctx, &sig, &scid, timestamp, flags,
+	cu = towire_channel_update(tmpctx, &sig, &chain_hash,
+				   &scid, timestamp, flags,
 				   cltv_expiry_delta, htlc_minimum_msat,
 				   fee_base_msat, fee_proportional_mill);
 
@@ -243,23 +246,16 @@ static void send_init_response(struct daemon_conn *master)
 {
 	struct pubkey node_id;
 	struct secret peer_seed;
-	u8 *serialized_extkey = tal_arr(master, u8, BIP32_SERIALIZED_LEN), *msg;
+	u8 *msg;
 
 	hkdf_sha256(&peer_seed, sizeof(peer_seed), NULL, 0,
 		    &secretstuff.hsm_secret,
 		    sizeof(secretstuff.hsm_secret),
 		    "peer seed", strlen("peer seed"));
-
 	node_key(NULL, &node_id);
-	if (bip32_key_serialize(&secretstuff.bip32, BIP32_FLAG_KEY_PUBLIC,
-				serialized_extkey, tal_len(serialized_extkey))
-	    != WALLY_OK)
-		status_failed(WIRE_HSMSTATUS_KEY_FAILED,
-			      "Can't serialize bip32 public key");
 
 	msg = towire_hsmctl_init_reply(master, &node_id, &peer_seed,
-				       serialized_extkey);
-	tal_free(serialized_extkey);
+				       &secretstuff.bip32);
 	daemon_conn_send(master, take(msg));
 }
 

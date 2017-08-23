@@ -96,8 +96,8 @@ cJSON *chipsln_getpeers() { return(chipsln_noargs("getpeers")); }
 cJSON *chipsln_getchannels() { return(chipsln_noargs("getchannels")); }
 cJSON *chipsln_devblockheight() { return(chipsln_noargs("dev-blockheight")); }
 
-cJSON *chipsln_listinvoice(char *label) { return(chipsln_strarg("listinvoice",label)); }
 cJSON *chipsln_delinvoice(char *label) { return(chipsln_strarg("delinvoice",label)); }
+cJSON *chipsln_delpaidinvoice(char *label) { return(chipsln_strarg("delpaidinvoice",label)); }
 cJSON *chipsln_waitanyinvoice(char *label) { return(chipsln_strarg("waitanyinvoice",label)); }
 cJSON *chipsln_waitinvoice(char *label) { return(chipsln_strarg("waitinvoice",label)); }
 
@@ -111,6 +111,13 @@ cJSON *chipsln_fundchannel(char *idstr,uint64_t satoshi)
     return(chipsln_strnum("fundchannel",idstr,satoshi));
 }
 
+cJSON *chipsln_listinvoice(char *label)
+{
+    if ( label != 0 && label[0] != 0 )
+        return(chipsln_strarg("listinvoice",label));
+    else return(chipsln_noargs("listinvoice"));
+}
+
 cJSON *chipsln_invoice(uint64_t msatoshi,char *label)
 {
     return(chipsln_numstr("invoice",msatoshi,label));
@@ -118,21 +125,31 @@ cJSON *chipsln_invoice(uint64_t msatoshi,char *label)
 
 bits256 chipsln_rhash_create(uint64_t satoshis,char *label)
 {
-    cJSON *inv,*array; bits256 rhash;
+    cJSON *inv,*array,*obj; bits256 rhash; char *ilab; int32_t i,n;
     if ( label == 0 )
         label = "";
     memset(rhash.bytes,0,sizeof(rhash));
     if ( (array= chipsln_listinvoice(label)) != 0 )
     {
-        if ( cJSON_GetArraySize(array) == 1 )
+        if ( (n= cJSON_GetArraySize(array)) > 0 )
         {
-            inv = jitem(array,0);
-            rhash = jbits256(inv,"rhash");
-            //char str[65]; printf("list invoice.(%s) (%s) -> %s\n",label,jprint(inv,0),bits256_str(str,rhash));
-            if ( bits256_nonz(rhash) != 0 )
+            for (i=0; i<n; i++)
             {
-                free_json(array);
-                return(rhash);
+                inv = jitem(array,i);
+                if ( (ilab= jstr(inv,"label")) != 0 && strcmp(label,ilab) == 0 )
+                {
+                    if ( (obj= jobj(inv,"complete")) != 0 && is_cJSON_False(obj) != 0 )
+                    {
+                        rhash = jbits256(inv,"rhash");
+                        //char str[65]; printf("list invoice.(%s) (%s) -> %s\n",label,jprint(inv,0),bits256_str(str,rhash));
+                        if ( bits256_nonz(rhash) != 0 )
+                        {
+                            free_json(array);
+                            return(rhash);
+                        }
+                    }
+                    break;
+                }
             }
         }
         free_json(array);
@@ -142,6 +159,7 @@ bits256 chipsln_rhash_create(uint64_t satoshis,char *label)
         rhash = jbits256(inv,"rhash");
         char str[65]; printf("rhash.(%s) -> %s\n",jprint(inv,0),bits256_str(str,rhash));
         free_json(inv);
+        return(rhash);
     }
     return(rhash);
 }
@@ -211,6 +229,49 @@ char *stats_JSON(void *ctx,char *myipaddr,int32_t mypubsock,cJSON *argjson,char 
     return(clonestr("{\"result\":\"success\"}"));
 }
 
+int32_t BET_peer_state(char *peerid,char *statestr)
+{
+    cJSON *retjson,*array,*item; int32_t i,n,retval = -1;
+    if ( (retjson= chipsln_getpeers()) != 0 )
+    {
+        if ( (array= jarray(&n,retjson,"peers")) != 0 && n > 0 )
+        {
+            for (i=0; i<n; i++)
+            {
+                item = jitem(array,i);
+                if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),Host_peerid) != 0 )
+                    continue;
+                if ( jstr(item,"state") != 0 && strcmp(jstr(item,"state"),statestr) == 0 )
+                    retval = 0;
+                break;
+            }
+        }
+        free_json(retjson);
+    }
+    return(retval);
+}
+
+int64_t BET_peer_chipsavail(char *peerid,int32_t chipsize)
+{
+    cJSON *retjson,*array,*item; uint64_t total; int32_t i,n,retval = 0;
+    if ( (retjson= chipsln_getpeers()) != 0 )
+    {
+        if ( (array= jarray(&n,retjson,"peers")) != 0 && n > 0 )
+        {
+            for (i=0; i<n; i++)
+            {
+                item = jitem(array,i);
+                if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),Host_peerid) != 0 )
+                    continue;
+                total = j64bits(item,"msatoshi_to_us");
+                retval = (total / 1000) / chipsize;
+                break;
+            }
+        }
+        free_json(retjson);
+    }
+    return(retval);
+}
 
 /*void BET_status_disp(struct privatebet_info *bet,struct privatebet_vars *vars)
 {

@@ -253,10 +253,8 @@ static void config_register_opts(struct lightningd_state *dstate)
 
 static void dev_register_opts(struct lightningd_state *dstate)
 {
-	opt_register_noarg("--dev-no-routefail", opt_set_bool,
-			   &dstate->dev_never_routefail, opt_hidden);
-	opt_register_noarg("--dev-no-broadcast", opt_set_bool,
-			   &dstate->topology->dev_no_broadcast, opt_hidden);
+	opt_register_noarg("--dev-no-routefail", opt_set_bool,&dstate->dev_never_routefail, opt_hidden);
+	opt_register_noarg("--dev-no-broadcast", opt_set_bool,&dstate->topology->dev_no_broadcast, opt_hidden);
 }
 
 static const struct config testnet_config = {
@@ -397,9 +395,7 @@ static void check_config(struct lightningd_state *dstate)
 		      dstate->config.commitment_fee_max_percent);
 
 	if (dstate->config.forever_confirms < 100 && !dstate->testnet)
-		log_unusual(dstate->base_log,
-			    "Warning: forever-confirms of %u is less than 100!",
-			    dstate->config.forever_confirms);
+		log_unusual(dstate->base_log,"Warning: forever-confirms of %u is less than 100!",dstate->config.forever_confirms);
 
 	if (dstate->config.anchor_confirms == 0)
 		fatal("anchor-confirms must be greater than zero");
@@ -419,8 +415,7 @@ static void setup_default_config(struct lightningd_state *dstate)
 {
 	if (dstate->testnet)
 		dstate->config = testnet_config;
-	else
-		dstate->config = mainnet_config;
+	else dstate->config = mainnet_config;
 }
 
 
@@ -508,8 +503,8 @@ void register_opts(struct lightningd_state *dstate)
 	opt_register_logging(dstate->base_log);
 	opt_register_version();
 
-	configdir_register_opts(dstate,
-				&dstate->config_dir, &dstate->rpc_filename);
+	configdir_register_opts(dstate,&dstate->config_dir, &dstate->rpc_filename);
+    printf("(%s)/RPC_FILENAME.(%s)\n",dstate->config_dir,dstate->rpc_filename);
 	config_register_opts(dstate);
 	dev_register_opts(dstate);
 }

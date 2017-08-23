@@ -16,18 +16,19 @@
 #include <secp256k1.h>
 #include <string.h>
 
+#define PUBTYPE 60
+#define P2SHTYPE 85
+#define WIFTYPE 188
+
 static bool my_sha256(void *digest, const void *data, size_t datasz)
 {
 	sha256(digest, data, datasz);
 	return true;
 }
 
-static char *to_base58(const tal_t *ctx, u8 version,
-		       const struct ripemd160 *rmd)
+static char *to_base58(const tal_t *ctx, u8 version,const struct ripemd160 *rmd)
 {
-	char out[BASE58_ADDR_MAX_LEN + 1];
-	size_t outlen = sizeof(out);
-
+	char out[BASE58_ADDR_MAX_LEN + 1]; size_t outlen = sizeof(out);
 	b58_sha256_impl = my_sha256;
 	if (!b58check_enc(out, &outlen, version, rmd, sizeof(*rmd))) {
 		return NULL;
@@ -36,24 +37,20 @@ static char *to_base58(const tal_t *ctx, u8 version,
 	}
 }
 
-char *bitcoin_to_base58(const tal_t *ctx, bool test_net,
-			const struct bitcoin_address *addr)
+char *bitcoin_to_base58(const tal_t *ctx, bool test_net,const struct bitcoin_address *addr)
 {
-	return to_base58(ctx, test_net ? 111 : 0, &addr->addr);
+	return to_base58(ctx, test_net ? 111 : PUBTYPE, &addr->addr);
 }
 
-char *p2sh_to_base58(const tal_t *ctx, bool test_net,
-		     const struct ripemd160 *p2sh)
+char *p2sh_to_base58(const tal_t *ctx, bool test_net,const struct ripemd160 *p2sh)
 {
-	return to_base58(ctx, test_net ? 196 : 5, p2sh);
+	return to_base58(ctx, test_net ? 196 : P2SHTYPE, p2sh);
 }
 
-static bool from_base58(u8 *version,
-			struct ripemd160 *rmd,
-			const char *base58, size_t base58_len)
+static bool from_base58(u8 *version,struct ripemd160 *rmd,const char *base58, size_t base58_len)
 {
 	u8 buf[1 + sizeof(*rmd) + 4];
-	/* Avoid memcheck complaining if decoding resulted in a short value */
+	// Avoid memcheck complaining if decoding resulted in a short value
 	memset(buf, 0, sizeof(buf));
 	b58_sha256_impl = my_sha256;
 
@@ -66,98 +63,68 @@ static bool from_base58(u8 *version,
 	return r >= 0;
 }
 
-bool bitcoin_from_base58(bool *test_net,
-			 struct bitcoin_address *addr,
-			 const char *base58, size_t len)
+bool bitcoin_from_base58(bool *test_net,struct bitcoin_address *addr,const char *base58, size_t len)
 {
 	u8 version;
-
 	if (!from_base58(&version, &addr->addr, base58, len))
 		return false;
-
 	if (version == 111)
 		*test_net = true;
-	else if (version == 0)
+	else if (version == PUBTYPE)
 		*test_net = false;
-	else
-		return false;
+	else return false;
 	return true;
 }
 
-bool p2sh_from_base58(bool *test_net,
-		      struct ripemd160 *p2sh,
-		      const char *base58, size_t len)
+bool p2sh_from_base58(bool *test_net,struct ripemd160 *p2sh,const char *base58, size_t len)
 {
 	u8 version;
-
 	if (!from_base58(&version, p2sh, base58, len))
 		return false;
-
 	if (version == 196)
 		*test_net = true;
-	else if (version == 5)
+	else if (version == P2SHTYPE)
 		*test_net = false;
-	else
-		return false;
+	else return false;
 	return true;
 }
 
-bool ripemd_from_base58(u8 *version,
-			struct ripemd160 *ripemd160,
-			const char *base58)
+bool ripemd_from_base58(u8 *version,struct ripemd160 *ripemd160,const char *base58)
 {
 	return from_base58(version, ripemd160, base58, strlen(base58));
 }
 
 char *key_to_base58(const tal_t *ctx, bool test_net, const struct privkey *key)
 {
-	u8 buf[32 + 1];
-	char out[BASE58_KEY_MAX_LEN + 2];
-	u8 version = test_net ? 239 : 128;
+	u8 buf[32 + 1]; char out[BASE58_KEY_MAX_LEN + 2]; u8 version = test_net ? 239 : WIFTYPE;
 	size_t outlen = sizeof(out);
-
 	memcpy(buf, key->secret.data, sizeof(key->secret.data));
-	/* Mark this as a compressed key. */
-	buf[32] = 1;
-
+	buf[32] = 1; // Mark this as a compressed key.
 	b58_sha256_impl = my_sha256;
 	b58check_enc(out, &outlen, version, buf, sizeof(buf));
 	return tal_strdup(ctx, out);
 }
 
-bool key_from_base58(const char *base58, size_t base58_len,
-		     bool *test_net, struct privkey *priv, struct pubkey *key)
+bool key_from_base58(const char *base58, size_t base58_len,bool *test_net, struct privkey *priv, struct pubkey *key)
 {
 	// 1 byte version, 32 byte private key, 1 byte compressed, 4 byte checksum
-	u8 keybuf[1 + 32 + 1 + 4];
-	size_t keybuflen = sizeof(keybuf);
-
+	u8 keybuf[1 + 32 + 1 + 4]; size_t keybuflen = sizeof(keybuf);
 	b58_sha256_impl = my_sha256;
-
 	b58tobin(keybuf, &keybuflen, base58, base58_len);
 	if (b58check(keybuf, sizeof(keybuf), base58, base58_len) < 0)
 		return false;
-
-	/* Byte after key should be 1 to represent a compressed key. */
+	// Byte after key should be 1 to represent a compressed key.
 	if (keybuf[1 + 32] != 1)
 		return false;
-
-	if (keybuf[0] == 128)
+	if (keybuf[0] == WIFTYPE)
 		*test_net = false;
 	else if (keybuf[0] == 239)
 		*test_net = true;
-	else
-		return false;
-
-	/* Copy out secret. */
-	memcpy(priv->secret.data, keybuf + 1, sizeof(priv->secret.data));
-
+	else return false;
+	memcpy(priv->secret.data, keybuf + 1, sizeof(priv->secret.data)); // Copy out secret
 	if (!secp256k1_ec_seckey_verify(secp256k1_ctx, priv->secret.data))
 		return false;
-
-	/* Get public key, too. */
-	if (!pubkey_from_privkey(priv, key))
+	if (!pubkey_from_privkey(priv, key)) // Get public key, too
 		return false;
-
 	return true;
 }

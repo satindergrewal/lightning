@@ -2,9 +2,11 @@
 #include "version.h"
 #include <stdio.h>
 
+#define chipsVERSION "chipsln.0.0.0"
+
 const char *version(void)
 {
-	return VERSION;
+	return chipsVERSION;
 }
 
 char *version_and_exit(const void *unused)

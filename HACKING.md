@@ -49,7 +49,7 @@ Here's a list of parts, with notes:
     - lightning-cli: simple lightning command line client.
 
   - Misc:
-    - configdir: support for ~/.lightning/config
+    - configdir: support for ~/.chipsln/config
     - log: logging routines
     - pseudorand: pseudorandom wrapper
     - secrets: routines for using secret keys.

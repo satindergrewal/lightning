@@ -13,18 +13,21 @@
  *                                                                            *
  ******************************************************************************/
 
+// https://lists.linuxfoundation.org/pipermail/lightning-dev/2016-January/000403.html
+// ^ is multisig
 
 #include "bet.h"
 char *LN_idstr,Host_ipaddr[64],Host_peerid[67],BET_ORACLEURL[64] = "127.0.0.1:7797";
 uint16_t LN_port;
-int32_t Gamestart,Gamestarted,Lastturni,Maxrounds = 3,Maxplayers = 2;
+int32_t Gamestart,Gamestarted,Lastturni,Maxrounds = 3,Maxplayers = 10;
 uint8_t BET_logs[256],BET_exps[510];
 bits256 *Debug_privkeys;
 struct BET_shardsinfo *BET_shardsinfos;
 portable_mutex_t LP_peermutex,LP_commandmutex,LP_networkmutex,LP_psockmutex,LP_messagemutex,BET_shardmutex;
 int32_t LP_canbind,IAMLP,IAMHOST,IAMORACLE;
 struct LP_peerinfo  *LP_peerinfos,*LP_mypeer;
-bits256 Mypubkey,Myprivkey;
+bits256 Mypubkey,Myprivkey,Clientrhash,Hostrhashes[CARDS777_MAXPLAYERS+1];
+char Host_channel[64];
 
 #include "../../SuperNET/iguana/exchanges/LP_network.c"
 #include "../../SuperNET/iguana/exchanges/LP_secp.c"
@@ -41,6 +44,7 @@ void randombytes_buf(void * const buf, const size_t size)
 #include "oracle.c"
 #include "commands.c"
 #include "table.c"
+#include "payment.c"
 #include "client.c"
 #include "host.c"
 #include "states.c"
@@ -125,6 +129,7 @@ int main(int argc,const char *argv[])
             BET->pullsock = pullsock;
             BET->subsock = subsock;
             BET->pushsock = pushsock;
+            BET->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
             BET->maxchips = CARDS777_MAXCHIPS;
             BET->chipsize = CARDS777_CHIPSIZE;
             *BET2 = *BET;

@@ -1,3 +1,6 @@
+#include <bitcoin/tx.h>
+#include <ccan/array_size/array_size.h>
+#include <ccan/crypto/shachain/shachain.h>
 #include <lightningd/htlc_wire.h>
 #include <wire/wire.h>
 
@@ -41,6 +44,27 @@ void towire_changed_htlc(u8 **pptr, const struct changed_htlc *changed)
 void towire_side(u8 **pptr, const enum side side)
 {
 	towire_u8(pptr, side);
+}
+
+void towire_shachain(u8 **pptr, const struct shachain *shachain)
+{
+	size_t i;
+
+	towire_u64(pptr, shachain->min_index);
+	towire_u32(pptr, shachain->num_valid);
+
+	for (i = 0; i < shachain->num_valid; i++) {
+		towire_u64(pptr, shachain->known[i].index);
+		towire_sha256(pptr, &shachain->known[i].hash);
+	}
+}
+
+void towire_bitcoin_tx(u8 **pptr, const struct bitcoin_tx *tx)
+{
+	u8 *txlin = linearize_tx(NULL, tx);
+
+	towire(pptr, txlin, tal_len(txlin));
+	tal_free(txlin);
 }
 
 void fromwire_added_htlc(const u8 **cursor, size_t *max,
@@ -98,4 +122,31 @@ enum side fromwire_side(const u8 **cursor, size_t *max)
 		fromwire_fail(cursor, max);
 	}
 	return side;
+}
+
+void fromwire_shachain(const u8 **cursor, size_t *max,
+		       struct shachain *shachain)
+{
+	size_t i;
+
+	shachain->min_index = fromwire_u64(cursor, max);
+	shachain->num_valid = fromwire_u32(cursor, max);
+	if (shachain->num_valid > ARRAY_SIZE(shachain->known)) {
+		fromwire_fail(cursor, max);
+		return;
+	}
+	for (i = 0; i < shachain->num_valid; i++) {
+		shachain->known[i].index = fromwire_u64(cursor, max);
+		fromwire_sha256(cursor, max, &shachain->known[i].hash);
+	}
+}
+
+void fromwire_bitcoin_tx(const u8 **cursor, size_t *max, struct bitcoin_tx *tx)
+{
+	/* FIXME: We'd really expect to allocate tx ourselves, but
+	 * for the sake of simple structures, we don't write the
+	 * generator that way. */
+	struct bitcoin_tx *tx2 = pull_bitcoin_tx(tx, cursor, max);
+	if (tx2)
+		*tx = *tx2;
 }

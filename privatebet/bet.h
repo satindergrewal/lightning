@@ -241,12 +241,13 @@ https://crypto.stanford.edu/~pgolle/papers/poker.pdf
 #endif
 
 #define CARDS777_MAXCARDS 255 //52    //
-#define CARDS777_MAXPLAYERS 2 //9   //
+#define CARDS777_MAXPLAYERS 10 //9   //
 #define CARDS777_MAXROUNDS 3 //9   //
 #define CARDS777_MAXCHIPS 100
-#define CARDS777_CHIPSIZE (SATOSHIDEN / 100)
+#define CARDS777_CHIPSIZE (SATOSHIDEN / 1000)
 #define BET_PLAYERTIMEOUT 15
-#define BET_GAMESTART_DELAY 10
+#define BET_GAMESTART_DELAY 0
+#define BET_RESERVERATE 1.0125
 
 struct BET_shardsinfo
 {
@@ -306,6 +307,7 @@ void BET_statemachine_endround(struct privatebet_info *bet,struct privatebet_var
 void BET_statemachine_roundstart(struct privatebet_info *bet,struct privatebet_vars *vars);
 void BET_statemachine_deali(struct privatebet_info *bet,struct privatebet_vars *vars,int32_t deali,int32_t playerj);
 int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[],char *cmdstr);
+struct privatebet_peerln *BET_peerln_find(char *peerid);
 
 void stats_rpcloop(void *args);
 bits256 xoverz_donna(bits256 a);

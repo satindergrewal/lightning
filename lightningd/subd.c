@@ -1,5 +1,6 @@
 #include <ccan/io/fdpass/fdpass.h>
 #include <ccan/io/io.h>
+#include <ccan/mem/mem.h>
 #include <ccan/noerr/noerr.h>
 #include <ccan/take/take.h>
 #include <ccan/tal/path/path.h>
@@ -244,18 +245,28 @@ static struct io_plan *sd_msg_reply(struct io_conn *conn, struct subd *sd,
 {
 	int type = fromwire_peektype(sd->msg_in);
 	bool keep_open;
+	const tal_t *tmpctx = tal_tmpctx(conn);
 
 	log_info(sd->log, "REPLY %s with %zu fds",
 		 sd->msgname(type), tal_count(sd->fds_in));
 
-	/* If not stolen, we'll free this below. */
-	tal_steal(sr, sd->msg_in);
+	/* Callback could free sd!  Make sure destroy_subd() won't free conn */
+	sd->conn = NULL;
+
+	/* We want to free the msg_in, unless they tal_steal() it. */
+	tal_steal(tmpctx, sd->msg_in);
+
+	/* And we need to free sr after this too (unless they free via sd!). */
+	tal_steal(tmpctx, sr);
+
 	keep_open = sr->replycb(sd, sd->msg_in, sd->fds_in, sr->replycb_data);
-	tal_free(sr);
+	tal_free(tmpctx);
 
 	if (!keep_open)
 		return io_close(conn);
 
+	/* Restore conn ptr. */
+	sd->conn = conn;
 	/* Free any fd array. */
 	sd->fds_in = tal_free(sd->fds_in);
 	return io_read_wire(conn, sd, &sd->msg_in, sd_msg_read, sd);
@@ -360,6 +371,11 @@ static void destroy_subd(struct subd *sd)
 		status = -1;
 		break;
 	}
+
+	/* In case we're freed manually, such as peer_fail_permanent */
+	if (sd->conn)
+		sd->conn = tal_free(sd->conn);
+
 	log_debug(sd->log, "finishing: %p", sd->finished);
 	if (sd->finished)
 		sd->finished(sd, status);
@@ -499,4 +515,21 @@ char *opt_subd_dev_disconnect(const char *optarg, struct lightningd *ld)
 		return tal_fmt(ld, "Could not open --dev-disconnect=%s: %s",
 			       optarg, strerror(errno));
 	return NULL;
+}
+
+/* If test specified that this disconnection should cause permanent failure */
+bool dev_disconnect_permanent(struct lightningd *ld)
+{
+	char permfail[strlen("PERMFAIL")];
+	int r;
+
+	if (ld->dev_disconnect_fd == -1)
+		return false;
+
+	r = read(ld->dev_disconnect_fd, permfail, sizeof(permfail));
+	if (r < 0)
+		fatal("Reading dev_disconnect file: %s", strerror(errno));
+	lseek(ld->dev_disconnect_fd, -r, SEEK_CUR);
+
+	return memeq(permfail, r, "permfail", strlen("permfail"));
 }

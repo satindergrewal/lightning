@@ -1,5 +1,5 @@
 #! /usr/bin/make
-NAME=Bitcoin Savings & Trust Daily Interest II
+NAME=CHIPS LN
 
 # Needs to have oneof support: Ubuntu vivid's is too old :(
 PROTOCC:=protoc-c
@@ -39,9 +39,9 @@ BITCOIN_SRC :=					\
 	bitcoin/pullpush.c			\
 	bitcoin/script.c			\
 	bitcoin/shadouble.c			\
-	bitcoin/short_channel_id.c		\
 	bitcoin/signature.c			\
 	bitcoin/tx.c				\
+ 	bitcoin/short_channel_id.c		\
 	bitcoin/varint.c
 
 BITCOIN_OBJS := $(BITCOIN_SRC:.c=.o)
@@ -178,7 +178,6 @@ BITCOIN_HEADERS := bitcoin/address.h		\
 	bitcoin/pullpush.h			\
 	bitcoin/script.h			\
 	bitcoin/shadouble.h			\
-	bitcoin/short_channel_id.h		\
 	bitcoin/signature.h			\
 	bitcoin/tx.h				\
 	bitcoin/varint.h
@@ -261,22 +260,22 @@ check-makefile: check-daemon-makefile
 	@if [ x"$(CCANDIR)/config.h `find $(CCANDIR)/ccan -name '*.h' | grep -v /test/ | LC_ALL=C sort | tr '\n' ' '`" != x"$(CCAN_HEADERS) " ]; then echo CCAN_HEADERS incorrect; exit 1; fi
 
 # Any mention of BOLT# must be followed by an exact quote, modulo whitepace.
-bolt-check/%: % bolt-precheck check-bolt
-	@[ ! -d .tmp.lightningrfc ] || ./check-bolt .tmp.lightningrfc $<
+bolt-check/%: % bolt-precheck tools/check-bolt
+	@[ ! -d .tmp.lightningrfc ] || tools/check-bolt .tmp.lightningrfc $<
 
 bolt-precheck:
 	@rm -rf .tmp.lightningrfc; if [ ! -d $(BOLTDIR) ]; then echo Not checking BOLT references: BOLTDIR $(BOLTDIR) does not exist >&2; exit 0; fi; set -e; if [ -n "$(BOLTVERSION)" ]; then git clone -q -b $(BOLTVERSION) $(BOLTDIR) .tmp.lightningrfc; else cp -a $(BOLTDIR) .tmp.lightningrfc; fi
 
 check-source-bolt: $(CORE_SRC:%=bolt-check/%) $(CORE_TX_SRC:%=bolt-check/%) $(CORE_PROTOBUF_SRC:%=bolt-check/%) $(CORE_HEADERS:%=bolt-check/%) $(TEST_PROGRAMS:%=bolt-check/%.c)
 
-check-bolt: check-bolt.o $(CCAN_OBJS)
+tools/check-bolt: tools/check-bolt.o $(CCAN_OBJS)
 
-check-bolt.o: $(CCAN_HEADERS)
+tools/check-bolt.o: $(CCAN_HEADERS)
 
 check-whitespace/%: %
 	@if grep -Hn '[ 	]$$' $<; then echo Extraneous whitespace found >&2; exit 1; fi
 
-check-whitespace: check-whitespace/Makefile check-whitespace/check-bolt.c $(CORE_SRC:%=check-whitespace/%) $(CORE_TX_SRC:%=check-whitespace/%) $(CORE_PROTOBUF_SRC:%=check-whitespace/%) $(CORE_HEADERS:%=check-whitespace/%)
+check-whitespace: check-whitespace/Makefile check-whitespace/tools/check-bolt.c $(CORE_SRC:%=check-whitespace/%) $(CORE_TX_SRC:%=check-whitespace/%) $(CORE_PROTOBUF_SRC:%=check-whitespace/%) $(CORE_HEADERS:%=check-whitespace/%)
 
 check-source: check-makefile check-source-bolt check-whitespace	\
 	$(CORE_SRC:%=check-src-include-order/%)			\
@@ -375,6 +374,7 @@ clean: daemon-clean wire-clean
 	$(RM) bitcoin/*.o *.o $(PROGRAMS:=.o) $(CCAN_OBJS)
 	$(RM) ccan/config.h gen_*.h
 	$(RM) ccan/ccan/cdump/tools/cdump-enumstr.o
+	$(RM) check-bolt tools/check-bolt tools/*.o
 	find . -name '*gcda' -delete
 	find . -name '*gcno' -delete
 

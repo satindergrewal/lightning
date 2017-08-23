@@ -112,8 +112,7 @@ bool wallet_can_spend(struct lightningd_state *dstate,
 	return false;
 }
 
-static void json_newaddr(struct command *cmd,
-			 const char *buffer, const jsmntok_t *params)
+static void json_newaddr(struct command *cmd,const char *buffer, const jsmntok_t *params)
 {
 	struct json_result *response = new_json_result(cmd);
 	struct wallet *w = tal(cmd->dstate, struct wallet);
@@ -129,8 +128,7 @@ static void json_newaddr(struct command *cmd,
 	db_add_wallet_privkey(cmd->dstate, &w->privkey);
 
 	json_object_start(response, NULL);
-	json_add_string(response, "address",
-			p2sh_to_base58(cmd, cmd->dstate->testnet, &w->p2sh));
+	json_add_string(response, "address",p2sh_to_base58(cmd, cmd->dstate->testnet, &w->p2sh));
 	json_object_end(response);
 	command_success(cmd, response);
 }

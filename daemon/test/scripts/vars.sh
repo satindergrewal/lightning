@@ -8,7 +8,7 @@
 if which eatmydata >/dev/null; then EATMYDATA=eatmydata; fi
 
 DATADIR=/tmp/bitcoin-lightning$VARIANT
-CLI="bitcoin-cli -datadir=$DATADIR"
+CLI="chips-cli -datadir=$DATADIR"
 REGTESTDIR=regtest
 DAEMON="$EATMYDATA bitcoind -datadir=$DATADIR"
 

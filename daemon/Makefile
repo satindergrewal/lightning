@@ -8,7 +8,7 @@ LC_CTYPE=C
 daemon-wrongdir:
 	$(MAKE) -C .. daemon-all
 
-daemon-all: daemon/lightningd daemon/lightning-cli
+daemon-all: daemon/lightningd daemon/lightning-cli #privatebet/bet
 
 DAEMON_LIB_SRC :=				\
 	daemon/configdir.c			\
@@ -53,8 +53,10 @@ DAEMON_SRC :=					\
 	irc.c
 
 DAEMON_OBJS := $(DAEMON_SRC:.c=.o)
+BET_SRC := daemon/_lightning-cli.c privatebet/bet.c #privatebet/cards777.c privatebet/client.c privatebet/commands.c privatebet/gameloop.c privatebet/gfshare.c privatebet/network.c privatebet/states.c
+BET_OBJS := $(DAEMON_CLI_SRC:.c=.o)
 
-DAEMON_CLI_SRC := daemon/lightning-cli.c
+DAEMON_CLI_SRC := daemon/lightning-cli.c daemon/cli_main.c
 DAEMON_CLI_OBJS := $(DAEMON_CLI_SRC:.c=.o)
 
 DAEMON_JSMN_OBJS := daemon/jsmn.o
@@ -159,6 +161,8 @@ daemon/shachain-64.o: $(CCANDIR)/ccan/crypto/shachain/shachain.c $(CCAN_HEADERS)
 daemon/lightningd: $(DAEMON_OBJS) $(DAEMON_LIB_OBJS) $(DAEMON_JSMN_OBJS) $(CORE_OBJS)  $(CORE_TX_OBJS) $(CORE_PROTOBUF_OBJS) $(BITCOIN_OBJS) $(LIBBASE58_OBJS) $(WIRE_OBJS) $(CCAN_OBJS) daemon/shachain-64.o libsecp256k1.a libsodium.a
 
 daemon/lightning-cli: $(DAEMON_CLI_OBJS) $(DAEMON_LIB_OBJS) $(DAEMON_JSMN_OBJS) $(CORE_OBJS) $(BITCOIN_OBJS) $(LIBBASE58_OBJS) $(WIRE_OBJS) $(CCAN_OBJS) libsecp256k1.a libsodium.a
+
+privatebet/bet: $(BET_OBJS) $(DAEMON_LIB_OBJS) $(DAEMON_JSMN_OBJS) $(CORE_OBJS) $(BITCOIN_OBJS) $(LIBBASE58_OBJS) $(WIRE_OBJS) $(CCAN_OBJS) libsecp256k1.a libsodium.a
 
 daemon-clean:
 	$(RM) $(DAEMON_OBJS) $(DAEMON_LIB_OBJS) $(DAEMON_CLI_OBJS) $(DAEMON_JSMN_OBJS) $(DAEMON_GEN_HEADERS)

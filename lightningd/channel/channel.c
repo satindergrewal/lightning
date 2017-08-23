@@ -83,6 +83,7 @@ struct peer {
 	 */
 	u64 htlc_id;
 
+	struct sha256_double chain_hash;
 	struct channel_id channel_id;
 	struct channel *channel;
 
@@ -225,7 +226,8 @@ static void send_channel_update(struct peer *peer, bool disabled)
 	flags = peer->channel_direction | (disabled << 1);
 	/* FIXME: Add configuration option to specify `htlc_minimum_msat` */
 	cupdate = towire_channel_update(
-	    tmpctx, sig, &peer->short_channel_ids[LOCAL], timestamp, flags,
+	    tmpctx, sig, &peer->chain_hash,
+	    &peer->short_channel_ids[LOCAL], timestamp, flags,
 	    peer->cltv_delta, 1, peer->fee_base, peer->fee_per_satoshi);
 
 	msg = towire_hsm_cupdate_sig_req(tmpctx, cupdate);
@@ -266,6 +268,7 @@ static u8 *create_channel_announcement(const tal_t *ctx, struct peer *peer)
 	    &peer->announcement_bitcoin_sigs[first],
 	    &peer->announcement_bitcoin_sigs[second],
 	    features,
+	    &peer->chain_hash,
 	    &peer->short_channel_ids[LOCAL], &peer->node_ids[first],
 	    &peer->node_ids[second], &peer->channel->funding_pubkey[first],
 	    &peer->channel->funding_pubkey[second]);
@@ -701,6 +704,10 @@ static struct io_plan *send_revocation(struct io_conn *conn, struct peer *peer)
 
 	msg_enqueue(&peer->peer_out, take(msg));
 
+	/* This might have been the final revoke_and_ack... */
+	if (shutdown_complete(peer))
+		io_break(peer);
+
 	return peer_read_message(conn, &peer->pcs, peer_in);
 }
 
@@ -738,7 +745,8 @@ static u8 *got_commitsig_msg(const tal_t *ctx,
 			     u64 local_commit_index,
 			     const secp256k1_ecdsa_signature *commit_sig,
 			     const secp256k1_ecdsa_signature *htlc_sigs,
-			     const struct htlc **changed_htlcs)
+			     const struct htlc **changed_htlcs,
+			     const struct bitcoin_tx *committx)
 {
 	const tal_t *tmpctx = tal_tmpctx(ctx);
 	struct changed_htlc *changed;
@@ -799,7 +807,8 @@ static u8 *got_commitsig_msg(const tal_t *ctx,
 					   shared_secret,
 					   fulfilled,
 					   failed,
-					   changed);
+					   changed,
+					   committx);
 	tal_free(tmpctx);
 	return msg;
 }
@@ -925,7 +934,7 @@ static struct io_plan *handle_peer_commit_sig(struct io_conn *conn,
 
 	/* Tell master daemon, then wait for ack. */
 	msg = got_commitsig_msg(tmpctx, peer->next_index[LOCAL], &commit_sig,
-				htlc_sigs, changed_htlcs);
+				htlc_sigs, changed_htlcs, txs[0]);
 
 	master_sync_reply(peer, take(msg),
 			  WIRE_CHANNEL_GOT_COMMITSIG_REPLY,
@@ -1539,7 +1548,7 @@ again:
 	/* BOLT #2:
 	 *
 	 * If `next_remote_revocation_number` is equal to the commitment
-	 * number of the last `revoke_and_ack` the receiving node has sent, it
+	 * number of the last `revoke_and_ack` the receiving node has sent and the receiving node has not already received a `closing_signed`, it
 	 * MUST re-send the `revoke_and_ack`, otherwise if
 	 * `next_remote_revocation_number` is not equal to one greater than
 	 * the commitment number of the last `revoke_and_ack` the receiving
@@ -1608,9 +1617,11 @@ again:
 
 	/* BOLT #2:
 	 *
-	 * On reconnection if the node has sent a previous `shutdown` it MUST
-	 * retransmit it
+	 * On reconnection if the node has sent a previous `closing_signed` it
+	 * MUST send another `closing_signed`, otherwise if the node has sent
+	 * a previous `shutdown` it MUST retransmit it.
 	 */
+	/* If we had sent `closing_signed`, we'd be in closingd. */
 	maybe_send_shutdown(peer);
 
 	/* Corner case: we didn't send shutdown before because update_add_htlc
@@ -1710,8 +1721,7 @@ static void handle_offer_htlc(struct peer *peer, const u8 *inmsg)
 		peer->funding_locked[LOCAL] = true;
 		start_commit_timer(peer);
 		/* Tell the master. */
-		msg = towire_channel_offer_htlc_reply(inmsg, peer->htlc_id,
-						      0, NULL);
+		msg = towire_channel_offer_htlc_reply(inmsg, peer->htlc_id,0, NULL);
 		daemon_conn_send(&peer->master, take(msg));
 		peer->htlc_id++;
 		return;
@@ -1721,8 +1731,7 @@ static void handle_offer_htlc(struct peer *peer, const u8 *inmsg)
 		goto failed;
 	case CHANNEL_ERR_DUPLICATE:
 	case CHANNEL_ERR_DUPLICATE_ID_DIFFERENT:
-		status_failed(WIRE_CHANNEL_BAD_COMMAND,
-			      "Duplicate HTLC %"PRIu64, peer->htlc_id);
+		status_failed(WIRE_CHANNEL_BAD_COMMAND,"Duplicate HTLC %"PRIu64, peer->htlc_id);
 
 	/* FIXME: Fuzz the boundaries a bit to avoid probing? */
 	case CHANNEL_ERR_MAX_HTLC_VALUE_EXCEEDED:
@@ -1736,8 +1745,7 @@ static void handle_offer_htlc(struct peer *peer, const u8 *inmsg)
 		goto failed;
 	case CHANNEL_ERR_HTLC_BELOW_MINIMUM:
 		failcode = WIRE_AMOUNT_BELOW_MINIMUM;
-		failmsg = tal_fmt(inmsg, "HTLC too small (%u minimum)",
-				  htlc_minimum_msat(peer->channel, REMOTE));
+		failmsg = tal_fmt(inmsg, "HTLC too small (%u minimum)",htlc_minimum_msat(peer->channel, REMOTE));
 		goto failed;
 	case CHANNEL_ERR_TOO_MANY_HTLCS:
 		failcode = WIRE_TEMPORARY_CHANNEL_FAILURE;
@@ -1996,6 +2004,7 @@ static void init_channel(struct peer *peer)
 
 	msg = wire_sync_read(peer, REQ_FD);
 	if (!fromwire_channel_init(peer, msg, NULL,
+				   &peer->chain_hash,
 				   &funding_txid, &funding_txout,
 				   &funding_satoshi,
 				   &peer->conf[LOCAL], &peer->conf[REMOTE],

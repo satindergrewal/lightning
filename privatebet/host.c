@@ -37,9 +37,9 @@ struct privatebet_peerln *BET_peerln_create(struct privatebet_rawpeerln *raw,int
         p = &Peersln[Num_peersln++];
         p->raw = *raw;
     }
-    if ( IAMHOST != 0 && p != 0 )
+    if ( IAMHOST != 0 && p != 0 )//&& strcmp(Host_peerid,LN_idstr) != 0 )
     {
-        sprintf(label,"%s_%d",LN_idstr,0);
+        sprintf(label,"%s_%d",raw->peerid,0);
         p->hostrhash = chipsln_rhash_create(chipsize,label);
     }
     return(p);
@@ -160,31 +160,31 @@ void BET_host_gamestart(struct privatebet_info *bet,struct privatebet_vars *vars
  Host: for each channel create numchips invoices.(playerid/tableid/i) for chipsize -> return json with rhashes[]
  
  Player: send one chip as tip and to verify all is working, get elapsed time
-
-Hostloop:
-{
-    if ( newpeer (via getpeers) )
-        activate player
-    if ( incoming chip )
-    {
-        if initial tip, update state to ready
-        if ( game in progress )
-            broadcast bet received
-    }
-}
+ 
+ Hostloop:
+ {
+ if ( newpeer (via getpeers) )
+ activate player
+ if ( incoming chip )
+ {
+ if initial tip, update state to ready
+ if ( game in progress )
+ broadcast bet received
+ }
+ }
  
  Making a bet:
-    player picks host's rhash, generates own rhash, sends to host
+ player picks host's rhash, generates own rhash, sends to host
  
  HOST: recv:[{rhash0[m]}, {rhash1[m]}, ... ], sends[] <- {rhashi[m]}
  Players[]: recv:[{rhash0[m]}, {rhash1[m]}, ... ], send:{rhashi[m]}
  
-    host: verifies rhash is from valid player, broadcasts new rhash
+ host: verifies rhash is from valid player, broadcasts new rhash
  
  each node with M chips should have MAXCHIPS-M rhashes published
  when node gets chip, M ->M+1, invalidate corresponding rhash
  when node sends chip, M -> M-1, need to create a new rhash
-*/
+ */
 
 void BETS_players_update(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
@@ -192,19 +192,19 @@ void BETS_players_update(struct privatebet_info *bet,struct privatebet_vars *var
     for (i=0; i<bet->numplayers; i++)
     {
         /*update state: new, initial tip, active lasttime, missing, dead
-        if ( dead for more than 5 minutes )
-            close channel (settles chips)*/
+         if ( dead for more than 5 minutes )
+         close channel (settles chips)*/
         /* if ( (0) && time(NULL) > Lastturni+BET_PLAYERTIMEOUT )
-        {
-            timeoutjson = cJSON_CreateObject();
-            jaddstr(timeoutjson,"method","turni");
-            jaddnum(timeoutjson,"round",VARS->round);
-            jaddnum(timeoutjson,"turni",VARS->turni);
-            jaddbits256(timeoutjson,"pubkey",bet->playerpubs[VARS->turni]);
-            jadd(timeoutjson,"actions",cJSON_Parse("[\"timeout\"]"));
-            BET_message_send("TIMEOUT",bet->pubsock,timeoutjson,1,bet);
-            //BET_host_turni_next(bet,&VARS);
-        }*/
+         {
+         timeoutjson = cJSON_CreateObject();
+         jaddstr(timeoutjson,"method","turni");
+         jaddnum(timeoutjson,"round",VARS->round);
+         jaddnum(timeoutjson,"turni",VARS->turni);
+         jaddbits256(timeoutjson,"pubkey",bet->playerpubs[VARS->turni]);
+         jadd(timeoutjson,"actions",cJSON_Parse("[\"timeout\"]"));
+         BET_message_send("TIMEOUT",bet->pubsock,timeoutjson,1,bet);
+         //BET_host_turni_next(bet,&VARS);
+         }*/
     }
 }
 
@@ -236,7 +236,7 @@ cJSON *BET_hostrhashes(struct privatebet_info *bet)
 
 int32_t BET_chipsln_update(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-    struct privatebet_rawpeerln raw; cJSON *rawpeers,*channels,*invoices,*array,*item; int32_t i,n,isnew = 0,waspaid = 0,retval = 0;
+    struct privatebet_rawpeerln raw; char nextlabel[512]; struct privatebet_peerln *p; cJSON *rawpeers,*channels,*invoices,*array,*item; int32_t i,n,isnew = 0,waspaid = 0,retval = 0;
     oldNum_rawpeersln = Num_rawpeersln;
     memcpy(oldRawpeersln,Rawpeersln,sizeof(Rawpeersln));
     memset(Rawpeersln,0,sizeof(Rawpeersln));
@@ -262,22 +262,25 @@ int32_t BET_chipsln_update(struct privatebet_info *bet,struct privatebet_vars *v
                     }
                 }
             }
-        }
-        if ( 0 && (channels= chipsln_getchannels()) != 0 )
-        {
             if ( (invoices= chipsln_listinvoice("")) != 0 )
             {
-                // update player info
-                if ( waspaid != 0 )
+                //printf("listinvoice.(%s)\n",jprint(invoices,0));
+                if ( is_cJSON_Array(invoices) != 0 && (n= cJSON_GetArraySize(invoices)) > 0 )
                 {
-                    // find player
-                    // raw->hostfee <- first
-                    // raw->tablebet <- sendpays
-                    // broadcast bet amount
+                    for (i=0; i<n; i++)
+                    {
+                        item = jitem(invoices,i);
+                        if ( jobj(item,"complete") != 0 && is_cJSON_True(jobj(item,"complete")) != 0 )
+                        {
+                            printf("completed! %s\n",jprint(item,0));
+                            if ( (p= BET_invoice_complete(nextlabel,item,bet)) != 0 )
+                            {
+                            }
+                        } //else printf("not complete %s\n",jprint(jobj(item,"complete"),0));
+                    }
                 }
                 free_json(invoices);
             }
-            free_json(channels);
         }
         free_json(rawpeers);
     }
@@ -286,7 +289,7 @@ int32_t BET_chipsln_update(struct privatebet_info *bet,struct privatebet_vars *v
 
 void BET_hostloop(void *_ptr)
 {
-    uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
+    uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; double lastmilli = 0.; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
     VARS = calloc(1,sizeof(*VARS));
     printf("hostloop pubsock.%d pullsock.%d range.%d\n",bet->pubsock,bet->pullsock,bet->range);
     while ( bet->pullsock >= 0 && bet->pubsock >= 0 )
@@ -310,11 +313,12 @@ void BET_hostloop(void *_ptr)
         }
         if ( nonz == 0 )
         {
-            if ( BET_chipsln_update(bet,VARS) == 0 )
+            if ( OS_milliseconds() > lastmilli+100 && BET_chipsln_update(bet,VARS) == 0 )
             {
+                lastmilli = OS_milliseconds();
                 //BETS_players_update(bet,VARS);
             }
-            if ( time(NULL) > lasttime+5 )
+            if ( time(NULL) > lasttime+60 )
             {
                 printf("%s round.%d turni.%d myid.%d\n",bet->game,VARS->round,VARS->turni,bet->     myplayerid);
                 lasttime = (uint32_t)time(NULL);
@@ -323,8 +327,8 @@ void BET_hostloop(void *_ptr)
         }
         if ( Gamestarted == 0 )
         {
-            //printf(">>>>>>>>> t%u gamestart.%u numplayers.%d turni.%d round.%d\n",(uint32_t)time(NULL),Gamestart,bet->numplayers,VARS->turni,VARS->round);
-            if ( time(NULL) >= Gamestart && bet->numplayers > 1 && VARS->turni == 0 && VARS->round == 0 )
+            //printf(">>>>>>>>> t%u gamestart.%u numplayers.%d max.%d turni.%d round.%d\n",(uint32_t)time(NULL),Gamestart,bet->numplayers,bet->maxplayers,VARS->turni,VARS->round);
+            if ( time(NULL) >= Gamestart && bet->numplayers == bet->maxplayers && VARS->turni == 0 && VARS->round == 0 )
             {
                 printf("GAME.%d\n",Numgames);
                 Numgames++;

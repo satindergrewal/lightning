@@ -38,6 +38,7 @@ LIGHTNINGD_OLD_LIB_HEADERS := $(LIGHTNINGD_OLD_LIB_SRC:.c=.h)
 
 # FIXME: put in a library so we don't link all of them.
 LIGHTNINGD_LIB_SRC :=				\
+	lightningd/bip32.c			\
 	lightningd/channel.c			\
 	lightningd/channel_config.c		\
 	lightningd/commit_tx.c			\
@@ -52,6 +53,7 @@ LIGHTNINGD_LIB_SRC :=				\
 	lightningd/htlc_tx.c			\
 	lightningd/htlc_wire.c			\
 	lightningd/key_derive.c			\
+	lightningd/keyset.c			\
 	lightningd/msg_queue.c			\
 	lightningd/peer_failed.c		\
 	lightningd/ping.c			\
@@ -101,7 +103,8 @@ LIGHTNINGD_HEADERS_NOGEN =			\
 	$(CORE_HEADERS)				\
 	$(CORE_TX_HEADERS)			\
 	$(DAEMON_HEADERS)			\
-	$(WALLET_LIB_HEADERS)
+	$(WALLET_LIB_HEADERS)			\
+	lightningd/onchain/onchain_wire.h
 
 # Generated headers
 LIGHTNINGD_HEADERS_GEN =			\
