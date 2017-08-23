@@ -248,7 +248,7 @@ https://crypto.stanford.edu/~pgolle/papers/poker.pdf
 #define BET_PLAYERTIMEOUT 15
 #define BET_GAMESTART_DELAY 0
 #define BET_RESERVERATE 1.0125
-#define LN_FUNDINGERROR "Cannot afford funding transaction"
+#define LN_FUNDINGERROR "\"Cannot afford funding transaction\""
 
 struct BET_shardsinfo
 {
