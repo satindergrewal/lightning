@@ -38,7 +38,8 @@ char *dbmigrations[] = {
        hash BLOB,							\
        PRIMARY KEY (shachain_id, pos));",
     "CREATE TABLE channels ("
-    "  id INTEGER," /* unique_id */
+    "  id INTEGER," /* chan->id */
+    "  unique_id INTEGER,"
     "  peer_id INTEGER REFERENCES peers(id) ON DELETE CASCADE,"
     "  short_channel_id BLOB,"
     "  channel_config_local INTEGER,"
@@ -79,7 +80,7 @@ char *dbmigrations[] = {
     ");",
     "CREATE TABLE peers ("
     "  id INTEGER,"
-    "  node_id BLOB," /* pubkey */
+    "  node_id BLOB UNIQUE," /* pubkey */
     "  address TEXT,"
     "  PRIMARY KEY (id)"
     ");",

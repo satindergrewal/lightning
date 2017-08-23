@@ -4,6 +4,7 @@
 #include "config.h"
 #include "db.h"
 #include <ccan/crypto/shachain/shachain.h>
+#include <ccan/list/list.h>
 #include <ccan/tal/tal.h>
 #include <lightningd/channel_config.h>
 #include <lightningd/utxo.h>
@@ -52,7 +53,6 @@ struct wallet_shachain {
 /* TODO(cdecker) Separate peer from channel */
 struct wallet_channel {
 	u64 id;
-	u64 peer_id;
 	struct peer *peer;
 };
 
@@ -185,4 +185,29 @@ bool wallet_channel_config_save(struct wallet *w, struct channel_config *cc);
  */
 bool wallet_channel_config_load(struct wallet *w, const u64 id,
 				struct channel_config *cc);
+
+/**
+ * wallet_peer_by_nodeid -- Given a node_id/pubkey, load the peer from DB
+ *
+ * @w: the wallet to load from
+ * @nodeid: the node_id to search for
+ * @peer(out): the destination where to store the peer
+ *
+ * Returns true on success, or false if we were unable to find a peer
+ * with the given node_id.
+ */
+bool wallet_peer_by_nodeid(struct wallet *w, const struct pubkey *nodeid,
+			   struct peer *peer);
+
+/**
+ * wlalet_channels_load_active -- Load persisted active channels into the peers
+ *
+ * @w: wallet to load from
+ * @peers: list_head to load channels/peers into
+ *
+ * Be sure to call this only once on startup since it'll append peers
+ * loaded from the database to the list without checking.
+ */
+bool wallet_channels_load_active(struct wallet *w, struct list_head *peers);
+
 #endif /* WALLET_WALLET_H */

@@ -4,6 +4,7 @@ from lightning import LightningRpc
 import logging
 import os
 import re
+import sqlite3
 import subprocess
 import threading
 import time
@@ -41,8 +42,6 @@ class TailableProc(object):
     def __init__(self, outputDir=None):
         self.logs = []
         self.logs_cond = threading.Condition(threading.RLock())
-        self.thread = threading.Thread(target=self.tail)
-        self.thread.daemon = True
         self.cmd_line = None
         self.running = False
         self.proc = None
@@ -54,6 +53,8 @@ class TailableProc(object):
         """
         logging.debug("Starting '%s'", " ".join(self.cmd_line))
         self.proc = subprocess.Popen(self.cmd_line, stdout=subprocess.PIPE)
+        self.thread = threading.Thread(target=self.tail)
+        self.thread.daemon = True
         self.thread.start()
         self.running = True
 
@@ -181,7 +182,7 @@ class BitcoinD(TailableProc):
             '-datadir={}'.format(bitcoin_dir),
             '-printtoconsole',
             '-server',
-            '-debug',
+            '-regtest',
             '-logtimestamps',
             '-nolisten',
         ]
@@ -297,3 +298,17 @@ class LightningNode(object):
         self.bitcoin.rpc.generate(6)
         self.daemon.wait_for_log('-> CHANNELD_NORMAL|STATE_NORMAL')
 
+    def db_query(self, query):
+        db = sqlite3.connect(os.path.join(self.daemon.lightning_dir, "lightningd.sqlite3"))
+        db.row_factory = sqlite3.Row
+        c = db.cursor()
+        c.execute(query)
+        rows = c.fetchall()
+
+        result = []
+        for row in rows:
+            result.append(dict(zip(row.keys(), row)))
+
+        c.close()
+        db.close()
+        return result

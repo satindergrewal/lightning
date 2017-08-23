@@ -20,6 +20,9 @@ struct crypto_state;
 struct peer {
 	struct lightningd *ld;
 
+	/* Database ID of the peer */
+	u64 dbid;
+
 	/* Unique ID of connection (works even if we have multiple to same id) */
 	u64 unique_id;
 
@@ -98,6 +101,8 @@ struct peer {
 
 	/* FIXME: Just leave this in the db. */
 	struct htlc_stub *htlcs;
+
+	struct wallet_channel *channel;
 };
 
 static inline bool peer_can_add_htlc(const struct peer *peer)
@@ -152,6 +157,18 @@ void peer_fundee_open(struct peer *peer, const u8 *msg,
 void add_peer(struct lightningd *ld, u64 unique_id,
 	      int fd, const struct pubkey *id,
 	      const struct crypto_state *cs);
+
+/**
+ * populate_peer -- Populate daemon fields in a peer
+ *
+ * @ld: the daemon to wire the peer into
+ * @peer: the peer to populate
+ *
+ * Creating a new peer, or loading a peer from the database we need to
+ * populate a number of fields, e.g., the logging handler and the
+ * pointer to the daemon. populate_peer does exactly that.
+ */
+void populate_peer(struct lightningd *ld, struct peer *peer);
 
 /* Could be configurable. */
 #define OUR_CHANNEL_FLAGS CHANNEL_FLAGS_ANNOUNCE_CHANNEL

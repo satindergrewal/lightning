@@ -229,8 +229,17 @@ void peer_set_condition(struct peer *peer, enum peer_state old_state,
 		fatal("peer state %s should be %s",
 		      peer_state_name(peer->state), peer_state_name(old_state));
 
-	/* FIXME: save to db */
 	peer->state = state;
+
+	/* We only persist channels/peers that have reached the opening state */
+	if (peer_persists(peer)) {
+		assert(peer->channel != NULL);
+		/* TODO(cdecker) Selectively save updated fields to DB */
+		if (!wallet_channel_save(peer->ld->wallet, peer->channel)) {
+			fatal("Could not save channel to database: %s",
+			      peer->ld->wallet->db->err);
+		}
+	}
 }
 
 /* FIXME: Reshuffle. */
@@ -433,6 +442,11 @@ static bool peer_reconnected(struct lightningd *ld,
 	log_info(peer->log, "Peer has reconnected, state %s",
 		 peer_state_name(peer->state));
 
+	/* FIXME: Don't assume protocol here! */
+	if (!netaddr_from_fd(fd, SOCK_STREAM, IPPROTO_TCP, &peer->netaddr)) {
+		log_unusual(ld->log, "Failed to get netaddr for peer: %s",
+			    strerror(errno));
+	}
 	/* BOLT #2:
 	 *
 	 * On reconnection, if a channel is in an error state, the node SHOULD
@@ -506,6 +520,53 @@ static void copy_to_parent_log(const char *prefix,
 	tal_free(idstr);
 }
 
+/**
+ * peer_channel_new -- Instantiate a new channel for the given peer and save it
+ *
+ * We are about to open a channel with the peer, either due to a
+ * nongossip message from remote, or because we initiated an
+ * open. This creates the `struct wallet_channel` for the peer and
+ * stores it in the database.
+ *
+ * @w: the wallet to store the information in
+ * @peer: the peer we are opening a channel to
+ *
+ * This currently overwrites peer->channel, so can only be used if we
+ * allow a single channel per peer.
+ */
+static struct wallet_channel *peer_channel_new(struct wallet *w,
+					       struct peer *peer)
+{
+	struct wallet_channel *wc = tal(peer, struct wallet_channel);
+	wc->peer = peer;
+
+	wallet_peer_by_nodeid(w, &peer->id, peer);
+	wc->id = 0;
+
+	if (!wallet_channel_save(w, wc)) {
+		fatal("Unable to save channel to database: %s", w->db->err);
+	}
+
+	return wc;
+}
+
+void populate_peer(struct lightningd *ld, struct peer *peer)
+{
+	const char *idname;
+	struct pubkey *id = &peer->id;
+	idname = type_to_string(peer, struct pubkey, id);
+
+	peer->ld = ld;
+
+	/* Max 128k per peer. */
+	peer->log_book = new_log_book(peer, 128*1024,
+				      get_log_level(ld->dstate.log_book));
+	peer->log = new_log(peer, peer->log_book, "peer %s:", idname);
+	set_log_outfn(peer->log_book, copy_to_parent_log, peer);
+	tal_free(idname);
+	tal_add_destructor(peer, destroy_peer);
+}
+
 void add_peer(struct lightningd *ld, u64 unique_id,
 	      int fd, const struct pubkey *id,
 	      const struct crypto_state *cs)
@@ -519,7 +580,8 @@ void add_peer(struct lightningd *ld, u64 unique_id,
 		return;
 
 	/* Fresh peer. */
-	peer = tal(ld, struct peer);
+	/* Need to memset since storing will access all fields */
+	peer = talz(ld, struct peer);
 	peer->ld = ld;
 	peer->error = NULL;
 	peer->unique_id = unique_id;
@@ -545,13 +607,13 @@ void add_peer(struct lightningd *ld, u64 unique_id,
 	peer->htlcs = tal_arr(peer, struct htlc_stub, 0);
 	wallet_shachain_init(ld->wallet, &peer->their_shachain);
 
-	idname = type_to_string(peer, struct pubkey, id);
+	/* If we have the peer in the DB, this'll populate the fields,
+	 * failure just indicates that the peer wasn't found in the
+	 * DB */
+	wallet_peer_by_nodeid(ld->wallet, id, peer);
 
-	/* Max 128k per peer. */
-	peer->log_book = new_log_book(peer, 128*1024,
-				      get_log_level(ld->dstate.log_book));
-	peer->log = new_log(peer, peer->log_book, "peer %s:", idname);
-	set_log_outfn(peer->log_book, copy_to_parent_log, peer);
+	/* peer->channel gets populated as soon as we start opening a channel */
+	peer->channel = NULL;
 
 	/* FIXME: Don't assume protocol here! */
 	if (!netaddr_from_fd(fd, SOCK_STREAM, IPPROTO_TCP, &peer->netaddr)) {
@@ -560,11 +622,14 @@ void add_peer(struct lightningd *ld, u64 unique_id,
 		tal_free(peer);
 		return;
 	}
+	list_add_tail(&ld->peers, &peer->list);
+	populate_peer(ld, peer);
+
+	idname = type_to_string(peer, struct pubkey, id);
 	netname = netaddr_name(idname, &peer->netaddr);
 	log_info(peer->log, "Connected from %s", netname);
+
 	tal_free(idname);
-	list_add_tail(&ld->peers, &peer->list);
-	tal_add_destructor(peer, destroy_peer);
 
 	/* Let gossip handle it from here. */
 	peer->owner = peer->ld->gossip;
@@ -857,6 +922,7 @@ static void json_getpeers(struct command *cmd,
 		json_add_string(response, "netaddr",
 				netaddr_name(response, &p->netaddr));
 		json_add_pubkey(response, "peerid", &p->id);
+		json_add_bool(response, "connected", p->owner != NULL);
 		if (p->owner)
 			json_add_string(response, "owner", p->owner->name);
 		if (p->scid)
@@ -1195,8 +1261,6 @@ static int peer_got_shutdown(struct peer *peer, const u8 *msg)
 		return -1;
 	}
 
-	/* FIXME: Save to db */
-
 	if (peer->local_shutdown_idx == -1) {
 		u8 *scriptpubkey;
 
@@ -1206,7 +1270,6 @@ static int peer_got_shutdown(struct peer *peer, const u8 *msg)
 					    "Can't get local shutdown index");
 			return -1;
 		}
-		/* FIXME: Save to db */
 
 		peer_set_condition(peer, CHANNELD_NORMAL, CHANNELD_SHUTTING_DOWN);
 
@@ -1235,6 +1298,12 @@ static int peer_got_shutdown(struct peer *peer, const u8 *msg)
 		subd_send_msg(peer->owner,
 			      take(towire_channel_send_shutdown(peer,
 								scriptpubkey)));
+	}
+
+	/* TODO(cdecker) Selectively save updated fields to DB */
+	if (!wallet_channel_save(peer->ld->wallet, peer->channel)) {
+		fatal("Could not save channel to database: %s",
+		      peer->ld->wallet->db->err);
 	}
 
 	return 0;
@@ -1343,9 +1412,15 @@ static int peer_received_closing_signature(struct peer *peer, const u8 *msg)
 	}
 
 	/* FIXME: Make sure signature is correct! */
+	if (better_closing_fee(peer, tx)) {
+		/* TODO(cdecker) Selectively save updated fields to DB */
+		if (!wallet_channel_save(peer->ld->wallet, peer->channel)) {
+			fatal("Could not save channel to database: %s",
+			      peer->ld->wallet->db->err);
+		}
 
-	if (better_closing_fee(peer, tx))
 		peer_last_tx(peer, tx, &sig);
+	}
 
 	/* OK, you can continue now. */
 	subd_send_msg(peer->owner,
@@ -1695,8 +1770,6 @@ static bool peer_start_channeld(struct peer *peer,
 static bool peer_commit_initial(struct peer *peer)
 {
 	peer->next_index[LOCAL] = peer->next_index[REMOTE] = 1;
-
-	/* FIXME: Db channel_info, etc. */
 	return true;
 }
 
@@ -1720,6 +1793,9 @@ static bool opening_funder_finished(struct subd *opening, const u8 *resp,
 	fc->peer->channel_info = channel_info
 		= tal(fc->peer, struct channel_info);
 	remote_commit = tal(resp, struct bitcoin_tx);
+
+	/* This is a new channel_info->their_config so set its ID to 0 */
+	fc->peer->channel_info->their_config.id = 0;
 
 	if (!fromwire_opening_funder_reply(resp, NULL,
 					   &channel_info->their_config,
@@ -1823,6 +1899,9 @@ static bool opening_fundee_finished(struct subd *opening,
 
 	/* At this point, we care about peer */
 	peer->channel_info = channel_info = tal(peer, struct channel_info);
+	/* This is a new channel_info->their_config, set its ID to 0 */
+	peer->channel_info->their_config.id = 0;
+
 	peer->funding_txid = tal(peer, struct sha256_double);
 	if (!fromwire_opening_fundee_reply(peer, reply, NULL,
 					   &channel_info->their_config,
@@ -1963,8 +2042,16 @@ void peer_fundee_open(struct peer *peer, const u8 *from_peer,
 		       &max_to_self_delay, &max_minimum_depth,
 		       &min_effective_htlc_capacity_msat);
 
+	/* Store the channel in the database in order to get a channel
+	 * ID that is unique and which we can base the peer_seed on */
+	peer->channel = peer_channel_new(ld->wallet, peer);
+	if (!wallet_channel_save(peer->ld->wallet, peer->channel)) {
+		fatal("Could not save channel to database: %s",
+		      peer->ld->wallet->db->err);
+	}
 	peer->seed = tal(peer, struct privkey);
-	derive_peer_seed(ld, peer->seed, &peer->id);
+	derive_peer_seed(ld, peer->seed, &peer->id, peer->channel->id);
+
 	msg = towire_opening_init(peer, ld->chainparams->index,
 				  &peer->our_config,
 				  max_to_self_delay,
@@ -2024,6 +2111,17 @@ static bool gossip_peer_released(struct subd *gossip,
 	}
 	fc->peer->owner = opening;
 
+	/* Store the channel in the database in order to get a channel
+	 * ID that is unique and which we can base the peer_seed on */
+	fc->peer->channel = peer_channel_new(ld->wallet, fc->peer);
+	if (!wallet_channel_save(fc->peer->ld->wallet, fc->peer->channel)) {
+		fatal("Could not save channel to database: %s",
+		      fc->peer->ld->wallet->db->err);
+	}
+	fc->peer->seed = tal(fc->peer, struct privkey);
+	derive_peer_seed(ld, fc->peer->seed, &fc->peer->id,
+			 fc->peer->channel->id);
+
 	/* We will fund channel */
 	fc->peer->funder = LOCAL;
 	channel_config(ld, &fc->peer->our_config,
@@ -2032,8 +2130,6 @@ static bool gossip_peer_released(struct subd *gossip,
 
 	fc->peer->channel_flags = OUR_CHANNEL_FLAGS;
 
-	fc->peer->seed = tal(fc->peer, struct privkey);
-	derive_peer_seed(ld, fc->peer->seed, &fc->peer->id);
 	msg = towire_opening_init(fc, ld->chainparams->index,
 				  &fc->peer->our_config,
 				  max_to_self_delay,
