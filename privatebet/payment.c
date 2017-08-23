@@ -168,7 +168,7 @@ int32_t BET_clientpay(uint64_t chipsize)
 
 void BET_channels_parse()
 {
-    cJSON *channels,*array,*item,*peers; int32_t i,n,len; char *peerid,*source,*dest,*short_id;
+    cJSON *channels,*array,*item,*peers; int32_t i,n,len; char *channel,*peerid,*source,*dest,*short_id;
     if ( (peers= chipsln_getpeers()) != 0 )
     {
         //printf("got.(%s)\n",jprint(channels,0));
