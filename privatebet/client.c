@@ -60,11 +60,12 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
             {
                 if ( (retjson= chipsln_fundchannel(Host_peerid,CARDS777_MAXCHIPS*bet->chipsize*BET_RESERVERATE)) != 0 )
                 {
+                    BET_channels_parse();
                     rstr = jprint(retjson,0);
                     if ( strcmp(LN_FUNDINGERROR,rstr) == 0 )
                     {
                         err = 1;
-                        system("./fund");
+                        //system("./fund");
                     }
                     printf("fundchannel -> (%s) err.%d\n",rstr,err);
                     free(rstr);
