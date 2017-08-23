@@ -391,6 +391,7 @@ void BET_clientloop(void *_ptr)
     VARS = calloc(1,sizeof(*VARS));
     strcpy(hostip,"5.9.253.195"); // jl777: get from BET blockchain
     printf("client loop: pushsock.%d subsock.%d\n",bet->pushsock,bet->subsock);
+    sleep(5);
     while ( 1 )
     {
         if ( bet->subsock >= 0 && bet->pushsock >= 0 )
