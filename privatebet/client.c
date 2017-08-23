@@ -21,7 +21,7 @@ int32_t BET_client_onechip(cJSON *argjson,struct privatebet_info *bet,struct pri
 
 int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
 {
-    cJSON *array,*pubkeys,*retjson,*channels,*item; int32_t i,n,flag,already_connected,len; bits256 hash; char *idstr,*source,*dest,*short_id;
+    cJSON *array,*pubkeys,*retjson,*channels,*item; int32_t i,n,flag,already_connected,len,err=0; bits256 hash; char *idstr,*source,*dest,*short_id,*rstr;
     if ( Host_peerid[0] == 0 )
     {
         safecopy(Host_peerid,jstr(argjson,"hostid"),sizeof(Host_peerid));
@@ -60,29 +60,39 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
             {
                 if ( (retjson= chipsln_fundchannel(Host_peerid,100*bet->chipsize*BET_RESERVERATE)) != 0 )
                 {
-                    printf("fundchannel -> (%s)\n",jprint(retjson,0));
+                    rstr = jprint(retjson,0);
+                    if ( strcmp(LN_FUNDINGERROR,rstr) == 0 )
+                    {
+                        err = 1;
+                        system("./fund");
+                    }
+                    printf("fundchannel -> (%s) err.%d\n",rstr,err);
+                    free(rstr);
                     free_json(retjson);
-                    for (i=flag=0; i<10; i++)
+                    if ( err == 0 && BET_peer_state(Host_peerid,"GOSSIPD") != 0 )
                     {
-                        if ( BET_peer_state(Host_peerid,"CHANNELD_AWAITING_LOCKIN") == 0 )
+                        for (i=flag=0; i<10; i++)
                         {
-                            printf("waiting for CHANNELD_AWAITING_LOCKIN\n");
-                            sleep(10);
-                        } else break;
-                    }
-                    for (i=flag=0; i<10; i++)
-                    {
-                        if ( BET_peer_state(Host_peerid,"CHANNELD_NORMAL") != 0 )
-                            sleep(10);
-                        else
-                        {
-                            printf("channel is normal\n");
-                            sleep(10);
-                            break;
+                            if ( BET_peer_state(Host_peerid,"CHANNELD_AWAITING_LOCKIN") == 0 )
+                            {
+                                printf("waiting for CHANNELD_AWAITING_LOCKIN\n");
+                                sleep(10);
+                            } else break;
                         }
+                        for (i=flag=0; i<10; i++)
+                        {
+                            if ( BET_peer_state(Host_peerid,"CHANNELD_NORMAL") != 0 )
+                                sleep(10);
+                            else
+                            {
+                                printf("channel is normal\n");
+                                sleep(10);
+                                break;
+                            }
+                        }
+                        BET_channels_parse();
+                        printf("new Host_channel.(%s)\n",Host_channel);
                     }
-                    BET_channels_parse();
-                    printf("new Host_channel.(%s)\n",Host_channel);
                 }
             }
         }
