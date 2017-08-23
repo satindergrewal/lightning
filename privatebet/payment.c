@@ -124,7 +124,7 @@ int32_t BET_clientpay(uint64_t chipsize)
     {
         if ( BET_peer_chipsavail(Host_peerid,chipsize) <= 2 )
         {
-            printf("%s numchips.%d error\n",Host_peerid,BET_peer_chipsavail(Host_peerid,chipsize));
+            printf("%s numchips.%d error\n",Host_peerid,(int32_t)BET_peer_chipsavail(Host_peerid,chipsize));
             system("./fund"); // addfunds
             return(-2);
         }
