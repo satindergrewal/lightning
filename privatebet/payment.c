@@ -123,7 +123,7 @@ int32_t BET_clientpay(uint64_t chipsize)
     {
         if ( BET_peer_chipsavail(Host_peerid,chipsize) <= 2 )
         {
-            // addfunds
+            system("./fund"); // addfunds
             return(-2);
         }
         rhash = Host_rhashes[n-1];
@@ -153,7 +153,7 @@ int32_t BET_clientpay(uint64_t chipsize)
             }
             free_json(array);
         }
-    }
+    } else printf("cant pay Host_channel.(%s) numchips.%d\n",Host_channel,n);
     return(retval);
 }
 
