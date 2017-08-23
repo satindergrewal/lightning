@@ -119,11 +119,12 @@ struct privatebet_peerln *BET_invoice_complete(char *nextlabel,cJSON *item,struc
 int32_t BET_clientpay(uint64_t chipsize)
 {
     bits256 rhash,preimage; cJSON *routejson,*retjson,*array; int32_t n,retval = -1;
-    printf("BET_clientpay.%llu %.8f\n",(long long)chipsize,dstr(chipsize));
-    if ( Host_channel[0] != 0 && (n= Num_hostrhashes) > 0 )
+    printf("BET_clientpay.%llu %.8f -> (%s)\n",(long long)chipsize,dstr(chipsize),Host_peerid);
+    if ( Host_peerid[0] != 0 && Host_channel[0] != 0 && (n= Num_hostrhashes) > 0 )
     {
         if ( BET_peer_chipsavail(Host_peerid,chipsize) <= 2 )
         {
+            printf("%s numchips.%d error\n",Host_peerid,BET_peer_chipsavail(Host_peerid,chipsize));
             system("./fund"); // addfunds
             return(-2);
         }
