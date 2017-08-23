@@ -38,6 +38,7 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
                     if ( (idstr= jstr(item,"peerid")) != 0 && strcmp(idstr,Host_peerid) == 0 )
                     {
                         already_connected = 1;
+                        printf("already connected\n");
                         break;
                     }
                 }
@@ -54,6 +55,7 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
         if ( already_connected != 0 )
         {
             BET_channels_parse();
+            printf("Host_channel.(%s)\n",Host_channel);
             if ( Host_channel[0] == 0 )
             {
                 if ( (retjson= chipsln_fundchannel(Host_peerid,100*bet->chipsize*BET_RESERVERATE)) != 0 )
