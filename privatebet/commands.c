@@ -256,6 +256,7 @@ int64_t BET_peer_chipsavail(char *peerid,int32_t chipsize)
     cJSON *retjson,*array,*item; uint64_t total; int32_t i,n,retval = 0;
     if ( (retjson= chipsln_getpeers()) != 0 )
     {
+        printf("H.%s chipsavail.(%s)\n",Host_peerid,jprint(retjson,0));
         if ( (array= jarray(&n,retjson,"peers")) != 0 && n > 0 )
         {
             for (i=0; i<n; i++)
