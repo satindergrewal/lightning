@@ -118,7 +118,7 @@ struct privatebet_peerln *BET_invoice_complete(char *nextlabel,cJSON *item,struc
 
 int32_t BET_clientpay(uint64_t chipsize)
 {
-    bits256 rhash,preimage; cJSON *routejson,*retjson,*array; int32_t avail,n,retval = -1;
+    bits256 rhash,preimage; cJSON *routejson,*retjson,*array; int32_t avail,n=0,retval = -1;
     printf("BET_clientpay.%llu %.8f -> (%s)\n",(long long)chipsize,dstr(chipsize),Host_peerid);
     if ( Host_peerid[0] != 0 && Host_channel[0] != 0 && (n= Num_hostrhashes) > 0 )
     {

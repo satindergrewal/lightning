@@ -99,83 +99,8 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
     }
     BET_hosthash_extract(argjson,bet->chipsize);
     BET_clientpay(bet->chipsize);
+    BET_statemachine_joined_table(bet,vars);
     printf("JOIN broadcast.(%s)\n",jprint(argjson,0));
-    return(0);
-}
-
-void BET_client_turnisend(struct privatebet_info *bet,struct privatebet_vars *vars)
-{
-    cJSON *cmdjson;
-    if ( bet->myplayerid < bet->numplayers && bits256_cmp(bet->playerpubs[vars->turni],Mypubkey) == 0 )
-    {
-        cmdjson = cJSON_CreateObject();
-        jaddstr(cmdjson,"method","turni");
-        jaddbits256(cmdjson,"tableid",bet->tableid);
-        jaddnum(cmdjson,"round",vars->round);
-        jaddnum(cmdjson,"turni",vars->turni);
-        jaddbits256(cmdjson,"pubkey",Mypubkey);
-        jadd(cmdjson,"actions",BET_statemachine_turni_actions(bet,vars));
-        printf("send TURNI.(%s)\n",jprint(cmdjson,0));
-        BET_message_send("BET_client_turnisend",bet->pushsock,cmdjson,1,bet);
-    }
-}
-
-void BET_client_turninext(struct privatebet_info *bet,struct privatebet_vars *vars)
-{
-    cJSON *reqjson;
-    printf("BET_turni_next (%d, %d) numplayers.%d range.%d\n",vars->turni,vars->round,bet->numplayers,bet->range);
-    if ( IAMHOST == 0 && vars->validperms == 0 )
-        return;
-    if ( bits256_cmp(bet->tableid,Mypubkey) != 0 )
-        Lastturni = (uint32_t)time(NULL);
-    vars->turni++;
-    if ( vars->turni >= bet->numplayers )
-    {
-        printf("Round.%d completed\n",vars->round);
-        BET_statemachine_endround(bet,vars);
-        reqjson = cJSON_CreateObject();
-        jaddstr(reqjson,"method","roundend");
-        jaddnum(reqjson,"round",vars->round);
-        jaddbits256(reqjson,"pubkey",Mypubkey);
-        BET_message_send("BET_round",bet->pubsock>=0?bet->pubsock:bet->pushsock,reqjson,1,bet);
-        vars->round++;
-        vars->turni = 0;
-        if ( vars->round >= bet->numrounds )
-        {
-            BET_tablestatus_send(bet,vars);
-            Gamestarted = 0;
-            vars->round = 0;
-            Gamestart = (uint32_t)time(NULL) + BET_GAMESTART_DELAY;
-            printf("Game completed next start.%u vs %u\n------------------\n\n",Gamestart,(uint32_t)time(NULL));
-        }
-    }
-    /*if ( vars->turni == bet->myplayerid && vars->round < bet->numrounds && vars->roundready == vars->round )
-    {
-        BET_client_turnisend(bet,vars);
-    }*/
-}
-
-int32_t BET_client_turni(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
-{
-    struct privatebet_vars argvars; int32_t n;
-    //printf("client TURNI.(%s) senderid.%d valid.%d\n",jprint(argjson,0),senderid,vars->validperms);
-    if ( (IAMHOST != 0 || vars->validperms != 0) && senderid >= 0 && senderid < bet->numplayers )
-    {
-        memset(&argvars,0,sizeof(argvars));
-        BET_betvars_parse(bet,&argvars,argjson);
-        if ( vars->round < bet->numrounds )
-        {
-            if ( vars->actions[vars->round][senderid] != 0 )
-                free_json(vars->actions[vars->round][senderid]);
-            vars->actions[vars->round][senderid] = jduplicate(jarray(&n,argjson,"actions"));
-            printf("round.%d senderid.%d (%s)\n",vars->round,senderid,jprint(vars->actions[vars->round][senderid],0));
-            if ( argvars.turni == vars->turni && argvars.round == vars->round )
-            {
-                BET_client_turninext(bet,vars);
-                //printf("new Turni.%d Round.%d\n",Turni,Round);
-            }
-        }
-    }
     return(0);
 }
 
@@ -255,13 +180,13 @@ int32_t BET_client_perm(cJSON *argjson,struct privatebet_info *bet,struct privat
         }
         if ( i == bet->numplayers )
         {
-            vars->validperms = 1;
-            vars->roundready = 0;
-            vars->turni = 0;
             j = BET_permutation_sort(vars->permi,vars->permis,bet->numplayers,bet->range);
             for (i=0; i<bet->range; i++)
                 printf("%d ",vars->permi[i]);
             printf("validated perms best.%d\n",j);
+            vars->roundready = 0;
+            vars->turni = 0;
+            vars->validperms = 1;
             /*if ( vars->turni == bet->myplayerid && vars->round == 0 )
                 BET_client_turnisend(bet,vars);*/
         }
@@ -387,8 +312,9 @@ int32_t BET_clientupdate(cJSON *argjson,uint8_t *ptr,int32_t recvlen,struct priv
 
 void BET_clientloop(void *_ptr)
 {
-    uint32_t lasttime = 0; int32_t lastround=-1,nonz,recvlen; uint16_t port=7798; char connectaddr[64],hostip[64]; void *ptr; cJSON *msgjson,*reqjson; struct privatebet_vars *VARS; struct privatebet_info *bet = _ptr;
+    uint32_t lasttime = 0; int32_t nonz,recvlen; uint16_t port=7798; char connectaddr[64],hostip[64]; void *ptr; cJSON *msgjson,*reqjson; struct privatebet_vars *VARS; struct privatebet_info *bet = _ptr;
     VARS = calloc(1,sizeof(*VARS));
+    VARS->lastround = -1;
     strcpy(hostip,"5.9.253.195"); // jl777: get from BET blockchain
     printf("client loop: pushsock.%d subsock.%d\n",bet->pushsock,bet->subsock);
     sleep(5);
@@ -404,8 +330,8 @@ void BET_clientloop(void *_ptr)
                 {
                     if ( BET_clientupdate(msgjson,ptr,recvlen,bet,VARS) < 0 )
                         printf("unknown clientupdate msg.(%s)\n",jprint(msgjson,0));
-                    if ( Num_hostrhashes > 0 )
-                        BET_clientpay(bet->chipsize);
+                    //if ( Num_hostrhashes > 0 )
+                    //    BET_clientpay(bet->chipsize);
                     free_json(msgjson);
                 }
                 nn_freemsg(ptr);
@@ -418,11 +344,7 @@ void BET_clientloop(void *_ptr)
                     lasttime = (uint32_t)time(NULL);
                 }
                 usleep(10000);
-                if ( VARS->validperms != 0 && VARS->turni == bet->myplayerid && VARS->roundready == VARS->round && lastround != VARS->round )
-                {
-                    BET_client_turnisend(bet,VARS);
-                    lastround = VARS->round;
-                }
+                BET_statemachine(bet,VARS);
             }
         }
         else if ( hostip[0] != 0 && port > 0 )
