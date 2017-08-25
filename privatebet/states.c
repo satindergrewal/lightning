@@ -153,11 +153,11 @@ void BET_statemachine_gameend(struct privatebet_info *bet,struct privatebet_vars
 void BET_statemachine(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     cJSON *actions;
-    if ( VARS->validperms != 0 && VARS->turni == bet->myplayerid && VARS->roundready == VARS->round && VARS->lastround != VARS->round )
+    if ( vars->validperms != 0 && vars->turni == bet->myplayerid && vars->roundready == vars->round && vars->lastround != vars->round )
     {
         actions = BET_statemachine_turni_actions(bet,vars);
-        BET_client_turnisend(bet,VARS,actions);
-        VARS->lastround = VARS->round;
+        BET_client_turnisend(bet,vars,actions);
+        vars->lastround = vars->round;
     }
 }
 ////////////////////////// end Game statemachine
