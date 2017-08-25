@@ -122,7 +122,8 @@ void BET_statemachine_roundstart(struct privatebet_info *bet,struct privatebet_v
 {
     if ( vars->roundready < bet->numrounds )
     {
-        printf("BET_statemachine_roundstart -> %d\n",vars->roundready);
+        printf("BET_statemachine_roundstart -> %d lastround.%d\n",vars->roundready,vars->lastround);
+        vars->lastround = -1;
         /*if ( bet->myplayerid == 0 )
          BET_statemachine_deali(bet,vars,vars->roundready % bet->range,(rand() % (bet->numplayers+1)) - 1);*/
     }
