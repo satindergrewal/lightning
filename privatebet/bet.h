@@ -304,9 +304,16 @@ int32_t BET_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct privat
 //void BET_cmdloop(bits256 privkey,char *smartaddr,uint8_t *pubkey33,bits256 pubkey,struct privatebet_info *bet);
 cJSON *BET_statemachine_gamestart_actions(struct privatebet_info *bet,struct privatebet_vars *vars);
 cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct privatebet_vars *vars);
-void BET_statemachine_endround(struct privatebet_info *bet,struct privatebet_vars *vars);
+//void BET_statemachine_deali(struct privatebet_info *bet,struct privatebet_vars *vars,int32_t deali,int32_t playerj);
+
+void BET_statemachine_joined_table(struct privatebet_info *bet,struct privatebet_vars *vars);
 void BET_statemachine_roundstart(struct privatebet_info *bet,struct privatebet_vars *vars);
-void BET_statemachine_deali(struct privatebet_info *bet,struct privatebet_vars *vars,int32_t deali,int32_t playerj);
+void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_vars *vars);
+void BET_statemachine_gameend(struct privatebet_info *bet,struct privatebet_vars *vars);
+void BET_statemachine(struct privatebet_info *bet,struct privatebet_vars *vars);
+
+
+
 int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[],char *cmdstr);
 struct privatebet_peerln *BET_peerln_find(char *peerid);
 

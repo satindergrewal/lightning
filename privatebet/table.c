@@ -104,6 +104,18 @@ cJSON *BET_betinfo_json(struct privatebet_info *bet,struct privatebet_vars *vars
     return(betjson);
 }
 
+void BET_betvars_parse(struct privatebet_info *bet,struct privatebet_vars *vars,cJSON *argjson)
+{
+    vars->turni = jint(argjson,"turni");
+    vars->round = jint(argjson,"round");
+    if ( bits256_cmp(bet->tableid,Mypubkey) != 0 )
+    {
+        Gamestart = juint(argjson,"gamestart");
+        Gamestarted = juint(argjson,"gamestarted");
+    }
+    //printf("TURNI.(%s)\n",jprint(argjson,0));
+}
+
 int32_t BET_betinfo_parse(struct privatebet_info *bet,struct privatebet_vars *vars,cJSON *msgjson)
 {
     int32_t i,n; cJSON *players;
