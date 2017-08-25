@@ -118,6 +118,7 @@ void BET_host_gamestart(struct privatebet_info *bet,struct privatebet_vars *vars
     jaddnum(reqjson,"numplayers",bet->numplayers);
     jaddnum(reqjson,"numrounds",bet->numrounds);
     jaddnum(reqjson,"range",bet->range);
+    jaddnum(reqjson,"timestamp",bet->timestamp);
     printf("broadcast.(%s)\n",jprint(reqjson,0));
     BET_message_send("BET_start",bet->pubsock,reqjson,1,bet);
     deckjson = 0;
@@ -147,6 +148,7 @@ void BET_host_gamestart(struct privatebet_info *bet,struct privatebet_vars *vars
     jaddnum(reqjson,"numplayers",bet->numplayers);
     jaddnum(reqjson,"numrounds",bet->numrounds);
     jaddnum(reqjson,"range",bet->range);
+    jaddnum(reqjson,"timestamp",bet->timestamp);
     BET_message_send("BET_start",bet->pubsock,reqjson,1,bet);
 }
 
@@ -332,7 +334,7 @@ void BET_hostloop(void *_ptr)
             {
                 printf("GAME.%d\n",Numgames);
                 Numgames++;
-                Gamestarted = (uint32_t)time(NULL);
+                bet->timestamp = Gamestarted = (uint32_t)time(NULL);
                 BET_host_gamestart(bet,VARS);
             }
         }

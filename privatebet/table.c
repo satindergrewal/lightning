@@ -67,6 +67,7 @@ cJSON *BET_betinfo_json(struct privatebet_info *bet,struct privatebet_vars *vars
     jaddstr(betjson,"method","tablestatus");
     jaddstr(betjson,"game",bet->game);
     jaddbits256(betjson,"tableid",bet->tableid);
+    jaddnum(betjson,"timestamp",bet->timestamp);
     jaddnum(betjson,"maxplayers",bet->maxplayers);
     array = cJSON_CreateArray();
     bet->myplayerid = -1;
@@ -138,6 +139,7 @@ int32_t BET_betinfo_parse(struct privatebet_info *bet,struct privatebet_vars *va
         bet->numplayers = 0;
         printf("Numplayers %d mismatch %d\n",bet->numplayers,n);
     }
+    bet->timestamp = juint(msgjson,"timestamp");
     bet->tableid = jbits256(msgjson,"tableid");
     bet->numrounds = jint(msgjson,"numrounds");
     bet->range = jint(msgjson,"range");

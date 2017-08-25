@@ -270,6 +270,7 @@ struct privatebet_info
     bits256 MofN[CARDS777_MAXCARDS * CARDS777_MAXPLAYERS],cardpubs[CARDS777_MAXCARDS],playerpubs[CARDS777_MAXPLAYERS+1],tableid,deckid;
     int32_t numplayers,maxplayers,numrounds,range,myplayerid,maxchips,chipsize;
     int32_t pullsock,pubsock,subsock,pushsock;
+    uint32_t timestamp;
     char peerids[CARDS777_MAXPLAYERS+1][67];
 };
 

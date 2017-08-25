@@ -68,6 +68,7 @@ void BET_client_turninext(struct privatebet_info *bet,struct privatebet_vars *va
             vars->validperms = 0;
             BET_statemachine_gameend(bet,vars);
             BET_tablestatus_send(bet,vars);
+            bet->timestamp = 0;
             Gamestarted = 0;
             vars->round = 0;
             vars->lastround = -1;
@@ -109,7 +110,6 @@ int32_t BET_client_turni(cJSON *argjson,struct privatebet_info *bet,struct priva
 void BET_statemachine_joined_table(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     printf("BET_statemachine_joined\n");
-    return(cJSON_CreateArray());
 }
 
 cJSON *BET_statemachine_gamestart_actions(struct privatebet_info *bet,struct privatebet_vars *vars)
