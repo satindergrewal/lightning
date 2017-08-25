@@ -340,7 +340,7 @@ void BET_clientloop(void *_ptr)
             {
                 if ( time(NULL) > lasttime+60 )
                 {
-                    printf("%s round.%d turni.%d myid.%d | valid.%d roundready.%d\n",bet->game,VARS->round,VARS->turni,bet->myplayerid,VARS->validperms,VARS->roundready);
+                    printf("%s round.%d turni.%d myid.%d | valid.%d roundready.%d lastround.%d -> myturn? %d\n",bet->game,VARS->round,VARS->turni,bet->myplayerid,VARS->validperms,VARS->roundready,VARS->lastround,VARS->validperms != 0 && VARS->turni == bet->myplayerid && VARS->roundready == VARS->round && VARS->lastround != VARS->round);
                     lasttime = (uint32_t)time(NULL);
                 }
                 usleep(10000);
