@@ -364,7 +364,7 @@ static const struct config mainnet_config = {
 	.deadline_blocks = 10,
 
 	/* How often to bother bitcoind. */
-	.poll_time = TIME_FROM_SEC(30),
+	.poll_time = TIME_FROM_SEC(1),
 
 	/* Send commit 10msec after receiving; almost immediately. */
 	.commit_time = TIME_FROM_MSEC(10),

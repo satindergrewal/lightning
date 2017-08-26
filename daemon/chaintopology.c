@@ -24,8 +24,7 @@ static void next_topology_timer(struct chain_topology *topo)
 		topo->startup = false;
 		io_break(topo);
 	}
-	new_reltimer(topo->timers, topo, topo->poll_time,
-		     start_poll_chaintip, topo);
+	new_reltimer(topo->timers, topo, topo->poll_time, start_poll_chaintip, topo);
 }
 
 static int cmp_times(const u32 *a, const u32 *b, void *unused)
