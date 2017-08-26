@@ -361,7 +361,7 @@ static const struct config mainnet_config = {
 	.max_htlc_expiry = 5 * 6 * 24,
 
 	/* If we're closing on HTLC expiry, and you're unresponsive, we abort. */
-	.deadline_blocks = 10,
+	.deadline_blocks = 100,
 
 	/* How often to bother bitcoind. */
 	.poll_time = TIME_FROM_SEC(1),
@@ -371,8 +371,8 @@ static const struct config mainnet_config = {
 
 	/* Discourage dust payments */
 	.fee_base = 546000,
-	/* Take 0.001% */
-	.fee_per_satoshi = 10,
+	/* Take 0.0001% */
+	.fee_per_satoshi = 1,
 
 	/* Discover new peers using IRC */
 	.use_irc = true,

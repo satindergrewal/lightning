@@ -433,7 +433,7 @@ static void json_sendpay(struct command *cmd,
 	/* Expiry for HTLCs is absolute.  And add one + two to give some margin. */
 	err = command_htlc_add(peer, amount,
 			       delay + get_block_height(cmd->dstate->topology)
-			       + 1 + 2,
+			       + LIGHTNING_BLOCKSMARGIN,
 			       &rhash, NULL,
 			       onion, &error_code, &pc->htlc);
 	if (err) {

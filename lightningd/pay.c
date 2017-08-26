@@ -190,7 +190,7 @@ static void json_sendpay(struct command *cmd,
 	}
 
 	/* Expiry for HTLCs is absolute.  And add one to give some margin. */
-	base_expiry = get_block_height(cmd->dstate->topology) + 1 + 2;
+	base_expiry = get_block_height(cmd->dstate->topology) + LIGHTNING_BLOCKSMARGIN;
 
 	end = json_next(routetok);
 	n_hops = 0;
