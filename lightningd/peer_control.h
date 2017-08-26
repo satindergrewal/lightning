@@ -65,7 +65,6 @@ struct peer {
 
 	/* Tracking commitment transaction numbers. */
 	u64 next_index[NUM_SIDES];
-	u64 num_revocations_received;
 	u64 next_htlc_id;
 
 	/* Funding txid and amounts (once known) */
@@ -118,12 +117,17 @@ static inline bool peer_can_remove_htlc(const struct peer *peer)
 		|| peer->state == ONCHAIND_OUR_UNILATERAL;
 }
 
+static inline bool peer_state_on_chain(enum peer_state state)
+{
+	return state == ONCHAIND_CHEATED
+		|| state == ONCHAIND_THEIR_UNILATERAL
+		|| state == ONCHAIND_OUR_UNILATERAL
+		|| state == ONCHAIND_MUTUAL;
+}
+
 static inline bool peer_on_chain(const struct peer *peer)
 {
-	return peer->state == ONCHAIND_CHEATED
-		|| peer->state == ONCHAIND_THEIR_UNILATERAL
-		|| peer->state == ONCHAIND_OUR_UNILATERAL
-		|| peer->state == ONCHAIND_MUTUAL;
+	return peer_state_on_chain(peer->state);
 }
 
 /* BOLT #2:

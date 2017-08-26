@@ -689,6 +689,20 @@ out:
 	return true;
 }
 
+static void fulfill_our_htlc_out(struct peer *peer, struct htlc_out *hout,
+				 const struct preimage *preimage)
+{
+	hout->preimage = tal_dup(hout, struct preimage, preimage);
+	htlc_out_check(hout, __func__);
+
+	/* FIXME: Save to db */
+
+	if (hout->in)
+		fulfill_htlc(hout->in, preimage);
+	else
+		payment_succeeded(peer->ld, hout, preimage);
+}
+
 static bool peer_fulfilled_our_htlc(struct peer *peer,
 				    const struct fulfilled_htlc *fulfilled)
 {
@@ -705,17 +719,32 @@ static bool peer_fulfilled_our_htlc(struct peer *peer,
 	if (!htlc_out_update_state(peer, hout, RCVD_REMOVE_COMMIT))
 		return false;
 
-	hout->preimage = tal_dup(hout, struct preimage,
-				 &fulfilled->payment_preimage);
-	htlc_out_check(hout, __func__);
-
-	/* FIXME: Save to db */
-
-	if (hout->in)
-		fulfill_htlc(hout->in, &fulfilled->payment_preimage);
-	else
-		payment_succeeded(peer->ld, hout, &fulfilled->payment_preimage);
+	fulfill_our_htlc_out(peer, hout, &fulfilled->payment_preimage);
 	return true;
+}
+
+void onchain_fulfilled_htlc(struct peer *peer, const struct preimage *preimage)
+{
+	struct htlc_out_map_iter outi;
+	struct htlc_out *hout;
+	struct sha256 payment_hash;
+
+	sha256(&payment_hash, preimage, sizeof(*preimage));
+
+	/* FIXME: use db to look this up! */
+	for (hout = htlc_out_map_first(&peer->ld->htlcs_out, &outi);
+	     hout;
+	     hout = htlc_out_map_next(&peer->ld->htlcs_out, &outi)) {
+		if (hout->key.peer != peer)
+			continue;
+
+		if (!structeq(&hout->payment_hash, &payment_hash))
+			continue;
+
+		fulfill_our_htlc_out(peer, hout, preimage);
+		/* We keep going: this is something of a leak, but onchain
+		 * we have no real way of distinguishing HTLCs anyway */
+	}
 }
 
 static bool peer_failed_our_htlc(struct peer *peer,
@@ -860,6 +889,10 @@ static bool peer_save_commitsig_received(struct peer *peer, u64 commitnum)
 	peer->next_index[LOCAL]++;
 
 	/* FIXME: Save to database, with sig and HTLCs. */
+	if (!wallet_channel_save(peer->ld->wallet, peer->channel)) {
+		fatal("Could not save channel to database: %s",
+		      peer->ld->wallet->db->err);
+	}
 	return true;
 }
 
@@ -876,6 +909,11 @@ static bool peer_save_commitsig_sent(struct peer *peer, u64 commitnum)
 	peer->next_index[REMOTE]++;
 
 	/* FIXME: Save to database, with sig and HTLCs. */
+	if (!wallet_channel_save(peer->ld->wallet, peer->channel)) {
+		fatal("Could not save channel to database: %s",
+		      peer->ld->wallet->db->err);
+	}
+
 	return true;
 }
 
@@ -1137,10 +1175,10 @@ int peer_got_revoke(struct peer *peer, const u8 *msg)
 		return -1;
 	}
 
-	if (revokenum != peer->num_revocations_received) {
+	if (revokenum != revocations_received(&peer->their_shachain.chain)) {
 		peer_internal_error(peer, "got_revoke: expected %"PRIu64
 				    " got %"PRIu64,
-				    peer->num_revocations_received, revokenum);
+				    revocations_received(&peer->their_shachain.chain), revokenum);
 		return -1;
 	}
 
@@ -1163,7 +1201,6 @@ int peer_got_revoke(struct peer *peer, const u8 *msg)
 
 	/* FIXME: Check per_commitment_secret -> per_commit_point */
 	update_per_commit_point(peer, &next_per_commitment_point);
-	peer->num_revocations_received++;
 
 	/* FIXME: Commit shachain and next_per_commit_point to db */
 
@@ -1181,6 +1218,11 @@ int peer_got_revoke(struct peer *peer, const u8 *msg)
 		hin = find_htlc_in(&peer->ld->htlcs_in, peer, changed[i].id);
 		local_fail_htlc(hin, failcodes[i]);
 	}
+	if (!wallet_channel_save(peer->ld->wallet, peer->channel)) {
+		fatal("Could not save channel to database: %s",
+		      peer->ld->wallet->db->err);
+	}
+
 	return 0;
 }
 

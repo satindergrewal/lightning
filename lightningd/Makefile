@@ -4,7 +4,7 @@
 lightningd-wrongdir:
 	$(MAKE) -C .. lightningd-all
 
-LIGHTNINGD_BINS := lightningd/lightningd lightningd/lightningd_hsm lightningd/lightningd_handshake lightningd/lightningd_gossip lightningd/lightningd_opening lightningd/lightningd_channel lightningd/lightningd_closing
+LIGHTNINGD_BINS := lightningd/lightningd lightningd/lightningd_hsm lightningd/lightningd_handshake lightningd/lightningd_gossip lightningd/lightningd_opening lightningd/lightningd_channel lightningd/lightningd_closing lightningd/lightningd_onchain
 
 lightningd-all: $(LIGHTNINGD_BINS)
 
@@ -103,8 +103,7 @@ LIGHTNINGD_HEADERS_NOGEN =			\
 	$(CORE_HEADERS)				\
 	$(CORE_TX_HEADERS)			\
 	$(DAEMON_HEADERS)			\
-	$(WALLET_LIB_HEADERS)			\
-	lightningd/onchain/onchain_wire.h
+	$(WALLET_LIB_HEADERS)
 
 # Generated headers
 LIGHTNINGD_HEADERS_GEN =			\
@@ -130,6 +129,7 @@ include lightningd/gossip/Makefile
 include lightningd/opening/Makefile
 include lightningd/channel/Makefile
 include lightningd/closing/Makefile
+include lightningd/onchain/Makefile
 
 $(LIGHTNINGD_OBJS) $(LIGHTNINGD_LIB_OBJS): $(LIGHTNINGD_HEADERS) 
 
@@ -148,7 +148,7 @@ check-makefile: check-lightningd-makefile
 check-lightningd-makefile:
 	@for f in lightningd/*.h lightningd/*/*.h; do if ! echo $(LIGHTNINGD_HEADERS_NOGEN) $(LIGHTNINGD_HEADERS_GEN) "" | grep -q "$$f "; then echo $$f not mentioned in LIGHTNINGD_HEADERS_NOGEN or LIGHTNINGD_HEADERS_GEN >&2; exit 1; fi; done
 
-lightningd/lightningd: $(LIGHTNINGD_OBJS) $(LIGHTNINGD_OLD_OBJS) $(LIGHTNINGD_OLD_LIB_OBJS) $(LIGHTNINGD_LIB_OBJS) $(LIGHTNINGD_JSMN_OBJS) $(CORE_OBJS) $(CORE_TX_OBJS) $(BITCOIN_OBJS) $(WIRE_OBJS) $(WIRE_ONION_OBJS) $(CCAN_OBJS) $(CCAN_SHACHAIN48_OBJ) $(LIGHTNINGD_HSM_CONTROL_OBJS) $(LIGHTNINGD_HANDSHAKE_CONTROL_OBJS) $(LIGHTNINGD_GOSSIP_CONTROL_OBJS) $(LIBBASE58_OBJS) $(LIGHTNINGD_OPENING_CONTROL_OBJS) $(LIGHTNINGD_CHANNEL_CONTROL_OBJS) $(LIGHTNINGD_CLOSING_CONTROL_OBJS) $(WALLET_LIB_OBJS) libsecp256k1.a libsodium.a libwallycore.a
+lightningd/lightningd: $(LIGHTNINGD_OBJS) $(LIGHTNINGD_OLD_OBJS) $(LIGHTNINGD_OLD_LIB_OBJS) $(LIGHTNINGD_LIB_OBJS) $(LIGHTNINGD_JSMN_OBJS) $(CORE_OBJS) $(CORE_TX_OBJS) $(BITCOIN_OBJS) $(WIRE_OBJS) $(WIRE_ONION_OBJS) $(CCAN_OBJS) $(CCAN_SHACHAIN48_OBJ) $(LIGHTNINGD_HSM_CONTROL_OBJS) $(LIGHTNINGD_HANDSHAKE_CONTROL_OBJS) $(LIGHTNINGD_GOSSIP_CONTROL_OBJS) $(LIBBASE58_OBJS) $(LIGHTNINGD_OPENING_CONTROL_OBJS) $(LIGHTNINGD_CHANNEL_CONTROL_OBJS) $(LIGHTNINGD_CLOSING_CONTROL_OBJS) $(LIGHTNINGD_ONCHAIN_CONTROL_OBJS) $(WALLET_LIB_OBJS) libsecp256k1.a libsodium.a libwallycore.a
 
 clean: lightningd-clean
 
