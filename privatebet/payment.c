@@ -143,7 +143,7 @@ int32_t BET_clientpay(uint64_t chipsize)
             jaddstr(routejson,"id",Host_peerid);
             jaddstr(routejson,"channel",Host_channel);
             jaddnum(routejson,"msatoshi",chipsize*1000);
-            jaddnum(routejson,"delay",10);
+            jaddnum(routejson,"delay",100);
             jaddi(array,routejson);
             // route { "id" : "02779b57b66706778aa1c7308a817dc080295f3c2a6af349bb1114b8be328c28dc", "channel" : "27446:1:0", "msatoshi" : 1000000, "delay" : 10 }
             // replace rhash in route
