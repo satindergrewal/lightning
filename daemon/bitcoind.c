@@ -232,7 +232,7 @@ static void process_estimatefee_6(struct bitcoin_cli *bcli)
     else
     {
         fee *= 2;
-        printf("estimatefee.(%s) ->  %.8f\n",p,fee);
+        //printf("estimatefee.(%s) ->  %.8f\n",p,fee);
         // Since we used 6 as an estimate, double it.
     }
     fee_rate = fee * 100000000;
