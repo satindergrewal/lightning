@@ -430,10 +430,10 @@ static void json_sendpay(struct command *cmd,
 	pc->ids = tal_steal(pc, ids);
 	pc->msatoshi = lastamount;
 
-	/* Expiry for HTLCs is absolute.  And add one to give some margin. */
+	/* Expiry for HTLCs is absolute.  And add one + two to give some margin. */
 	err = command_htlc_add(peer, amount,
 			       delay + get_block_height(cmd->dstate->topology)
-			       + 1,
+			       + 1 + 2,
 			       &rhash, NULL,
 			       onion, &error_code, &pc->htlc);
 	if (err) {
