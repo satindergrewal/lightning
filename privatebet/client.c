@@ -312,9 +312,9 @@ int32_t BET_clientupdate(cJSON *argjson,uint8_t *ptr,int32_t recvlen,struct priv
 
 void BET_clientloop(void *_ptr)
 {
-    uint32_t lasttime = 0; int32_t nonz,recvlen; uint16_t port=7798; char connectaddr[64],hostip[64]; void *ptr; cJSON *msgjson,*reqjson; struct privatebet_vars *VARS; struct privatebet_info *bet = _ptr;
+    uint32_t lasttime = 0; int32_t nonz,recvlen,lastChips_paid; uint16_t port=7798; char connectaddr[64],hostip[64]; void *ptr; cJSON *msgjson,*reqjson; struct privatebet_vars *VARS; struct privatebet_info *bet = _ptr;
     VARS = calloc(1,sizeof(*VARS));
-    VARS->lastround = -1;
+    VARS->lastround = lastChips_paid = -1;
     strcpy(hostip,"5.9.253.195"); // jl777: get from BET blockchain
     printf("client loop: pushsock.%d subsock.%d\n",bet->pushsock,bet->subsock);
     sleep(5);
@@ -330,8 +330,11 @@ void BET_clientloop(void *_ptr)
                 {
                     if ( BET_clientupdate(msgjson,ptr,recvlen,bet,VARS) < 0 )
                         printf("unknown clientupdate msg.(%s)\n",jprint(msgjson,0));
-                    //if ( Num_hostrhashes > 0 )
-                    //    BET_clientpay(bet->chipsize);
+                    if ( Num_hostrhashes > 0 && Chips_paid > lastChips_paid )
+                    {
+                        lastChips_paid = Chips_paid;
+                        BET_clientpay(bet->chipsize);
+                    }
                     free_json(msgjson);
                 }
                 nn_freemsg(ptr);
