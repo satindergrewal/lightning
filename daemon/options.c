@@ -300,7 +300,7 @@ static const struct config testnet_config = {
 	.deadline_blocks = 4,
 
 	/* How often to bother bitcoind. */
-	.poll_time = TIME_FROM_SEC(10),
+	.poll_time = TIME_FROM_SEC(1),
 
 	/* Send commit 10msec after receiving; almost immediately. */
 	.commit_time = TIME_FROM_MSEC(10),
@@ -308,7 +308,7 @@ static const struct config testnet_config = {
 	/* Allow dust payments */
 	.fee_base = 1,
 	/* Take 0.001% */
-	.fee_per_satoshi = 10,
+	.fee_per_satoshi = 1,
 
 	/* Discover new peers using IRC */
 	.use_irc = true,
@@ -323,10 +323,10 @@ static const struct config testnet_config = {
 /* aka. "Dude, where's my coins?" */
 static const struct config mainnet_config = {
 	/* ~one day to catch cheating attempts. */
-	.locktime_blocks = 6 * 24,
+	.locktime_blocks = 6 * 60 * 24,
 
 	/* They can have up to 3 days. */
-	.locktime_max = 3 * 6 * 24,
+	.locktime_max = 3 * 6 * 60 * 24,
 
 	/* You should get in within 10 blocks. */
 	.anchor_onchain_wait = 10,
@@ -356,9 +356,9 @@ static const struct config mainnet_config = {
 	.commitment_fee_percent = 500,
 
 	/* Don't bother me unless I have 6 hours to collect. */
-	.min_htlc_expiry = 6 * 6,
+	.min_htlc_expiry = 6 * 6 * 60,
 	/* Don't lock up channel for more than 5 days. */
-	.max_htlc_expiry = 5 * 6 * 24,
+	.max_htlc_expiry = 5 * 6 * 60 * 24,
 
 	/* If we're closing on HTLC expiry, and you're unresponsive, we abort. */
 	.deadline_blocks = 100,
@@ -367,7 +367,7 @@ static const struct config mainnet_config = {
 	.poll_time = TIME_FROM_SEC(1),
 
 	/* Send commit 10msec after receiving; almost immediately. */
-	.commit_time = TIME_FROM_MSEC(10),
+	.commit_time = TIME_FROM_MSEC(5),
 
 	/* Discourage dust payments */
 	.fee_base = 546000,
