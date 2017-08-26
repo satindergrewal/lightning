@@ -393,7 +393,7 @@ static struct io_plan *handle_peer_add_htlc(struct io_conn *conn,
 			    WIRE_CHANNEL_PEER_BAD_MESSAGE,
 			    "Bad peer_add_htlc %s", tal_hex(msg, msg));
 printf("EXPIRY.%d\n",cltv_expiry);
-    //cltv_expiry++;
+    cltv_expiry++;
     
 	add_err = channel_add_htlc(peer->channel, REMOTE, id, amount_msat,
 				   cltv_expiry, &payment_hash,
