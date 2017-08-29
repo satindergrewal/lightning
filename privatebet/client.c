@@ -27,9 +27,9 @@ int32_t BET_client_gameeval(cJSON *argjson,struct privatebet_info *bet,struct pr
     M = (bet->numplayers >> 1) + 1;
     for (i=0; i<bet->numplayers; i++)
     {
-        if ( vars->evalcrcs[i] == 0 )
+        if ( vars->evalcrcs[i] != 0 )
             crc32 = vars->evalcrcs[i];
-        else if ( vars->evalcrcs[i] == crc32 )
+        else if ( vars->evalcrcs[i] != 0 && vars->evalcrcs[i] == crc32 )
             consensus++;
     }
     if ( vars->consensus == 0 && consensus >= M )
@@ -39,6 +39,7 @@ int32_t BET_client_gameeval(cJSON *argjson,struct privatebet_info *bet,struct pr
     }
     if ( consensus > vars->numconsensus )
         vars->numconsensus = consensus;
+    //printf("crc32.%u vars->consensus.%u num.%d\n",crc32,vars->consensus,vars->numconsensus);
     return(0);
 }
 
