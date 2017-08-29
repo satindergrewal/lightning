@@ -21,7 +21,7 @@ int32_t BET_client_onechip(cJSON *argjson,struct privatebet_info *bet,struct pri
 
 int32_t BET_client_gameeval(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
 {
-    printf("client EVAL.(%s)\n",jprint(argjson,0));
+    printf("EVAL.(%u).p%d ",juint(argjson,"crc32"),senderid);
     return(0);
 }
 
