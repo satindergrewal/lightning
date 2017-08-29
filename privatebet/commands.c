@@ -239,9 +239,32 @@ int32_t BET_peer_state(char *peerid,char *statestr)
             for (i=0; i<n; i++)
             {
                 item = jitem(array,i);
-                if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),Host_peerid) != 0 )
+                if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),peerid) != 0 )
                     continue;
                 if ( jstr(item,"state") != 0 && strcmp(jstr(item,"state"),statestr) == 0 )
+                    retval = 0;
+                break;
+            }
+        }
+        free_json(retjson);
+    }
+    return(retval);
+}
+
+int32_t BET_channel_status(char *peerid,char *status)
+{
+    cJSON *retjson,*array,*item; int32_t i,n,retval = -1;
+    if ( (retjson= chipsln_getchannels()) != 0 )
+    {
+        if ( (array= jarray(&n,retjson,"channels")) != 0 && n > 0 )
+        {
+            for (i=0; i<n; i++)
+            {
+                item = jitem(array,i);
+                printf("channel.(%s)\n",jprint(item,0));
+                if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),peerid) != 0 )
+                    continue;
+                if ( jstr(item,"status") != 0 && strcmp(jstr(item,"status"),status) == 0 )
                     retval = 0;
                 break;
             }
@@ -262,7 +285,7 @@ int64_t BET_peer_chipsavail(char *peerid,int32_t chipsize)
             for (i=0; i<n; i++)
             {
                 item = jitem(array,i);
-                if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),Host_peerid) != 0 )
+                if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),peerid) != 0 )
                     continue;
                 total = j64bits(item,"msatoshi_to_us");
                 retval = (total / 1000) / chipsize;
