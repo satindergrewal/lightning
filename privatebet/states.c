@@ -63,19 +63,20 @@ void BET_client_turninext(struct privatebet_info *bet,struct privatebet_vars *va
         jaddbits256(reqjson,"pubkey",Mypubkey);
         BET_message_send("BET_round",bet->pubsock>=0?bet->pubsock:bet->pushsock,reqjson,1,bet);
         vars->round++;
-        vars->turni = 0;
         if ( vars->round >= bet->numrounds )
         {
-            vars->validperms = 0;
             BET_statemachine_gameend(bet,vars);
             BET_tablestatus_send(bet,vars);
+            vars->validperms = 0;
             bet->timestamp = 0;
+            vars->turni = 0;
             Gamestarted = 0;
             vars->round = 0;
             vars->lastround = -1;
             Gamestart = (uint32_t)time(NULL) + BET_GAMESTART_DELAY;
             printf("Game completed next start.%u vs %u\n------------------\n\n",Gamestart,(uint32_t)time(NULL));
         }
+        vars->turni = 0;
     }
     /*if ( vars->turni == bet->myplayerid && vars->round < bet->numrounds && vars->roundready == vars->round )
      {
@@ -135,7 +136,7 @@ void BET_statemachine_roundstart(struct privatebet_info *bet,struct privatebet_v
 
 cJSON *BET_statemachine_gameeval(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-    int32_t round,playerid; cJSON *item,*retjson; char buf[32786];
+    int32_t round,playerid; uint32_t crc32; cJSON *item,*retjson; char buf[32786];
     retjson = cJSON_CreateObject();
     buf[0] = 0;
     for (round=0; round<bet->numrounds; round++)
@@ -147,7 +148,9 @@ cJSON *BET_statemachine_gameeval(struct privatebet_info *bet,struct privatebet_v
         }
         sprintf(buf+strlen(buf),"round.%d ",round);
     }
+    crc32 = calc_crc32(0,buf,(int32_t)strlen(buf));
     jaddstr(retjson,"eval",buf);
+    jaddnum(retjson,"crc32",crc32);
     return(retjson);
 }
 
@@ -161,6 +164,7 @@ void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_var
     printf("BET_statemachine_endround -> %d\n",vars->round);
     if ( vars->round == bet->numrounds-1 )
         BET_statemachine_gameend(bet,vars);
+    else printf("not final\n");
 }
 
 cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct privatebet_vars *vars)
