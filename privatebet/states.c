@@ -25,7 +25,8 @@ void BET_client_turnisend(struct privatebet_info *bet,struct privatebet_vars *va
         jaddnum(cmdjson,"round",vars->round);
         jaddnum(cmdjson,"turni",vars->turni);
         jaddbits256(cmdjson,"pubkey",Mypubkey);
-        jadd(cmdjson,"actions",actions);
+        if ( actions != 0 )
+            jadd(cmdjson,"actions",actions);
         printf("send TURNI.(%s)\n",jprint(cmdjson,0));
         BET_message_send("BET_client_turnisend",bet->pushsock,cmdjson,1,bet);
     }
@@ -86,7 +87,7 @@ void BET_client_turninext(struct privatebet_info *bet,struct privatebet_vars *va
 
 int32_t BET_client_turni(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
 {
-    struct privatebet_vars argvars; int32_t n;
+    struct privatebet_vars argvars; int32_t n; cJSON *array = 0;
     //printf("client TURNI.(%s) senderid.%d valid.%d\n",jprint(argjson,0),senderid,vars->validperms);
     if ( (IAMHOST != 0 || vars->validperms != 0) && senderid >= 0 && senderid <= bet->numplayers )
     {
@@ -97,8 +98,12 @@ int32_t BET_client_turni(cJSON *argjson,struct privatebet_info *bet,struct priva
             if ( senderid < bet->numplayers )
             {
                 if ( vars->actions[vars->round][senderid] != 0 )
+                {
                     free_json(vars->actions[vars->round][senderid]);
-                vars->actions[vars->round][senderid] = jduplicate(jarray(&n,argjson,"actions"));
+                    vars->actions[vars->round][senderid] = 0;
+                }
+                if ( (array= jarray(&n,argjson,"actions")) != 0 )
+                    vars->actions[vars->round][senderid] = jduplicate(array);
             }
             //printf("round.%d senderid.%d (%s)\n",vars->round,senderid,jprint(vars->actions[vars->round][senderid],0));
             if ( argvars.turni == vars->turni && argvars.round == vars->round )
@@ -170,9 +175,10 @@ void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_var
 
 cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-    uint32_t r; cJSON *array = cJSON_CreateArray();
-    if ( vars->round < bet->numrounds )
+    uint32_t r; cJSON *array = 0;
+    if ( vars->round < bet->numrounds-1 )
     {
+        array = cJSON_CreateArray();
         OS_randombytes((void *)&r,sizeof(r));
         if ( bet->range < 2 )
             r = 0;
@@ -185,7 +191,6 @@ cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct private
         jaddi(array,BET_statemachine_gameeval(bet,vars));
         BET_statemachine_gameend(bet,vars);
     }*/
-    else array = cJSON_CreateArray();
     return(array);
 }
 
