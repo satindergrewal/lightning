@@ -260,7 +260,7 @@ int32_t BET_channel_status(char *peerid,char *status)
     cJSON *retjson,*array,*item; int32_t i,n,retval = -1;
     if ( (retjson= chipsln_getchannels()) != 0 )
     {
-        printf("channels.(%s)\n",jprint(retjson,0));
+        printf("HOST.(%s) channels.(%s)\n",Host_channel,jprint(retjson,0));
         if ( (array= jarray(&n,retjson,"channels")) != 0 && n > 0 )
         {
             for (i=0; i<n; i++)
@@ -284,7 +284,7 @@ int64_t BET_peer_chipsavail(char *peerid,int32_t chipsize)
     cJSON *retjson,*array,*item; uint64_t total; int32_t i,n,retval = 0;
     if ( (retjson= chipsln_getpeers()) != 0 )
     {
-        printf("H.%s chipsavail.(%s)\n",Host_peerid,jprint(retjson,0));
+        //printf("H.%s chipsavail.(%s)\n",Host_peerid,jprint(retjson,0));
         if ( (array= jarray(&n,retjson,"peers")) != 0 && n > 0 )
         {
             for (i=0; i<n; i++)

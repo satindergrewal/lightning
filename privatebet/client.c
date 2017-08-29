@@ -66,7 +66,7 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
         {
             BET_channels_parse();
             printf("Host_channel.(%s)\n",Host_channel);
-            if ( Host_channel[0] == 0 )
+            if ( Host_channel[0] == 0 || (int32_t)BET_peer_chipsavail(Host_peerid,chipsize) < 2 )
             {
                 if ( (retjson= chipsln_fundchannel(Host_peerid,CARDS777_MAXCHIPS*bet->chipsize*BET_RESERVERATE)) != 0 )
                 {
@@ -74,7 +74,7 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
                     if ( strcmp(LN_FUNDINGERROR,rstr) == 0 )
                     {
                         err = 1;
-                        //system("./fund");
+                        system("./fund");
                     }
                     printf("fundchannel -> (%s) err.%d\n",rstr,err);
                     free(rstr);
