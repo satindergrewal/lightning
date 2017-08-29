@@ -153,7 +153,7 @@ int32_t BET_clientpay(uint64_t chipsize)
             {
                 if ( (retjson= chipsln_getroute(Host_channel,chipsize*1000)) != 0 )
                 {
-                    print("getroute.(%s)\n",jprint(retjson,0));
+                    printf("getroute.(%s)\n",jprint(retjson,0));
                     if ( (routejson= jarray(&n,retjson,"route")) != 0 )
                         array = jduplicate(routejson);
                 }
