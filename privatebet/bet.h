@@ -246,7 +246,7 @@ https://crypto.stanford.edu/~pgolle/papers/poker.pdf
 #define CARDS777_MAXCHIPS 1000
 #define CARDS777_CHIPSIZE (SATOSHIDEN / CARDS777_MAXCHIPS)
 #define BET_PLAYERTIMEOUT 15
-#define BET_GAMESTART_DELAY 0
+#define BET_GAMESTART_DELAY 10
 #define BET_RESERVERATE 1.0125
 #define LN_FUNDINGERROR "\"Cannot afford funding transaction\""
 

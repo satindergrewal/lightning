@@ -95,7 +95,7 @@ int32_t BET_client_turni(cJSON *argjson,struct privatebet_info *bet,struct priva
             if ( vars->actions[vars->round][senderid] != 0 )
                 free_json(vars->actions[vars->round][senderid]);
             vars->actions[vars->round][senderid] = jduplicate(jarray(&n,argjson,"actions"));
-            printf("round.%d senderid.%d (%s)\n",vars->round,senderid,jprint(vars->actions[vars->round][senderid],0));
+            //printf("round.%d senderid.%d (%s)\n",vars->round,senderid,jprint(vars->actions[vars->round][senderid],0));
             if ( argvars.turni == vars->turni && argvars.round == vars->round )
             {
                 BET_client_turninext(bet,vars);
@@ -147,6 +147,16 @@ cJSON *BET_statemachine_gameeval(struct privatebet_info *bet,struct privatebet_v
     return(retjson);
 }
 
+void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+    printf("BET_statemachine_endround -> %d\n",vars->round);
+}
+
+void BET_statemachine_gameend(struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+    printf(">>>>>>>>>>>>>> BET_statemachine_endgame -> %d\n",vars->round);
+}
+
 cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     uint32_t r; cJSON *array = cJSON_CreateArray();
@@ -159,19 +169,12 @@ cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct private
         jaddinum(array,r);
         printf("BET_statemachine_turni -> r%d turni.%d r.%d / range.%d\n",vars->round,vars->turni,r,bet->range);
     } else if ( vars->round == bet->numrounds-1 && vars->turni == bet->numplayers-1 )
+    {
         jaddi(array,BET_statemachine_gameeval(bet,vars));
+        BET_statemachine_gameend(bet,vars);
+    }
     else array = cJSON_CreateArray();
     return(array);
-}
-
-void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_vars *vars)
-{
-    printf("BET_statemachine_endround -> %d\n",vars->round);
-}
-
-void BET_statemachine_gameend(struct privatebet_info *bet,struct privatebet_vars *vars)
-{
-    printf(">>>>>>>>>>>>>> BET_statemachine_endgame -> %d\n",vars->round);
 }
 
 void BET_statemachine(struct privatebet_info *bet,struct privatebet_vars *vars)
