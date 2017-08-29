@@ -221,8 +221,8 @@ static void process_estimatefee_6(struct bitcoin_cli *bcli)
 
 	p = tal_strndup(bcli, bcli->output, bcli->output_bytes);
 	fee = strtod(p, &end);
-	if (end == p || *end != '\n')
-		fatal("%s: gave non-numeric fee %s",bcli_args(bcli), p);
+	//if (end == p || *end != '\n')
+	//	fatal("%s: gave non-numeric fee %s",bcli_args(bcli), p);
 
 	if (fee < 0) {
         fee = 0.00010000;
@@ -249,9 +249,8 @@ static void process_estimatefee_2(struct bitcoin_cli *bcli)
 
 	p = tal_strndup(bcli, bcli->output, bcli->output_bytes);
 	fee = strtod(p, &end);
-	if (end == p || *end != '\n')
-		fatal("%s: gave non-numeric fee %s",
-		      bcli_args(bcli), p);
+	//if (end == p || *end != '\n')
+	//	fatal("%s: gave non-numeric fee %s",bcli_args(bcli), p);
 
 	/* Don't know at 2?  Try 6... */
 	if (fee < 0) {
