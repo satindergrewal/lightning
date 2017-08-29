@@ -268,9 +268,9 @@ int32_t BET_channel_status(char *peerid,char *status)
                 item = jitem(array,i);
                 if ( jstr(item,"source") == 0 || strcmp(jstr(item,"source"),LN_idstr) != 0 )
                     continue;
+                printf("channel.(%s)\n",jprint(item,0));
                 if ( jstr(item,"destination") == 0 || strcmp(jstr(item,"destination"),peerid) != 0 )
                     continue;
-                printf("channel.(%s)\n",jprint(item,0));
                 if ( (obj= jobj(item,"active")) != 0 && is_cJSON_True(obj) != 0 )
                     retval = 0;
                 break;
