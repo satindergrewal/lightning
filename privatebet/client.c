@@ -31,6 +31,8 @@ int32_t BET_client_gameeval(cJSON *argjson,struct privatebet_info *bet,struct pr
         if ( vars->evalcrcs[i] != 0 && vars->evalcrcs[i] == crc32 )
             consensus++;
     }
+    if ( consensus > vars->numconsensus )
+        vars->numconsensus = consensus;
     if ( vars->consensus == 0 && consensus >= M )
     {
         vars->consensus = crc32;
@@ -39,8 +41,6 @@ int32_t BET_client_gameeval(cJSON *argjson,struct privatebet_info *bet,struct pr
         printf("CONSENSUS.%d\n",consensus);
         BET_statemachine_consensus(bet,vars);
     }
-    if ( consensus > vars->numconsensus )
-        vars->numconsensus = consensus;
     return(0);
 }
 
