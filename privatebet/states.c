@@ -87,15 +87,18 @@ int32_t BET_client_turni(cJSON *argjson,struct privatebet_info *bet,struct priva
 {
     struct privatebet_vars argvars; int32_t n;
     //printf("client TURNI.(%s) senderid.%d valid.%d\n",jprint(argjson,0),senderid,vars->validperms);
-    if ( (IAMHOST != 0 || vars->validperms != 0) && senderid >= 0 && senderid < bet->numplayers )
+    if ( (IAMHOST != 0 || vars->validperms != 0) && senderid >= 0 && senderid <= bet->numplayers )
     {
         memset(&argvars,0,sizeof(argvars));
         BET_betvars_parse(bet,&argvars,argjson);
         if ( vars->round < bet->numrounds )
         {
-            if ( vars->actions[vars->round][senderid] != 0 )
-                free_json(vars->actions[vars->round][senderid]);
-            vars->actions[vars->round][senderid] = jduplicate(jarray(&n,argjson,"actions"));
+            if ( senderid < bet->numplayers )
+            {
+                if ( vars->actions[vars->round][senderid] != 0 )
+                    free_json(vars->actions[vars->round][senderid]);
+                vars->actions[vars->round][senderid] = jduplicate(jarray(&n,argjson,"actions"));
+            }
             //printf("round.%d senderid.%d (%s)\n",vars->round,senderid,jprint(vars->actions[vars->round][senderid],0));
             if ( argvars.turni == vars->turni && argvars.round == vars->round )
             {
