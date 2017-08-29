@@ -35,7 +35,7 @@ void BET_chip_recv(char *label,struct privatebet_info *bet)
 void BET_hostrhash_update(bits256 rhash)
 {
     int32_t i;
-    char str[65]; printf("hostrhash update.(%s)\n",bits256_str(str,rhash));
+    //char str[65]; printf("hostrhash update.(%s)\n",bits256_str(str,rhash));
     if ( Num_hostrhashes < sizeof(Host_rhashes)/sizeof(*Host_rhashes) )
     {
         for (i=0; i<Num_hostrhashes; i++)

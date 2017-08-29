@@ -129,23 +129,6 @@ void BET_statemachine_roundstart(struct privatebet_info *bet,struct privatebet_v
     }
 }
 
-cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct privatebet_vars *vars)
-{
-    uint32_t r; cJSON *array = cJSON_CreateArray();
-    OS_randombytes((void *)&r,sizeof(r));
-    if ( bet->range < 2 )
-        r = 0;
-    else r %= bet->range;
-    jaddinum(array,r);
-    printf("BET_statemachine_turni -> r%d turni.%d r.%d / range.%d\n",vars->round,vars->turni,r,bet->range);
-    return(array);
-}
-
-void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_vars *vars)
-{
-    printf("BET_statemachine_endround -> %d\n",vars->round);
-}
-
 void BET_statemachine_gameeval(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     int32_t round,playerid; cJSON *item;
@@ -155,9 +138,29 @@ void BET_statemachine_gameeval(struct privatebet_info *bet,struct privatebet_var
         {
             if ( (item= vars->actions[round][playerid]) != 0 )
                 printf("(%s).p%d\n",jprint(item,0),playerid);
-            printf("round.%d\n",round);
         }
+        printf("round.%d\n",round);
     }
+}
+
+cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+    uint32_t r; cJSON *array = cJSON_CreateArray();
+    if ( vars->round < bet->numrounds-1 )
+    {
+        OS_randombytes((void *)&r,sizeof(r));
+        if ( bet->range < 2 )
+            r = 0;
+        else r %= bet->range;
+        jaddinum(array,r);
+        printf("BET_statemachine_turni -> r%d turni.%d r.%d / range.%d\n",vars->round,vars->turni,r,bet->range);
+    } else BET_statemachine_gameeval(bet,vars);
+    return(array);
+}
+
+void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+    printf("BET_statemachine_endround -> %d\n",vars->round);
 }
 
 void BET_statemachine_gameend(struct privatebet_info *bet,struct privatebet_vars *vars)
