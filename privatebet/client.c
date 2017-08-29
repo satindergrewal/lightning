@@ -212,6 +212,7 @@ int32_t BET_client_endround(cJSON *argjson,struct privatebet_info *bet,struct pr
                 BET_client_turnisend(bet,vars);*/
         }
     }
+    else printf(">>>>>>>> BET_client_endround.%d senderid.%d\n",vars->round,senderid);
     return(0);
 }
 

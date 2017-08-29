@@ -141,7 +141,7 @@ cJSON *BET_statemachine_gameeval(struct privatebet_info *bet,struct privatebet_v
             if ( (item= vars->actions[round][playerid]) != 0 )
                 sprintf(buf+strlen(buf),"(%s).p%d ",jprint(item,0),playerid);
         }
-        sprintf(buf+strlen(buf),"round.%d\n",round);
+        sprintf(buf+strlen(buf),"round.%d ",round);
     }
     jaddstr(retjson,"eval",buf);
     return(retjson);
