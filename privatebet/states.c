@@ -164,7 +164,6 @@ void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_var
     printf("BET_statemachine_endround -> %d\n",vars->round);
     if ( vars->round == bet->numrounds-1 )
         BET_statemachine_gameend(bet,vars);
-    else printf("not final\n");
 }
 
 cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct privatebet_vars *vars)
