@@ -166,7 +166,7 @@ void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_var
 cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     uint32_t r; cJSON *array = cJSON_CreateArray();
-    if ( vars->round < bet->numrounds-1 )
+    if ( vars->round < bet->numrounds )
     {
         OS_randombytes((void *)&r,sizeof(r));
         if ( bet->range < 2 )
@@ -174,11 +174,12 @@ cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct private
         else r %= bet->range;
         jaddinum(array,r);
         printf("BET_statemachine_turni -> r%d turni.%d r.%d / range.%d\n",vars->round,vars->turni,r,bet->range);
-    } else if ( vars->round == bet->numrounds-1 && vars->turni == bet->numplayers-1 )
+    }
+    /*else if ( vars->round == bet->numrounds-1 && vars->turni == bet->numplayers-1 )
     {
         jaddi(array,BET_statemachine_gameeval(bet,vars));
         BET_statemachine_gameend(bet,vars);
-    }
+    }*/
     else array = cJSON_CreateArray();
     return(array);
 }
