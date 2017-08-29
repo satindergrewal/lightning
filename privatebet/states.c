@@ -148,14 +148,16 @@ cJSON *BET_statemachine_gameeval(struct privatebet_info *bet,struct privatebet_v
     return(retjson);
 }
 
-void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_vars *vars)
-{
-    printf("BET_statemachine_endround -> %d\n",vars->round);
-}
-
 void BET_statemachine_gameend(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     printf("%s\n>>>>>>>>>>>>>> BET_statemachine_endgame -> %d\n",jprint(BET_statemachine_gameeval(bet,vars),1),vars->round);
+}
+
+void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+    printf("BET_statemachine_endround -> %d\n",vars->round);
+    if ( vars->round == bet->numrounds-1 )
+        BET_statemachine_gameend(bet,vars);
 }
 
 cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct privatebet_vars *vars)
