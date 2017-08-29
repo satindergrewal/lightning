@@ -158,7 +158,9 @@ cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct private
         else r %= bet->range;
         jaddinum(array,r);
         printf("BET_statemachine_turni -> r%d turni.%d r.%d / range.%d\n",vars->round,vars->turni,r,bet->range);
-    } else jaddi(array,BET_statemachine_gameeval(bet,vars));
+    } else if ( vars->round == bet->numrounds-1 && vars->turni == bet->numplayers-1 )
+        jaddi(array,BET_statemachine_gameeval(bet,vars));
+    else array = cJSON_CreateArray();
     return(array);
 }
 
