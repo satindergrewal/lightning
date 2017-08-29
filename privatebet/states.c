@@ -74,6 +74,9 @@ void BET_client_turninext(struct privatebet_info *bet,struct privatebet_vars *va
             Gamestarted = 0;
             vars->round = 0;
             vars->lastround = -1;
+            memset(vars->evalcrcs,0,sizeof(vars->evalcrcs));
+            vars->consensus = 0;
+            vars->numconsensus = 0;
             Gamestart = (uint32_t)time(NULL) + BET_GAMESTART_DELAY;
             printf("Game completed next start.%u vs %u\n------------------\n\n",Gamestart,(uint32_t)time(NULL));
         }
