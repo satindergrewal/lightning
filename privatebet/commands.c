@@ -296,7 +296,7 @@ int64_t BET_peer_chipsavail(char *peerid,int32_t chipsize)
                 item = jitem(array,i);
                 if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),peerid) != 0 )
                     continue;
-                total = j64bits(item,"msatoshi_to_us");
+                total = j64bits(item,"msatoshi_to_us") / BET_RESERVERATE;
                 retval = (total / 1000) / chipsize;
                 printf("numchips.%d <- total.%llu / chipsize.%d\n",retval,(long long)total,chipsize);
                 break;
