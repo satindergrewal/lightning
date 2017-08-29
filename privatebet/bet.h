@@ -314,8 +314,8 @@ void BET_statemachine_gameend(struct privatebet_info *bet,struct privatebet_vars
 void BET_statemachine(struct privatebet_info *bet,struct privatebet_vars *vars);
 int32_t BET_client_turni(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid);
 int32_t BET_statemachine_validate(struct privatebet_info *bet,struct privatebet_vars *vars,int32_t round,int32_t senderid);
-
 int32_t BET_client_gameeval(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid);
+void BET_statemachine_consensus(struct privatebet_info *bet,struct privatebet_vars *vars);
 
 int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[],char *cmdstr);
 struct privatebet_peerln *BET_peerln_find(char *peerid);

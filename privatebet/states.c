@@ -195,6 +195,11 @@ int32_t BET_statemachine_validate(struct privatebet_info *bet,struct privatebet_
     return(0);
 }
 
+void BET_statemachine_consensus(struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+    printf("BET_statemachine_consensus.%u num.%d\n",vars->consensus,vars->numconsensus);
+}
+
 void BET_statemachine(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     cJSON *actions;
