@@ -292,7 +292,7 @@ struct privatebet_vars
 {
     bits256 myhash,hashes[CARDS777_MAXPLAYERS+1][2];
     int32_t permis[CARDS777_MAXPLAYERS+1][CARDS777_MAXCARDS];
-    uint32_t endround[CARDS777_MAXPLAYERS+1],evalcrcs[CARDS777_MAXPLAYERS+1],crc32;
+    uint32_t endround[CARDS777_MAXPLAYERS+1],evalcrcs[CARDS777_MAXPLAYERS+1],consensus;
     cJSON *actions[CARDS777_MAXROUNDS][CARDS777_MAXPLAYERS+1];
     int32_t mypermi[CARDS777_MAXCARDS],permi[CARDS777_MAXCARDS],turni,round,validperms,roundready,lastround,numconsensus;
 };
