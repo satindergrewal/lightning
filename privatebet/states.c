@@ -148,7 +148,7 @@ void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_var
 
 void BET_statemachine_gameeval(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-    int32_t round,playerid;
+    int32_t round,playerid; cJSON *item;
     for (round=0; round<bet->numrounds; round++)
     {
         for (playerid=0; playerid<bet->numplayers; playerid++)
