@@ -39,7 +39,7 @@ int32_t BET_client_gameeval(cJSON *argjson,struct privatebet_info *bet,struct pr
     }
     if ( consensus > vars->numconsensus )
         vars->numconsensus = consensus;
-    //printf("crc32.%u vars->consensus.%u num.%d\n",crc32,vars->consensus,vars->numconsensus);
+    printf("crc32.%u vars->consensus.%u num.%d\n",crc32,vars->consensus,vars->numconsensus);
     return(0);
 }
 
