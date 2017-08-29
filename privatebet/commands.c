@@ -231,7 +231,7 @@ char *stats_JSON(void *ctx,char *myipaddr,int32_t mypubsock,cJSON *argjson,char 
 
 int32_t BET_peer_state(char *peerid,char *statestr)
 {
-    cJSON *retjson,*array,*item; int32_t i,n,retval = -1;
+    cJSON *retjson,*array,*item,*obj; int32_t i,n,retval = -1;
     if ( (retjson= chipsln_getpeers()) != 0 )
     {
         if ( (array= jarray(&n,retjson,"peers")) != 0 && n > 0 )
@@ -242,7 +242,11 @@ int32_t BET_peer_state(char *peerid,char *statestr)
                 if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),peerid) != 0 )
                     continue;
                 if ( jstr(item,"state") != 0 && strcmp(jstr(item,"state"),statestr) == 0 )
-                    retval = 0;
+                {
+                    if ( (obj= jobj(item,"connected")) != 0 && is_cJSON_True(obj) != 0 )
+                        retval = 0;
+                    else printf("not connected\n");
+                }
                 break;
             }
         }
