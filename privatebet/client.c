@@ -50,19 +50,18 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
     if ( Host_peerid[0] == 0 )
     {
         safecopy(Host_peerid,jstr(argjson,"hostid"),sizeof(Host_peerid));
-        already_connected = 0;
         if ( BET_peer_state(Host_peerid,"CHANNELD_NORMAL") == 0 )
         {
             already_connected = 1;
             printf("already connected\n");
-        }
+        } else already_connected = 0;
         if ( already_connected == 0 && (retjson= chipsln_connect(Host_ipaddr,LN_port,Host_peerid)) != 0 )
         {
             printf("(%s:%u %s) CONNECTLN.(%s)\n",Host_ipaddr,LN_port,Host_peerid,jprint(retjson,0));
             if ( (idstr= jstr(retjson,"id")) != 0 && strcmp(idstr,Host_peerid) == 0 )
                 already_connected = 1;
             free_json(retjson);
-        }
+        } else printf("chipsln_connect?\n");
         if ( already_connected != 0 )
         {
             BET_channels_parse();
