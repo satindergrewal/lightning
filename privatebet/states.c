@@ -146,9 +146,24 @@ void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_var
     printf("BET_statemachine_endround -> %d\n",vars->round);
 }
 
+void BET_statemachine_gameeval(struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+    int32_t round,playerid;
+    for (round=0; round<bet->numrounds; round++)
+    {
+        for (playerid=0; playerid<bet->numplayers; playerid++)
+        {
+            if ( (item= vars->actions[round][playerid]) != 0 )
+                printf("(%s).p%d\n",jprint(item,0),playerid);
+            printf("round.%d\n",round);
+        }
+    }
+}
+
 void BET_statemachine_gameend(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     printf("BET_statemachine_endgame -> %d\n",vars->round);
+    BET_statemachine_gameeval(bet,vars);
 }
 
 void BET_statemachine(struct privatebet_info *bet,struct privatebet_vars *vars)
