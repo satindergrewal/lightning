@@ -313,6 +313,7 @@ void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_var
 void BET_statemachine_gameend(struct privatebet_info *bet,struct privatebet_vars *vars);
 void BET_statemachine(struct privatebet_info *bet,struct privatebet_vars *vars);
 int32_t BET_client_turni(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid);
+int32_t BET_statemachine_validate(struct privatebet_info *bet,struct privatebet_vars *vars,int32_t round,int32_t senderid);
 
 int32_t BET_client_gameeval(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid);
 
