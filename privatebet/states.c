@@ -129,7 +129,7 @@ void BET_statemachine_roundstart(struct privatebet_info *bet,struct privatebet_v
 {
     if ( vars->roundready < bet->numrounds )
     {
-        if ( var->round == 0 )
+        if ( vars->round == 0 )
             memset(vars->evalcrcs,0,sizeof(vars->evalcrcs));
         printf("BET_statemachine_roundstart -> %d lastround.%d\n",vars->roundready,vars->lastround);
         vars->lastround = -1;
