@@ -255,12 +255,12 @@ int32_t BET_peer_state(char *peerid,char *statestr)
     return(retval);
 }
 
-int32_t BET_channel_status(char *peerid,char *status)
+int32_t BET_channel_status(char *peerid,char *channel,char *status)
 {
     cJSON *retjson,*array,*item,*obj; int32_t i,n,retval = -1;
     if ( (retjson= chipsln_getchannels()) != 0 )
     {
-        printf("HOST.(%s) mine.(%s) channels.(%s)\n",Host_channel,LN_idstr,jprint(retjson,0));
+        //printf("HOST.(%s) mine.(%s) channels.(%s)\n",Host_channel,LN_idstr,jprint(retjson,0));
         if ( (array= jarray(&n,retjson,"channels")) != 0 && n > 0 )
         {
             for (i=0; i<n; i++)
@@ -268,8 +268,10 @@ int32_t BET_channel_status(char *peerid,char *status)
                 item = jitem(array,i);
                 if ( jstr(item,"source") == 0 || strcmp(jstr(item,"source"),LN_idstr) != 0 )
                     continue;
-                printf("channel.(%s)\n",jprint(item,0));
                 if ( jstr(item,"destination") == 0 || strcmp(jstr(item,"destination"),peerid) != 0 )
+                    continue;
+                printf("channel.(%s)\n",jprint(item,0));
+                if ( jstr(item,"short_id") == 0 || strncmp(jstr(item,"shortid"),channel,strlen(channel)) != 0 )
                     continue;
                 if ( (obj= jobj(item,"active")) != 0 && is_cJSON_True(obj) != 0 )
                     retval = 0;

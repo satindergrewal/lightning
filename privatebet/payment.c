@@ -138,7 +138,7 @@ int32_t BET_clientpay(uint64_t chipsize)
         rhash = Host_rhashes[n-1];
         if ( bits256_nonz(rhash) != 0 && BET_peer_state(Host_peerid,"CHANNELD_NORMAL") == 0 )
         {
-            if ( BET_channel_status(Host_channel,"active") == 0 )
+            if ( BET_channel_status(Host_peerid,Host_channel,"active") == 0 )
             {
                 array = routejson = 0;
                 if ( 0 )
