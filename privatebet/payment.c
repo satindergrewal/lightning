@@ -152,12 +152,15 @@ int32_t BET_clientpay(uint64_t chipsize)
                 char str[65],str2[65];
                 preimage = jbits256(retjson,"preimage");
                 printf("sendpay rhash.(%s) %.8f to %s -> %s preimage.%s\n",bits256_str(str,rhash),dstr(chipsize),jprint(array,0),jprint(retjson,0),bits256_str(str2,preimage));
-                Chips_paid++;
-                // if valid, reduce Host_rhashes[]
-                if ( Num_hostrhashes > 0 )
+                if ( bits256_nonz(preimage) != 0 )
                 {
-                    Num_hostrhashes--;
-                    retval = 0;
+                    Chips_paid++;
+                    // if valid, reduce Host_rhashes[]
+                    if ( Num_hostrhashes > 0 )
+                    {
+                        Num_hostrhashes--;
+                        retval = 0;
+                    }
                 }
                 free_json(retjson);
             } else printf("sendpay null return?\n");
