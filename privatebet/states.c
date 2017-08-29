@@ -157,6 +157,7 @@ cJSON *BET_statemachine_gameeval(struct privatebet_info *bet,struct privatebet_v
     jaddstr(retjson,"method","gameeval");
     jaddstr(retjson,"eval",buf);
     jaddnum(retjson,"crc32",crc32);
+    jaddbits256(retjson,"pubkey",Mypubkey);
     BET_message_send("BET_round",bet->pubsock>=0?bet->pubsock:bet->pushsock,retjson,0,bet);
     return(retjson);
 }
