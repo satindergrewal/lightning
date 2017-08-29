@@ -19,6 +19,12 @@ int32_t BET_client_onechip(cJSON *argjson,struct privatebet_info *bet,struct pri
     return(0);
 }
 
+int32_t BET_client_gameeval(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
+{
+    printf("client EVAL.(%s)\n",jprint(argjson,0));
+    return(0);
+}
+
 int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
 {
     cJSON *array,*pubkeys,*retjson,*channels,*item; int32_t i,n,flag,already_connected,len,err=0; bits256 hash; char *idstr,*source,*dest,*short_id,*rstr;
@@ -282,6 +288,8 @@ int32_t BET_clientupdate(cJSON *argjson,uint8_t *ptr,int32_t recvlen,struct priv
         }
         else if ( strcmp(method,"start") == 0 )
             return(BET_client_gamestart(argjson,bet,vars));
+        else if ( strcmp(method,"gameeval") == 0 )
+            return(BET_client_gameeval(argjson,bet,vars));
         else if ( strcmp(method,"started") == 0 )
             return(BET_client_gamestarted(argjson,bet,vars,senderid));
         else if ( strcmp(method,"perm") == 0 )
