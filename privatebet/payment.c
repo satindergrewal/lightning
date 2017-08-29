@@ -120,6 +120,7 @@ int32_t BET_clientpay(uint64_t chipsize)
 {
     bits256 rhash,preimage; cJSON *routejson,*retjson,*array; int32_t avail,n=0,retval = -1;
     printf("BET_clientpay.%llu %.8f -> (%s)\n",(long long)chipsize,dstr(chipsize),Host_peerid);
+return(0);
     if ( Host_peerid[0] != 0 && Host_channel[0] != 0 && (n= Num_hostrhashes) > 0 )
     {
         if ( (avail= (int32_t)BET_peer_chipsavail(Host_peerid,chipsize)) < 2 )
