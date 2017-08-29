@@ -46,7 +46,8 @@ void BET_statemachine_deali(struct privatebet_info *bet,struct privatebet_vars *
 void BET_client_turninext(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     cJSON *reqjson;
-    printf("BET_turni_next (%d, %d) numplayers.%d range.%d\n",vars->turni,vars->round,bet->numplayers,bet->range);
+    //printf("BET_turni_next (%d, %d) numplayers.%d range.%d\n",vars->turni,vars->round,bet->numplayers,bet->range);
+    printf("TURNI.(r%d t%d).p%d ",vars->round,vars->turni,bet->myplayerid);
     if ( IAMHOST == 0 && vars->validperms == 0 )
         return;
     if ( bits256_cmp(bet->tableid,Mypubkey) != 0 )
@@ -154,7 +155,7 @@ void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_var
 
 void BET_statemachine_gameend(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-    printf(">>>>>>>>>>>>>> BET_statemachine_endgame -> %d\n",vars->round);
+    printf("%s\n>>>>>>>>>>>>>> BET_statemachine_endgame -> %d\n",jprint(BET_statemachine_gameeval(bet,vars),1),vars->round);
 }
 
 cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct privatebet_vars *vars)
