@@ -21,7 +21,24 @@ int32_t BET_client_onechip(cJSON *argjson,struct privatebet_info *bet,struct pri
 
 int32_t BET_client_gameeval(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
 {
+    int32_t i,M,consensus = 0; uint32_t crc32 = 0;
     printf("EVAL.(%u).p%d ",juint(argjson,"crc32"),senderid);
+    vars->evalcrcs[senderid] = juint(argjson,"crc32");
+    M = (bet->numplayers >> 1) + 1;
+    for (i=0; i<bet->numplayers; i++)
+    {
+        if ( vars->evalcrcs[i] == 0 )
+            crc32 = vars->evalcrcs[i];
+        else if ( vars->evalcrcs[i] == crc32 )
+            consensus++;
+    }
+    if ( vars->consensus == 0 && consensus >= M )
+    {
+        vars->consensus = crc32;
+        printf("CONSENSUS.%d\n",consensus);
+    }
+    if ( consensus > vars->numconsensus )
+        vars->numconsensus = consensus;
     return(0);
 }
 

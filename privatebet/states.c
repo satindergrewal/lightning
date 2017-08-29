@@ -79,10 +79,6 @@ void BET_client_turninext(struct privatebet_info *bet,struct privatebet_vars *va
         }
         vars->turni = 0;
     }
-    /*if ( vars->turni == bet->myplayerid && vars->round < bet->numrounds && vars->roundready == vars->round )
-     {
-     BET_client_turnisend(bet,vars);
-     }*/
 }
 
 int32_t BET_client_turni(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
@@ -103,7 +99,8 @@ int32_t BET_client_turni(cJSON *argjson,struct privatebet_info *bet,struct priva
                     vars->actions[vars->round][senderid] = 0;
                 }
                 if ( (array= jarray(&n,argjson,"actions")) != 0 )
-                    vars->actions[vars->round][senderid] = jduplicate(array);
+                    if ( BET_statemachine_validate(bet,vars,vars->round,senderid) == 0 )
+                        vars->actions[vars->round][senderid] = jduplicate(array);
             }
             //printf("round.%d senderid.%d (%s)\n",vars->round,senderid,jprint(vars->actions[vars->round][senderid],0));
             if ( argvars.turni == vars->turni && argvars.round == vars->round )
@@ -132,10 +129,10 @@ void BET_statemachine_roundstart(struct privatebet_info *bet,struct privatebet_v
 {
     if ( vars->roundready < bet->numrounds )
     {
+        if ( var->round == 0 )
+            memset(vars->evalcrcs,0,sizeof(vars->evalcrcs));
         printf("BET_statemachine_roundstart -> %d lastround.%d\n",vars->roundready,vars->lastround);
         vars->lastround = -1;
-        /*if ( bet->myplayerid == 0 )
-         BET_statemachine_deali(bet,vars,vars->roundready % bet->range,(rand() % (bet->numplayers+1)) - 1);*/
     }
 }
 
@@ -187,12 +184,12 @@ cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct private
         jaddinum(array,r);
         printf("BET_statemachine_turni -> r%d turni.%d r.%d / range.%d\n",vars->round,vars->turni,r,bet->range);
     }
-    /*else if ( vars->round == bet->numrounds-1 && vars->turni == bet->numplayers-1 )
-    {
-        jaddi(array,BET_statemachine_gameeval(bet,vars));
-        BET_statemachine_gameend(bet,vars);
-    }*/
     return(array);
+}
+
+int32_t BET_statemachine_validate(struct privatebet_info *bet,struct privatebet_vars *vars,int32_t round,int32_t senderid)
+{
+    return(0);
 }
 
 void BET_statemachine(struct privatebet_info *bet,struct privatebet_vars *vars)
