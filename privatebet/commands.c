@@ -260,15 +260,17 @@ int32_t BET_channel_status(char *peerid,char *status)
     cJSON *retjson,*array,*item,*obj; int32_t i,n,retval = -1;
     if ( (retjson= chipsln_getchannels()) != 0 )
     {
-        printf("HOST.(%s) channels.(%s)\n",Host_channel,jprint(retjson,0));
+        //printf("HOST.(%s) channels.(%s)\n",Host_channel,jprint(retjson,0));
         if ( (array= jarray(&n,retjson,"channels")) != 0 && n > 0 )
         {
             for (i=0; i<n; i++)
             {
                 item = jitem(array,i);
-                //printf("channel.(%s)\n",jprint(item,0));
-                if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),peerid) != 0 )
+                if ( jstr(item,"source") == 0 || strcmp(jstr(item,"source"),LN_idstr) != 0 )
                     continue;
+                if ( jstr(item,"destination") == 0 || strcmp(jstr(item,"destination"),peerid) != 0 )
+                    continue;
+                printf("channel.(%s)\n",jprint(item,0));
                 if ( (obj= jobj(item,"active")) != 0 && is_cJSON_True(obj) != 0 )
                     retval = 0;
                 break;
