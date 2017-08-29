@@ -289,7 +289,7 @@ int32_t BET_clientupdate(cJSON *argjson,uint8_t *ptr,int32_t recvlen,struct priv
         else if ( strcmp(method,"start") == 0 )
             return(BET_client_gamestart(argjson,bet,vars));
         else if ( strcmp(method,"gameeval") == 0 )
-            return(BET_client_gameeval(argjson,bet,vars));
+            return(BET_client_gameeval(argjson,bet,vars,senderid));
         else if ( strcmp(method,"started") == 0 )
             return(BET_client_gamestarted(argjson,bet,vars,senderid));
         else if ( strcmp(method,"perm") == 0 )

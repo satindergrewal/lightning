@@ -314,6 +314,7 @@ void BET_statemachine_gameend(struct privatebet_info *bet,struct privatebet_vars
 void BET_statemachine(struct privatebet_info *bet,struct privatebet_vars *vars);
 int32_t BET_client_turni(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid);
 
+int32_t BET_client_gameeval(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid);
 
 int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[],char *cmdstr);
 struct privatebet_peerln *BET_peerln_find(char *peerid);

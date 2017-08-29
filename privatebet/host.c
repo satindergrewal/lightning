@@ -100,7 +100,7 @@ int32_t BET_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct privat
             return(BET_host_join(argjson,bet,vars));
         else if ( strcmp(method,"gameeval") == 0 )
         {
-            BET_client_gameeval(argjson,bet,vars);
+            BET_client_gameeval(argjson,bet,vars,senderid);
             return(1);
         }
         else if ( strcmp(method,"turni") == 0 )
