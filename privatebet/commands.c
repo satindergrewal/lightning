@@ -260,6 +260,7 @@ int32_t BET_channel_status(char *peerid,char *status)
     cJSON *retjson,*array,*item; int32_t i,n,retval = -1;
     if ( (retjson= chipsln_getchannels()) != 0 )
     {
+        printf("channels.(%s)\n",jprint(retjson,0));
         if ( (array= jarray(&n,retjson,"channels")) != 0 && n > 0 )
         {
             for (i=0; i<n; i++)
