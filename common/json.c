@@ -274,7 +274,7 @@ jsmntok_t *json_parse_input(const char *input, int len, bool *valid)
 {
 	jsmn_parser parser;
 	jsmntok_t *toks;
-	jsmnerr_t ret;
+	enum jsmnerr_t ret;
 
 	toks = tal_arr(input, jsmntok_t, 10);
 
