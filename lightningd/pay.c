@@ -2,15 +2,14 @@
 #include <bitcoin/preimage.h>
 #include <ccan/str/hex/hex.h>
 #include <ccan/structeq/structeq.h>
-#include <daemon/chaintopology.h>
-#include <daemon/jsonrpc.h>
-#include <daemon/log.h>
+#include <channeld/gen_channel_wire.h>
 #include <inttypes.h>
-#include <lightningd/channel/gen_channel_wire.h>
+#include <lightningd/chaintopology.h>
+#include <lightningd/jsonrpc.h>
 #include <lightningd/lightningd.h>
+#include <lightningd/log.h>
 #include <lightningd/peer_control.h>
 #include <lightningd/peer_htlcs.h>
-#include <lightningd/sphinx.h>
 #include <lightningd/subd.h>
 #include <sodium/randombytes.h>
 
@@ -132,7 +131,7 @@ static struct pay_command *find_pay_command(struct lightningd *ld,
 {
 	struct pay_command *pc;
 
-	list_for_each(&ld->dstate.pay_commands, pc, list) {
+	list_for_each(&ld->pay_commands, pc, list) {
 		if (structeq(rhash, &pc->rhash))
 			return pc;
 	}
@@ -147,7 +146,6 @@ static void pay_command_destroyed(struct pay_command *pc)
 static void json_sendpay(struct command *cmd,
 			 const char *buffer, const jsmntok_t *params)
 {
-	struct lightningd *ld = ld_from_dstate(cmd->dstate);
 	struct pubkey *ids;
 	jsmntok_t *routetok, *rhashtok;
 	const jsmntok_t *t, *end;
@@ -190,7 +188,7 @@ static void json_sendpay(struct command *cmd,
 	}
 
 	/* Expiry for HTLCs is absolute.  And add one to give some margin. */
-	base_expiry = get_block_height(cmd->dstate->topology) + LIGHTNING_BLOCKSMARGIN;
+	base_expiry = get_block_height(cmd->ld->topology) + LIGHTNING_BLOCKSMARGIN;
 
 	end = json_next(routetok);
 	n_hops = 0;
@@ -231,7 +229,7 @@ static void json_sendpay(struct command *cmd,
 		if (!short_channel_id_from_str(buffer + chantok->start,
 					       chantok->end - chantok->start,
 					       &hop_data[n_hops].channel_id)) {
-			command_fail(cmd, "route %zu invalid id", n_hops);
+			command_fail(cmd, "route %zu invalid channel_id", n_hops);
 			return;
 		}
 		if (!pubkey_from_hexstr(buffer + idtok->start,
@@ -268,17 +266,17 @@ static void json_sendpay(struct command *cmd,
 	hop_data[n_hops-1].outgoing_cltv = base_expiry + delay;
 	memset(&hop_data[n_hops-1].channel_id, 0, sizeof(struct short_channel_id));
 
-	pc = find_pay_command(ld, &rhash);
+	pc = find_pay_command(cmd->ld, &rhash);
 	if (pc) {
-		log_debug(ld->log, "json_sendpay: found previous");
+		log_debug(cmd->ld->log, "json_sendpay: found previous");
 		if (pc->out) {
-			log_add(ld->log, "... still in progress");
+			log_add(cmd->ld->log, "... still in progress");
 			command_fail(cmd, "still in progress");
 			return;
 		}
 		if (pc->rval) {
 			size_t old_nhops = tal_count(pc->ids);
-			log_add(ld->log, "... succeeded");
+			log_add(cmd->ld->log, "... succeeded");
 			/* Must match successful payment parameters. */
 			if (pc->msatoshi != lastamount) {
 				command_fail(cmd,
@@ -299,10 +297,10 @@ static void json_sendpay(struct command *cmd,
 			return;
 		}
 		/* FIXME: We can free failed ones... */
-		log_add(ld->log, "... retrying");
+		log_add(cmd->ld->log, "... retrying");
 	}
 
-	peer = peer_by_id(ld, &ids[0]);
+	peer = peer_by_id(cmd->ld, &ids[0]);
 	if (!peer) {
 		command_fail(cmd, "no connection to first peer found");
 		return;
@@ -318,8 +316,8 @@ static void json_sendpay(struct command *cmd,
 	if (pc)
 		pc->ids = tal_free(pc->ids);
 	else {
-		pc = tal(ld, struct pay_command);
-		list_add_tail(&cmd->dstate->pay_commands, &pc->list);
+		pc = tal(cmd->ld, struct pay_command);
+		list_add_tail(&cmd->ld->pay_commands, &pc->list);
 		tal_add_destructor(pc, pay_command_destroyed);
 	}
 	pc->cmd = cmd;
@@ -329,7 +327,7 @@ static void json_sendpay(struct command *cmd,
 	pc->msatoshi = lastamount;
 	pc->path_secrets = tal_steal(pc, path_secrets);
 
-	log_info(ld->log, "Sending %"PRIu64" over %zu hops to deliver %"PRIu64,
+	log_info(cmd->ld->log, "Sending %"PRIu64" over %zu hops to deliver %"PRIu64,
 		 amount, n_hops, lastamount);
 
 	/* Wait until we get response. */

@@ -1,4 +1,3 @@
-#include "utils.h"
 #include "wire.h"
 #include <bitcoin/preimage.h>
 #include <bitcoin/pubkey.h>
@@ -7,7 +6,8 @@
 #include <ccan/endian/endian.h>
 #include <ccan/mem/mem.h>
 #include <ccan/tal/str/str.h>
-#include <type_to_string.h>
+#include <common/type_to_string.h>
+#include <common/utils.h>
 
 /* Sets *cursor to NULL and returns NULL when extraction fails. */
 const void *fromwire_fail(const u8 **cursor, size_t *max)
@@ -204,12 +204,7 @@ void fromwire_pad(const u8 **cursor, size_t *max, size_t num)
 	fromwire(cursor, max, NULL, num);
 }
 
-static char *fmt_short_channel_id(const tal_t *ctx,
-				  const struct short_channel_id *id)
-{
-	return tal_fmt(ctx, "%u/%u/%u", id->blocknum, id->txnum, id->outnum);
-}
-REGISTER_TYPE_TO_STRING(short_channel_id, fmt_short_channel_id);
+REGISTER_TYPE_TO_STRING(short_channel_id, short_channel_id_to_str);
 REGISTER_TYPE_TO_HEXSTR(channel_id);
 
 /* BOLT #2:

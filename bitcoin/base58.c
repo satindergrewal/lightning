@@ -5,14 +5,14 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include "address.h"
 #include "base58.h"
-#include "libbase58/libbase58.h"
 #include "privkey.h"
 #include "pubkey.h"
 #include "shadouble.h"
-#include "utils.h"
 #include <assert.h>
 #include <ccan/build_assert/build_assert.h>
 #include <ccan/tal/str/str.h>
+#include <common/utils.h>
+#include <libbase58.h>
 #include <secp256k1.h>
 #include <string.h>
 

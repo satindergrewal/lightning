@@ -4,8 +4,10 @@
 #include <bitcoin/chainparams.h>
 #include <bitcoin/privkey.h>
 #include <ccan/container_of/container_of.h>
-#include <daemon/lightningd.h>
+#include <ccan/time/time.h>
+#include <ccan/timer/timer.h>
 #include <lightningd/htlc_end.h>
+#include <stdio.h>
 #include <wallet/wallet.h>
 
 /* BOLT #1:
@@ -15,16 +17,84 @@
  */
 #define DEFAULT_PORT 0x2607
 
-/* FIXME: This is two structures, during the migration from old setup to new */
-struct lightningd {
-	/* Must be first, since things assume we can tal() off it */
-	struct lightningd_state dstate;
+/* Various adjustable things. */
+struct config {
+	/* How long do we want them to lock up their funds? (blocks) */
+	u32 locktime_blocks;
 
+	/* How long do we let them lock up our funds? (blocks) */
+	u32 locktime_max;
+
+	/* How many blocks before we expect to see anchor?. */
+	u32 anchor_onchain_wait;
+
+	/* How many confirms until we consider an anchor "settled". */
+	u32 anchor_confirms;
+
+	/* How long will we accept them waiting? */
+	u32 anchor_confirms_max;
+
+	/* How many blocks until we stop watching a close commit? */
+	u32 forever_confirms;
+
+	/* Maximum percent of fee rate we'll accept. */
+	u32 commitment_fee_max_percent;
+
+	/* Minimum percent of fee rate we'll accept. */
+	u32 commitment_fee_min_percent;
+
+	/* Percent of fee rate we'll use. */
+	u32 commitment_fee_percent;
+
+	/* Minimum/maximum time for an expiring HTLC (blocks). */
+	u32 min_htlc_expiry, max_htlc_expiry;
+
+	/* How many blocks before upstream HTLC expiry do we panic and dump? */
+	u32 deadline_blocks;
+
+	/* Fee rates. */
+	u32 fee_base;
+	s32 fee_per_satoshi;
+
+	/* How long between polling bitcoind. */
+	struct timerel poll_time;
+
+	/* How long between changing commit and sending COMMIT message. */
+	struct timerel commit_time;
+
+	/* Whether to enable IRC peer discovery. */
+	bool use_irc;
+
+	/* Whether to ignore database version. */
+	bool db_version_ignore;
+
+	/* IPv4 or IPv6 address to announce to the network */
+	struct ipaddr ipaddr;
+};
+
+struct lightningd {
 	/* The directory to find all the subdaemons. */
 	const char *daemon_dir;
 
+	/* Our config dir, and rpc file */
+	char *config_dir;
+	char *rpc_filename;
+
+	/* Configuration settings. */
+	struct config config;
+
 	/* Log for general stuff. */
+	struct log_book *log_book;
 	struct log *log;
+
+	/* This is us. */
+	struct pubkey id;
+
+	/* Any pending timers. */
+	struct timers timers;
+
+	/* Port we're listening on */
+	u16 portnum;
 
 	/* Bearer of all my secrets. */
 	int hsm_fd;
@@ -38,12 +108,6 @@ struct lightningd {
 	struct secret peer_seed;
 	/* Used to give a unique seed to every peer. */
 	u64 peer_counter;
-
-	/* Public base for bip32 keys, and max we've ever used. */
-	struct ext_key *bip32_base;
-
-	/* Our bitcoind context. */
-	struct bitcoind *bitcoind;
 
 	/* Our chain topology. */
 	struct chain_topology *topology;
@@ -62,7 +126,11 @@ struct lightningd {
 
 	struct wallet *wallet;
 
-	const struct chainparams *chainparams;
+	/* Maintained by invoices.c */
+	struct invoices *invoices;
+
+	/* Any outstanding "pay" commands. */
+	struct list_head pay_commands;
 };
 
 /**
@@ -83,10 +151,6 @@ void derive_peer_seed(struct lightningd *ld, struct privkey *peer_seed,
 		      const struct pubkey *peer_id, const u64 channel_id);
 
 struct peer *find_peer_by_unique_id(struct lightningd *ld, u64 unique_id);
-/* FIXME */
-static inline struct lightningd *
-ld_from_dstate(const struct lightningd_state *dstate)
-{
-	return container_of(dstate, struct lightningd, dstate);
-}
+
+struct chainparams *get_chainparams(const struct lightningd *ld);
 #endif /* LIGHTNING_LIGHTNINGD_LIGHTNINGD_H */

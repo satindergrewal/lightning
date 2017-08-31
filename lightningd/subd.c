@@ -5,11 +5,11 @@
 #include <ccan/take/take.h>
 #include <ccan/tal/path/path.h>
 #include <ccan/tal/str/str.h>
-#include <daemon/log.h>
+#include <common/status.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <lightningd/lightningd.h>
-#include <lightningd/status.h>
+#include <lightningd/log.h>
 #include <lightningd/subd.h>
 #include <stdarg.h>
 #include <sys/socket.h>
@@ -429,7 +429,7 @@ struct subd *new_subd(const tal_t *ctx,
 		return tal_free(sd);
 	}
 	sd->ld = ld;
-	sd->log = new_log(sd, ld->dstate.log_book, "%s(%u):", name, sd->pid);
+	sd->log = new_log(sd, ld->log_book, "%s(%u):", name, sd->pid);
 	sd->name = name;
 	sd->finished = finished;
 	sd->msgname = msgname;

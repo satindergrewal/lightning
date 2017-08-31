@@ -5,12 +5,13 @@
 #include <ccan/err/err.h>
 #include <ccan/take/take.h>
 #include <ccan/tal/str/str.h>
-#include <daemon/jsonrpc.h>
-#include <daemon/log.h>
+#include <common/type_to_string.h>
+#include <common/utils.h>
+#include <gossipd/gen_gossip_wire.h>
 #include <inttypes.h>
-#include <lightningd/cryptomsg.h>
-#include <lightningd/gossip/gen_gossip_wire.h>
 #include <lightningd/gossip_msg.h>
+#include <lightningd/jsonrpc.h>
+#include <lightningd/log.h>
 #include <wire/gen_peer_wire.h>
 
 static void gossip_finished(struct subd *gossip, int status)
@@ -143,14 +144,14 @@ void gossip_init(struct lightningd *ld)
 {
 	tal_t *tmpctx = tal_tmpctx(ld);
 	u8 *init;
-	ld->gossip = new_subd(ld, ld, "lightningd_gossip", NULL,
+	ld->gossip = new_subd(ld, ld, "lightning_gossipd", NULL,
 			      gossip_wire_type_name,
 			      gossip_msg, gossip_finished, NULL);
 	if (!ld->gossip)
 		err(1, "Could not subdaemon gossip");
 
 	init = towire_gossipctl_init(tmpctx, ld->broadcast_interval,
-				     &ld->chainparams->genesis_blockhash);
+				     &get_chainparams(ld)->genesis_blockhash);
 	subd_send_msg(ld->gossip, init);
 	tal_free(tmpctx);
 }
@@ -190,9 +191,8 @@ static bool json_getnodes_reply(struct subd *gossip, const u8 *reply,
 static void json_getnodes(struct command *cmd, const char *buffer,
 			  const jsmntok_t *params)
 {
-	struct lightningd *ld = ld_from_dstate(cmd->dstate);
 	u8 *req = towire_gossip_getnodes_request(cmd);
-	subd_req(cmd, ld->gossip, req, -1, 0, json_getnodes_reply, cmd);
+	subd_req(cmd, cmd->ld->gossip, req, -1, 0, json_getnodes_reply, cmd);
 }
 
 static const struct json_command getnodes_command = {
@@ -238,7 +238,8 @@ static void json_getroute(struct command *cmd, const char *buffer, const jsmntok
 	jsmntok_t *idtok, *msatoshitok, *riskfactortok;
 	u64 msatoshi;
 	double riskfactor;
-	struct lightningd *ld = ld_from_dstate(cmd->dstate);
+	struct lightningd *ld = cmd->ld;
+
 	if (!json_get_params(buffer, params,
 			     "id", &idtok,
 			     "msatoshi", &msatoshitok,
@@ -267,7 +268,7 @@ static void json_getroute(struct command *cmd, const char *buffer, const jsmntok
 			     buffer + riskfactortok->start);
 		return;
 	}
-	u8 *req = towire_gossip_getroute_request(cmd, &cmd->dstate->id, &id, msatoshi, riskfactor*1000);
+	u8 *req = towire_gossip_getroute_request(cmd, &ld->id, &id, msatoshi, riskfactor*1000);
 	subd_req(ld->gossip, ld->gossip, req, -1, 0, json_getroute_reply, cmd);
 }
 
@@ -321,9 +322,9 @@ static bool json_getchannels_reply(struct subd *gossip, const u8 *reply,
 static void json_getchannels(struct command *cmd, const char *buffer,
 			     const jsmntok_t *params)
 {
-	struct lightningd *ld = ld_from_dstate(cmd->dstate);
 	u8 *req = towire_gossip_getchannels_request(cmd);
-	subd_req(ld->gossip, ld->gossip, req, -1, 0, json_getchannels_reply, cmd);
+	subd_req(cmd->ld->gossip, cmd->ld->gossip,
+		 req, -1, 0, json_getchannels_reply, cmd);
 }
 
 static const struct json_command getchannels_command = {

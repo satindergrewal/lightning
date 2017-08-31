@@ -8,35 +8,33 @@
 #include <ccan/noerr/noerr.h>
 #include <ccan/take/take.h>
 #include <ccan/tal/str/str.h>
-#include <close_tx.h>
-#include <daemon/chaintopology.h>
-#include <daemon/dns.h>
-#include <daemon/jsonrpc.h>
-#include <daemon/log.h>
-#include <daemon/timeout.h>
+#include <channeld/gen_channel_wire.h>
+#include <closingd/gen_closing_wire.h>
+#include <common/close_tx.h>
+#include <common/dev_disconnect.h>
+#include <common/funding_tx.h>
+#include <common/initial_commit_tx.h>
+#include <common/key_derive.h>
+#include <common/status.h>
+#include <common/timeout.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <gossipd/gen_gossip_wire.h>
+#include <hsmd/gen_hsm_wire.h>
 #include <inttypes.h>
 #include <lightningd/build_utxos.h>
-#include <lightningd/channel.h>
-#include <lightningd/channel/gen_channel_wire.h>
-#include <lightningd/closing/gen_closing_wire.h>
-#include <lightningd/commit_tx.h>
-#include <lightningd/dev_disconnect.h>
-#include <lightningd/funding_tx.h>
+#include <lightningd/chaintopology.h>
+#include <lightningd/dns.h>
 #include <lightningd/gen_peer_state_names.h>
-#include <lightningd/gossip/gen_gossip_wire.h>
-#include <lightningd/hsm/gen_hsm_wire.h>
 #include <lightningd/hsm_control.h>
-#include <lightningd/key_derive.h>
+#include <lightningd/jsonrpc.h>
+#include <lightningd/log.h>
 #include <lightningd/new_connection.h>
-#include <lightningd/onchain/gen_onchain_wire.h>
-#include <lightningd/onchain/onchain_wire.h>
-#include <lightningd/opening/gen_opening_wire.h>
 #include <lightningd/peer_htlcs.h>
-#include <lightningd/status.h>
 #include <netinet/in.h>
-#include <overflows.h>
+#include <onchaind/gen_onchain_wire.h>
+#include <onchaind/onchain_wire.h>
+#include <openingd/gen_opening_wire.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -64,11 +62,10 @@ void peer_debug(struct peer *peer, const char *fmt, ...)
 /* Mutual recursion, sets timer. */
 static void peer_reconnect(struct peer *peer);
 
-static void reconnect_failed(struct lightningd_state *dstate,
+static void reconnect_failed(struct lightningd *ld,
 			     struct connection *c)
 {
 	/* Figure out what peer, set reconnect timer. */
-	struct lightningd *ld = ld_from_dstate(dstate);
 	struct peer *peer = peer_by_id(ld, connection_known_id(c));
 
 	log_debug(peer->log, "reconnect_failed");
@@ -96,14 +93,14 @@ static void try_reconnect(struct peer *peer)
 	/* FIXME: Combine known address with gossip addresses and possibly
 	 * DNS seed addresses. */
 	addrs = tal_dup_arr(c, struct netaddr, &peer->netaddr, 1, 0);
-	multiaddress_connect(&peer->ld->dstate, addrs,
+	multiaddress_connect(peer->ld, addrs,
 			     connection_out, reconnect_failed, c);
 }
 
 static void peer_reconnect(struct peer *peer)
 {
-	new_reltimer(&peer->ld->dstate.timers,
-		     peer, peer->ld->dstate.config.poll_time,
+	new_reltimer(&peer->ld->timers,
+		     peer, peer->ld->config.poll_time,
 		     try_reconnect, peer);
 }
 
@@ -254,11 +251,26 @@ static void peer_start_closingd(struct peer *peer,
 				int peer_fd, int gossip_fd,
 				bool reconnected);
 
+/* FIXME: Fake NOP dev_disconnect/dev_sabotage_fd for below. */
+char dev_disconnect(int pkt_type)
+{
+	return DEV_DISCONNECT_NORMAL;
+}
+
+void dev_sabotage_fd(int fd)
+{
+	abort();
+}
+
 /* Send (encrypted) error message, then close. */
 static struct io_plan *send_error(struct io_conn *conn,
 				  struct peer_crypto_state *pcs)
 {
 	log_debug(pcs->peer->log, "Sending canned error");
+	/* FIXME: This is the only place where master talks directly to peer;
+	 * and pulls in quite a lot of code to do so.  If we got a subdaemon
+	 * to do this work, we'd avoid pulling in cryptomsg.o and the fake
+	 * dev_disconnect. */
 	return peer_write_message(conn, pcs, pcs->peer->error, (void *)io_close_cb);
 }
 
@@ -561,7 +573,7 @@ void populate_peer(struct lightningd *ld, struct peer *peer)
 
 	/* Max 128k per peer. */
 	peer->log_book = new_log_book(peer, 128*1024,
-				      get_log_level(ld->dstate.log_book));
+				      get_log_level(ld->log_book));
 	peer->log = new_log(peer, peer->log_book, "peer %s:", idname);
 	set_log_outfn(peer->log_book, copy_to_parent_log, peer);
 	tal_free(idname);
@@ -722,7 +734,7 @@ void setup_listeners(struct lightningd *ld)
 	socklen_t len;
 	int fd1, fd2;
 
-	if (!ld->dstate.portnum) {
+	if (!ld->portnum) {
 		log_debug(ld->log, "Zero portnum, not listening for incoming");
 		return;
 	}
@@ -730,12 +742,12 @@ void setup_listeners(struct lightningd *ld)
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = INADDR_ANY;
-	addr.sin_port = htons(ld->dstate.portnum);
+	addr.sin_port = htons(ld->portnum);
 
 	memset(&addr6, 0, sizeof(addr6));
 	addr6.sin6_family = AF_INET6;
 	addr6.sin6_addr = in6addr_any;
-	addr6.sin6_port = htons(ld->dstate.portnum);
+	addr6.sin6_port = htons(ld->portnum);
 
 	/* IPv6, since on Linux that (usually) binds to IPv4 too. */
 	fd1 = make_listen_fd(ld, AF_INET6, &addr6, sizeof(addr6));
@@ -750,9 +762,9 @@ void setup_listeners(struct lightningd *ld)
 			fd1 = -1;
 		} else {
 			addr.sin_port = in6.sin6_port;
-			assert(ld->dstate.portnum == ntohs(addr.sin_port));
+			assert(ld->portnum == ntohs(addr.sin_port));
 			log_debug(ld->log, "Creating IPv6 listener on port %u",
-				  ld->dstate.portnum);
+				  ld->portnum);
 			io_new_listener(ld, fd1, connection_in, ld);
 		}
 	}
@@ -767,19 +779,19 @@ void setup_listeners(struct lightningd *ld)
 			close_noerr(fd2);
 			fd2 = -1;
 		} else {
-			assert(ld->dstate.portnum == ntohs(addr.sin_port));
+			assert(ld->portnum == ntohs(addr.sin_port));
 			log_debug(ld->log, "Creating IPv4 listener on port %u",
-				  ld->dstate.portnum);
+				  ld->portnum);
 			io_new_listener(ld, fd2, connection_in, ld);
 		}
 	}
 
 	if (fd1 < 0 && fd2 < 0)
 		fatal("Could not bind to a network address on port %u",
-		      ld->dstate.portnum);
+		      ld->portnum);
 }
 
-static void connect_failed(struct lightningd_state *dstate,
+static void connect_failed(struct lightningd *ld,
 			   struct connection *c)
 {
 	tal_free(c);
@@ -788,7 +800,6 @@ static void connect_failed(struct lightningd_state *dstate,
 static void json_connect(struct command *cmd,
 			 const char *buffer, const jsmntok_t *params)
 {
-	struct lightningd *ld = ld_from_dstate(cmd->dstate);
 	struct connection *c;
 	jsmntok_t *host, *porttok, *idtok;
 	const tal_t *tmpctx = tal_tmpctx(cmd);
@@ -812,13 +823,13 @@ static void json_connect(struct command *cmd,
 		return;
 	}
 
-	c = new_connection(cmd, ld, cmd, &id);
+	c = new_connection(cmd, cmd->ld, cmd, &id);
 	name = tal_strndup(tmpctx,
 			   buffer + host->start, host->end - host->start);
 	port = tal_strndup(tmpctx,
 			   buffer + porttok->start,
 			   porttok->end - porttok->start);
-	if (!dns_resolve_and_connect(cmd->dstate, name, port,
+	if (!dns_resolve_and_connect(cmd->ld, name, port,
 				     connection_out, connect_failed, c)) {
 		command_fail(cmd, "DNS failed");
 		return;
@@ -838,7 +849,6 @@ AUTODATA(json_command, &connect_command);
 static void json_dev_fail(struct command *cmd,
 			  const char *buffer, const jsmntok_t *params)
 {
-	struct lightningd *ld = ld_from_dstate(cmd->dstate);
 	jsmntok_t *peertok;
 	struct peer *peer;
 
@@ -849,7 +859,7 @@ static void json_dev_fail(struct command *cmd,
 		return;
 	}
 
-	peer = peer_from_json(ld, buffer, peertok);
+	peer = peer_from_json(cmd->ld, buffer, peertok);
 	if (!peer) {
 		command_fail(cmd, "Could not find peer with that id");
 		return;
@@ -890,7 +900,6 @@ static void log_to_json(unsigned int skipped,
 static void json_getpeers(struct command *cmd,
 			  const char *buffer, const jsmntok_t *params)
 {
-	struct lightningd *ld = ld_from_dstate(cmd->dstate);
 	struct peer *p;
 	struct json_result *response = new_json_result(cmd);
 	jsmntok_t *leveltok;
@@ -915,7 +924,7 @@ static void json_getpeers(struct command *cmd,
 
 	json_object_start(response, NULL);
 	json_array_start(response, "peers");
-	list_for_each(&ld->peers, p, list) {
+	list_for_each(&cmd->ld->peers, p, list) {
 		json_object_start(response, NULL);
 		json_add_u64(response, "unique_id", p->unique_id);
 		json_add_string(response, "state", peer_state_name(p->state));
@@ -1194,7 +1203,7 @@ static u8 *p2wpkh_for_keyidx(const tal_t *ctx, struct lightningd *ld, u64 keyidx
 {
 	struct pubkey shutdownkey;
 
-	if (!bip32_pubkey(ld->bip32_base, &shutdownkey, keyidx))
+	if (!bip32_pubkey(ld->wallet->bip32_base, &shutdownkey, keyidx))
 		return NULL;
 
 	return scriptpubkey_p2wpkh(ctx, &shutdownkey);
@@ -1215,7 +1224,7 @@ static enum watch_result funding_spent(struct peer *peer,
 
 	peer_fail_permanent_str(peer, "Funding transaction spent");
 	peer->owner = new_subd(peer->ld, peer->ld,
-			       "lightningd_onchain", peer,
+			       "lightning_onchaind", peer,
 			       onchain_wire_type_name,
 			       onchain_msg,
 			       peer_onchain_finished,
@@ -1246,7 +1255,7 @@ static enum watch_result funding_spent(struct peer *peer,
 		return DELETE_WATCH;
 	}
 
-	if (!bip32_pubkey(peer->ld->bip32_base, &ourkey, keyindex)) {
+	if (!bip32_pubkey(peer->ld->wallet->bip32_base, &ourkey, keyindex)) {
 		peer_internal_error(peer,
 				    "Can't get shutdown key %"PRIu64,
 				    keyindex);
@@ -1379,7 +1388,7 @@ static void opening_got_hsm_funding_sig(struct funding_channel *fc,
 	for (i = 0; i < tal_count(tx->input); i++) {
 		struct pubkey key;
 
-		if (!bip32_pubkey(fc->peer->ld->bip32_base,
+		if (!bip32_pubkey(fc->peer->ld->wallet->bip32_base,
 				  &key, fc->utxomap[i]->keyindex))
 			fatal("Cannot generate BIP32 key for UTXO %u",
 			      fc->utxomap[i]->keyindex);
@@ -1428,13 +1437,13 @@ static u8 *create_node_announcement(const tal_t *ctx, struct lightningd *ld,
 		sig = tal(ctx, secp256k1_ecdsa_signature);
 		memset(sig, 0, sizeof(*sig));
 	}
-	if (ld->dstate.config.ipaddr.type != ADDR_TYPE_PADDING) {
-		towire_ipaddr(&addresses, &ld->dstate.config.ipaddr);
+	if (ld->config.ipaddr.type != ADDR_TYPE_PADDING) {
+		towire_ipaddr(&addresses, &ld->config.ipaddr);
 	}
 	memset(alias, 0, sizeof(alias));
 	announcement =
 	    towire_node_announcement(ctx, sig, features, timestamp,
-				     &ld->dstate.id, rgb, alias, addresses);
+				     &ld->id, rgb, alias, addresses);
 	return announcement;
 }
 
@@ -1774,7 +1783,7 @@ static void peer_start_closingd(struct peer *peer,
 	}
 
 	peer->owner = new_subd(peer->ld, peer->ld,
-			       "lightningd_closing", peer,
+			       "lightning_closingd", peer,
 			       closing_wire_type_name,
 			       closing_msg,
 			       peer_owner_finished,
@@ -1925,7 +1934,7 @@ static bool peer_start_channeld(struct peer *peer,
 	const tal_t *tmpctx = tal_tmpctx(peer);
 	u8 *msg, *initmsg;
 	int hsmfd;
-	const struct config *cfg = &peer->ld->dstate.config;
+	const struct config *cfg = &peer->ld->config;
 	struct added_htlc *htlcs;
 	enum htlc_state *htlc_states;
 	struct fulfilled_htlc *fulfilled_htlcs;
@@ -1961,7 +1970,7 @@ static bool peer_start_channeld(struct peer *peer,
 		fatal("Could not read fd from HSM: %s", strerror(errno));
 
 	peer->owner = new_subd(peer->ld, peer->ld,
-			       "lightningd_channel", peer,
+			       "lightning_channeld", peer,
 			       channel_wire_type_name,
 			       channel_msg,
 			       peer_owner_finished,
@@ -1997,7 +2006,8 @@ static bool peer_start_channeld(struct peer *peer,
 	num_revocations = revocations_received(&peer->their_shachain.chain);
 
 	initmsg = towire_channel_init(tmpctx,
-				      &peer->ld->chainparams->genesis_blockhash,
+				      &get_chainparams(peer->ld)
+				      ->genesis_blockhash,
 				      peer->funding_txid,
 				      peer->funding_outnum,
 				      peer->funding_satoshi,
@@ -2017,7 +2027,7 @@ static bool peer_start_channeld(struct peer *peer,
 				      cfg->fee_per_satoshi,
 				      *peer->our_msatoshi,
 				      peer->seed,
-				      &peer->ld->dstate.id,
+				      &peer->ld->id,
 				      &peer->id,
 				      time_to_msec(cfg->commit_time),
 				      cfg->deadline_blocks,
@@ -2102,7 +2112,7 @@ static bool opening_funder_finished(struct subd *opening, const u8 *resp,
 
 	/* Generate the funding tx. */
 	if (fc->change
-	    && !bip32_pubkey(fc->peer->ld->bip32_base,
+	    && !bip32_pubkey(fc->peer->ld->wallet->bip32_base,
 			     &changekey, fc->change_keyindex))
 		fatal("Error deriving change key %u", fc->change_keyindex);
 
@@ -2113,7 +2123,7 @@ static bool opening_funder_finished(struct subd *opening, const u8 *resp,
 				    &local_fundingkey,
 				    &channel_info->remote_fundingkey,
 				    fc->change, &changekey,
-				    fc->peer->ld->bip32_base);
+				    fc->peer->ld->wallet->bip32_base);
 	fc->peer->funding_txid = tal(fc->peer, struct sha256_double);
 	bitcoin_txid(fc->funding_tx, fc->peer->funding_txid);
 
@@ -2240,8 +2250,8 @@ static void channel_config(struct lightningd *ld,
 			   u64 *min_effective_htlc_capacity_msat)
 {
 	/* FIXME: depend on feerate. */
-	*max_to_self_delay = ld->dstate.config.locktime_max;
-	*max_minimum_depth = ld->dstate.config.anchor_confirms_max;
+	*max_to_self_delay = ld->config.locktime_max;
+	*max_minimum_depth = ld->config.anchor_confirms_max;
 	/* This is 1c at $1000/BTC */
 	*min_effective_htlc_capacity_msat = 1000000;
 
@@ -2263,7 +2273,7 @@ static void channel_config(struct lightningd *ld,
 	 * the sender can irreversibly spend a commitment transaction
 	 * output in case of misbehavior by the receiver.
 	 */
-	 ours->to_self_delay = ld->dstate.config.locktime_blocks;
+	 ours->to_self_delay = ld->config.locktime_blocks;
 
 	 /* BOLT #2:
 	  *
@@ -2272,7 +2282,7 @@ static void channel_config(struct lightningd *ld,
 	  */
 	 ours->max_accepted_htlcs = 483;
 
-	 /* This is filled in by lightningd_opening, for consistency. */
+	 /* This is filled in by lightning_openingd, for consistency. */
 	 ours->channel_reserve_satoshis = 0;
 };
 
@@ -2299,7 +2309,7 @@ void peer_fundee_open(struct peer *peer, const u8 *from_peer,
 	}
 
 	peer_set_condition(peer, GOSSIPD, OPENINGD);
-	peer->owner = new_subd(ld, ld, "lightningd_opening", peer,
+	peer->owner = new_subd(ld, ld, "lightning_openingd", peer,
 			       opening_wire_type_name,
 			       NULL, peer_owner_finished,
 			       take(&peer_fd), take(&gossip_fd),
@@ -2319,7 +2329,7 @@ void peer_fundee_open(struct peer *peer, const u8 *from_peer,
 	 * considers reasonable to avoid double-spending of the funding
 	 * transaction.
 	 */
-	peer->minimum_depth = ld->dstate.config.anchor_confirms;
+	peer->minimum_depth = ld->config.anchor_confirms;
 
 	channel_config(ld, &peer->our_config,
 		       &max_to_self_delay, &max_minimum_depth,
@@ -2335,7 +2345,7 @@ void peer_fundee_open(struct peer *peer, const u8 *from_peer,
 	peer->seed = tal(peer, struct privkey);
 	derive_peer_seed(ld, peer->seed, &peer->id, peer->channel->id);
 
-	msg = towire_opening_init(peer, ld->chainparams->index,
+	msg = towire_opening_init(peer, get_chainparams(ld)->index,
 				  &peer->our_config,
 				  max_to_self_delay,
 				  min_effective_htlc_capacity_msat,
@@ -2383,7 +2393,7 @@ static bool gossip_peer_released(struct subd *gossip,
 
 	peer_set_condition(fc->peer, GOSSIPD, OPENINGD);
 	opening = new_subd(fc->peer->ld, ld,
-			   "lightningd_opening", fc->peer,
+			   "lightning_openingd", fc->peer,
 			   opening_wire_type_name,
 			   NULL, peer_owner_finished,
 			   take(&fds[0]), take(&fds[1]), NULL);
@@ -2413,7 +2423,8 @@ static bool gossip_peer_released(struct subd *gossip,
 
 	fc->peer->channel_flags = OUR_CHANNEL_FLAGS;
 
-	msg = towire_opening_init(fc, ld->chainparams->index,
+	msg = towire_opening_init(fc,
+				  get_chainparams(ld)->index,
 				  &fc->peer->our_config,
 				  max_to_self_delay,
 				  min_effective_htlc_capacity_msat,
@@ -2429,7 +2440,7 @@ static bool gossip_peer_released(struct subd *gossip,
 				    15000, max_minimum_depth,
 				    fc->change, fc->change_keyindex,
 				    fc->peer->channel_flags,
-				    utxos, fc->peer->ld->bip32_base);
+				    utxos, fc->peer->ld->wallet->bip32_base);
 	subd_req(fc, opening, take(msg), -1, 2, opening_funder_finished, fc);
 	return true;
 }
@@ -2437,7 +2448,6 @@ static bool gossip_peer_released(struct subd *gossip,
 static void json_fund_channel(struct command *cmd,
 			      const char *buffer, const jsmntok_t *params)
 {
-	struct lightningd *ld = ld_from_dstate(cmd->dstate);
 	jsmntok_t *peertok, *satoshitok;
 	struct funding_channel *fc = tal(cmd, struct funding_channel);
 	u8 *msg;
@@ -2451,12 +2461,12 @@ static void json_fund_channel(struct command *cmd,
 	}
 
 	fc->cmd = cmd;
-	fc->peer = peer_from_json(ld, buffer, peertok);
+	fc->peer = peer_from_json(cmd->ld, buffer, peertok);
 	if (!fc->peer) {
 		command_fail(cmd, "Could not find peer with that peerid");
 		return;
 	}
-	if (fc->peer->owner != ld->gossip) {
+	if (fc->peer->owner != cmd->ld->gossip) {
 		command_fail(cmd, "Peer not ready for connection");
 		return;
 	}
@@ -2471,8 +2481,8 @@ static void json_fund_channel(struct command *cmd,
 
 	/* Try to do this now, so we know if insufficient funds. */
 	/* FIXME: Feerate & dustlimit */
-	fc->utxomap = build_utxos(fc, ld, fc->peer->funding_satoshi, 15000, 600,
-				  &fc->change, &fc->change_keyindex);
+	fc->utxomap = build_utxos(fc, cmd->ld, fc->peer->funding_satoshi,
+				  15000, 600, &fc->change, &fc->change_keyindex);
 	if (!fc->utxomap) {
 		command_fail(cmd, "Cannot afford funding transaction");
 		return;
@@ -2483,7 +2493,7 @@ static void json_fund_channel(struct command *cmd,
 	/* Tie this fc lifetime (and hence utxo release) to the peer */
 	tal_steal(fc->peer, fc);
 	tal_add_destructor(fc, fail_fundchannel_command);
-	subd_req(fc, ld->gossip, msg, -1, 2, gossip_peer_released, fc);
+	subd_req(fc, cmd->ld->gossip, msg, -1, 2, gossip_peer_released, fc);
 }
 
 static const struct json_command fund_channel_command = {
@@ -2497,7 +2507,6 @@ AUTODATA(json_command, &fund_channel_command);
 static void json_close(struct command *cmd,
 		       const char *buffer, const jsmntok_t *params)
 {
-	struct lightningd *ld = ld_from_dstate(cmd->dstate);
 	jsmntok_t *peertok;
 	struct peer *peer;
 
@@ -2508,7 +2517,7 @@ static void json_close(struct command *cmd,
 		return;
 	}
 
-	peer = peer_from_json(ld, buffer, peertok);
+	peer = peer_from_json(cmd->ld, buffer, peertok);
 	if (!peer) {
 		command_fail(cmd, "Could not find peer with that id");
 		return;

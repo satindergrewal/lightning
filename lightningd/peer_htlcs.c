@@ -3,22 +3,22 @@
 #include <ccan/crypto/ripemd160/ripemd160.h>
 #include <ccan/mem/mem.h>
 #include <ccan/tal/str/str.h>
-#include <daemon/chaintopology.h>
-#include <daemon/invoice.h>
-#include <daemon/log.h>
-#include <lightningd/channel/gen_channel_wire.h>
-#include <lightningd/derive_basepoints.h>
-#include <lightningd/gossip/gen_gossip_wire.h>
+#include <channeld/gen_channel_wire.h>
+#include <common/derive_basepoints.h>
+#include <common/htlc_wire.h>
+#include <common/overflows.h>
+#include <common/sphinx.h>
+#include <gossipd/gen_gossip_wire.h>
+#include <lightningd/chaintopology.h>
 #include <lightningd/htlc_end.h>
-#include <lightningd/htlc_wire.h>
+#include <lightningd/invoice.h>
 #include <lightningd/lightningd.h>
-#include <lightningd/onchain/onchain_wire.h>
+#include <lightningd/log.h>
 #include <lightningd/pay.h>
 #include <lightningd/peer_control.h>
 #include <lightningd/peer_htlcs.h>
-#include <lightningd/sphinx.h>
 #include <lightningd/subd.h>
-#include <overflows.h>
+#include <onchaind/onchain_wire.h>
 #include <wire/gen_onion_wire.h>
 
 static bool state_update_ok(struct peer *peer,
@@ -329,7 +329,7 @@ static void handle_localpay(struct htlc_in *hin,
 		goto fail;
 	}
 
-	invoice = find_unpaid(ld->dstate.invoices, payment_hash);
+	invoice = find_unpaid(ld->invoices, payment_hash);
 	if (!invoice) {
 		failcode = WIRE_UNKNOWN_PAYMENT_HASH;
 		goto fail;
@@ -357,7 +357,7 @@ static void handle_localpay(struct htlc_in *hin,
 	 *
 	 * If the `cltv_expiry` is too low, the final node MUST fail the HTLC:
 	 */
-	if (get_block_height(ld->topology) + ld->dstate.config.deadline_blocks
+	if (get_block_height(ld->topology) + ld->config.deadline_blocks
 	    >= cltv_expiry) {
         printf(">>>>>>>> Expiry cltv %u too close to current %u + deadline %u",cltv_expiry,get_block_height(ld->topology),ld->dstate.config.deadline_blocks);
 
@@ -365,7 +365,7 @@ static void handle_localpay(struct htlc_in *hin,
 			  "Expiry cltv %u too close to current %u + deadline %u",
 			  cltv_expiry,
 			  get_block_height(ld->topology),
-			  ld->dstate.config.deadline_blocks);
+			  ld->config.deadline_blocks);
 		failcode = WIRE_FINAL_EXPIRY_TOO_SOON;
 		goto fail;
 	}
@@ -373,7 +373,7 @@ static void handle_localpay(struct htlc_in *hin,
 	log_info(ld->log, "Resolving invoice '%s' with HTLC %"PRIu64,
 		 invoice->label, hin->key.id);
 	fulfill_htlc(hin, &invoice->r);
-	resolve_invoice(&ld->dstate, invoice);
+	resolve_invoice(ld, invoice);
 	return;
 
 fail:
@@ -415,7 +415,14 @@ static bool rcvd_htlc_reply(struct subd *subd, const u8 *msg, const int *fds,
 	}
 
 	if (failure_code) {
-		local_fail_htlc(hout->in, failure_code);
+		if (!hout->in) {
+			char *localfail = tal_fmt(msg, "%s: %.*s",
+						  onion_type_name(failure_code),
+						  (int)tal_len(failurestr),
+						  (const char *)failurestr);
+			payment_failed(hout->key.peer->ld, hout, localfail);
+		} else
+			local_fail_htlc(hout->in, failure_code);
 		return true;
 	}
 
@@ -497,19 +504,19 @@ static void forward_htlc(struct htlc_in *hin,
 	 *    fee_base_msat + amount_msat * fee_proportional_millionths / 1000000
 	 */
 	if (mul_overflows_u64(amt_to_forward,
-			      ld->dstate.config.fee_per_satoshi)) {
+			      ld->config.fee_per_satoshi)) {
 		failcode = WIRE_FEE_INSUFFICIENT;
 		goto fail;
 	}
-	fee = ld->dstate.config.fee_base
-		+ amt_to_forward * ld->dstate.config.fee_per_satoshi / 1000000;
+	fee = ld->config.fee_base
+		+ amt_to_forward * ld->config.fee_per_satoshi / 1000000;
 	if (!check_amount(hin, amt_to_forward, hin->msatoshi, fee)) {
 		failcode = WIRE_FEE_INSUFFICIENT;
 		goto fail;
 	}
 
 	if (!check_ctlv(hin, cltv_expiry, outgoing_cltv_value,
-			ld->dstate.config.deadline_blocks)) {
+			ld->config.deadline_blocks)) {
 		failcode = WIRE_INCORRECT_CLTV_EXPIRY;
 		goto fail;
 	}
@@ -524,12 +531,12 @@ static void forward_htlc(struct htlc_in *hin,
 	 *    * [`len`:`channel_update`]
 	 */
 	if (get_block_height(next->ld->topology)
-	    + next->ld->dstate.config.deadline_blocks >= outgoing_cltv_value) {
+	    + next->ld->config.deadline_blocks >= outgoing_cltv_value) {
 		log_debug(hin->key.peer->log,
 			  "Expiry cltv %u too close to current %u + deadline %u",
 			  outgoing_cltv_value,
 			  get_block_height(next->ld->topology),
-			  next->ld->dstate.config.deadline_blocks);
+			  next->ld->config.deadline_blocks);
 		failcode = WIRE_EXPIRY_TOO_SOON;
 		goto fail;
 	}
@@ -578,7 +585,7 @@ static bool channel_resolve_reply(struct subd *gossip, const u8 *msg,
 	}
 
 	/* Get the other peer matching the id that is not us */
-	if (pubkey_cmp(&nodes[0], &gossip->ld->dstate.id) == 0) {
+	if (pubkey_cmp(&nodes[0], &gossip->ld->id) == 0) {
 		peer_id = &nodes[1];
 	} else {
 		peer_id = &nodes[0];

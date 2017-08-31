@@ -5,7 +5,7 @@
 #include <ccan/list/list.h>
 #include <ccan/short_types/short_types.h>
 #include <ccan/tal/tal.h>
-#include <lightningd/msg_queue.h>
+#include <common/msg_queue.h>
 
 struct io_conn;
 
@@ -16,7 +16,7 @@ struct io_conn;
 
 /* One of our subds. */
 struct subd {
-	/* Name, like John, or "lightningd_hsm" */
+	/* Name, like John, or "lightning_hsmd" */
 	const char *name;
 	/* The Big Cheese. */
 	struct lightningd *ld;

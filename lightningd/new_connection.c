@@ -1,18 +1,17 @@
 #include <ccan/array_size/array_size.h>
 #include <ccan/fdpass/fdpass.h>
 #include <ccan/tal/str/str.h>
-#include <daemon/jsonrpc.h>
-#include <daemon/log.h>
+#include <common/cryptomsg.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <lightningd/cryptomsg.h>
-#include <lightningd/handshake/gen_handshake_wire.h>
-#include <lightningd/hsm/gen_hsm_wire.h>
+#include <handshaked/gen_handshake_wire.h>
+#include <hsmd/gen_hsm_wire.h>
 #include <lightningd/hsm_control.h>
+#include <lightningd/jsonrpc.h>
 #include <lightningd/lightningd.h>
+#include <lightningd/log.h>
 #include <lightningd/new_connection.h>
 #include <lightningd/peer_control.h>
-#include <lightningd/status.h>
 #include <lightningd/subd.h>
 #include <unistd.h>
 #include <wire/wire_sync.h>
@@ -222,7 +221,7 @@ static struct io_plan *hsm_then_handshake(struct io_conn *conn,
 
 	/* Give handshake daemon the hsm fd. */
 	handshaked = new_subd(ld, ld,
-			      "lightningd_handshake", NULL,
+			      "lightning_handshaked", NULL,
 			      handshake_wire_type_name,
 			      NULL, NULL,
 			      take(&hsmfd), take(&connfd), NULL);
@@ -236,10 +235,9 @@ static struct io_plan *hsm_then_handshake(struct io_conn *conn,
 	tal_steal(handshaked, c);
 
 	if (c->known_id) {
-		msg = towire_handshake_initiator(tmpctx, &ld->dstate.id,
-						 c->known_id);
+		msg = towire_handshake_initiator(tmpctx, &ld->id, c->known_id);
 	} else {
-		msg = towire_handshake_responder(tmpctx, &ld->dstate.id);
+		msg = towire_handshake_responder(tmpctx, &ld->id);
 	}
 
 	/* Now hand peer request to the handshake daemon: hands it
@@ -258,12 +256,12 @@ error:
 }
 
 struct io_plan *connection_out(struct io_conn *conn,
-			       struct lightningd_state *dstate,
+			       struct lightningd *ld,
 			       const struct netaddr *netaddr,
 			       struct connection *c)
 {
 	c->netaddr = *netaddr;
-	return hsm_then_handshake(conn, ld_from_dstate(dstate), c);
+	return hsm_then_handshake(conn, ld, c);
 }
 
 struct io_plan *connection_in(struct io_conn *conn, struct lightningd *ld)

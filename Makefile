@@ -1,9 +1,6 @@
 #! /usr/bin/make
 NAME=CHIPS LN
 
-# Needs to have oneof support: Ubuntu vivid's is too old :(
-PROTOCC:=protoc-c
-
 # We use our own internal ccan copy.
 CCANDIR := ccan
 
@@ -26,46 +23,6 @@ endif
 # This is where we add new features as bitcoin adds them.
 FEATURES :=
 
-TEST_PROGRAMS :=				\
-	test/test_protocol			\
-	test/test_sphinx
-
-BITCOIN_SRC :=					\
-	bitcoin/base58.c			\
-	bitcoin/block.c				\
-	bitcoin/chainparams.c			\
-	bitcoin/locktime.c			\
-	bitcoin/pubkey.c			\
-	bitcoin/pullpush.c			\
-	bitcoin/script.c			\
-	bitcoin/shadouble.c			\
-	bitcoin/signature.c			\
-	bitcoin/tx.c				\
- 	bitcoin/short_channel_id.c		\
-	bitcoin/varint.c
-
-BITCOIN_OBJS := $(BITCOIN_SRC:.c=.o)
-
-CORE_SRC :=					\
-	opt_bits.c				\
-	type_to_string.c			\
-	utils.c					\
-	version.c
-
-CORE_OBJS := $(CORE_SRC:.c=.o)
-
-CORE_TX_SRC :=					\
-	close_tx.c				\
-	find_p2sh_out.c				\
-	permute_tx.c
-
-CORE_TX_OBJS := $(CORE_TX_SRC:.c=.o)
-
-CORE_PROTOBUF_SRC :=				\
-	lightning.pb-c.c			\
-	protobuf_convert.c
-
-CORE_PROTOBUF_OBJS := $(CORE_PROTOBUF_SRC:.c=.o)
 
 CCAN_OBJS :=					\
 	ccan-asort.o				\
@@ -75,6 +32,7 @@ CCAN_OBJS :=					\
 	ccan-crypto-hkdf.o			\
 	ccan-crypto-ripemd160.o			\
 	ccan-crypto-sha256.o			\
+	ccan-crypto-shachain.o			\
 	ccan-crypto-siphash24.o			\
 	ccan-err.o				\
 	ccan-fdpass.o				\
@@ -104,8 +62,6 @@ CCAN_OBJS :=					\
 	ccan-tal.o				\
 	ccan-time.o				\
 	ccan-timer.o
-
-CCAN_SHACHAIN48_OBJ := ccan-crypto-shachain-48.o
 
 CCAN_HEADERS :=						\
 	$(CCANDIR)/config.h				\
@@ -167,81 +123,46 @@ CCAN_HEADERS :=						\
 	$(CCANDIR)/ccan/timer/timer.h			\
 	$(CCANDIR)/ccan/typesafe_cb/typesafe_cb.h
 
-BITCOIN_HEADERS := bitcoin/address.h		\
-	bitcoin/base58.h			\
-	bitcoin/block.h				\
-	bitcoin/chainparams.h			\
-	bitcoin/locktime.h			\
-	bitcoin/preimage.h			\
-	bitcoin/privkey.h			\
-	bitcoin/pubkey.h			\
-	bitcoin/pullpush.h			\
-	bitcoin/script.h			\
-	bitcoin/shadouble.h			\
-	bitcoin/signature.h			\
-	bitcoin/tx.h				\
-	bitcoin/varint.h
-
-CORE_TX_HEADERS := close_tx.h			\
-	find_p2sh_out.h				\
-	permute_tx.h				\
-	remove_dust.h
-
-CORE_HEADERS := irc.h				\
-	opt_bits.h				\
-	overflows.h				\
-	protobuf_convert.h			\
-	type_to_string.h			\
-	utils.h					\
-	version.h
-
-GEN_HEADERS := 	gen_version.h			\
-	lightning.pb-c.h
-
-LIBSODIUM_HEADERS := libsodium/src/libsodium/include/sodium.h
-LIBWALLY_HEADERS := libwally-core/include/wally_bip32.h		\
-			libwally-core/include/wally_core.h	\
-			libwally-core/include/wally_crypto.h
-LIBSECP_HEADERS := libwally-core/src/secp256k1/include/secp256k1_ecdh.h		\
-		libwally-core/src/secp256k1/include/secp256k1.h
+ALL_GEN_HEADERS += gen_version.h
 
 CDUMP_OBJS := ccan-cdump.o ccan-strmap.o
 
 WIRE_GEN := tools/generate-wire.py
 
-PROGRAMS := $(TEST_PROGRAMS)
+ALL_PROGRAMS =
 
 CWARNFLAGS := -Werror -Wall -Wundef -Wmissing-prototypes -Wmissing-declarations -Wstrict-prototypes -Wold-style-definition
 CDEBUGFLAGS := -std=gnu11 -g -fstack-protector
-CFLAGS := $(CWARNFLAGS) $(CDEBUGFLAGS) -I $(CCANDIR) -I libwally-core/src/secp256k1/include/ -I libwally-core/include/ -I libsodium/src/libsodium/include/ -I . $(FEATURES) $(COVFLAGS) -DSHACHAIN_BITS=48
+CFLAGS = $(CWARNFLAGS) $(CDEBUGFLAGS) -I $(CCANDIR) $(EXTERNAL_INCLUDE_FLAGS) -I . $(FEATURES) $(COVFLAGS) -DSHACHAIN_BITS=48
 
-LDLIBS := -lprotobuf-c -lgmp -lsqlite3 $(COVFLAGS)
-$(PROGRAMS): CFLAGS+=-I.
+LDLIBS = -lgmp -lsqlite3 $(COVFLAGS)
 
-default: $(PROGRAMS) doc-all daemon-all
+default: $(ALL_TEST_PROGRAMS) doc-all
 
-include doc/Makefile
+include external/Makefile
 include bitcoin/Makefile
+include common/Makefile
 include wire/Makefile
 include wallet/Makefile
+include hsmd/Makefile
+include handshaked/Makefile
+include gossipd/Makefile
+include openingd/Makefile
+include channeld/Makefile
+include closingd/Makefile
+include onchaind/Makefile
 include lightningd/Makefile
+include cli/Makefile
+include test/Makefile
+include doc/Makefile
 
 # Git doesn't maintain timestamps, so we only regen if git says we should.
 CHANGED_FROM_GIT = [ x"`git log $@ | head -n1`" != x"`git log $< | head -n1`" -o x"`git diff $<`" != x"" ]
 
-# Everything depends on the CCAN headers.
-$(CCAN_OBJS) $(CCAN_SHACHAIN48_OBJ) $(CDUMP_OBJS) $(HELPER_OBJS) $(BITCOIN_OBJS) $(TEST_PROGRAMS:=.o) ccan/ccan/cdump/tools/cdump-enumstr.o: $(CCAN_HEADERS)
-
-# Except for CCAN, everything depends on bitcoin/ and core headers.
-$(HELPER_OBJS) $(CORE_OBJS) $(CORE_TX_OBJS) $(CORE_PROTOBUF_OBJS) $(BITCOIN_OBJS) $(LIBBASE58_OBJS) $(WIRE_OBJS) $(WALLET_LIB_OBJS) $(TEST_PROGRAMS:=.o): $(BITCOIN_HEADERS) $(CORE_HEADERS) $(CCAN_HEADERS) $(GEN_HEADERS) $(LIBBASE58_HEADERS) $(LIBSODIUM_HEADERS) $(LIBWALLY_HEADERS)
-
-test-protocol: test/test_protocol
-	set -e; TMP=`mktemp`; for f in test/commits/*.script; do if ! $(VALGRIND) test/test_protocol < $$f > $$TMP; then echo "test/test_protocol < $$f FAILED" >&2; exit 1; fi; diff -u $$TMP $$f.expected; done; rm $$TMP
-
-check: test-protocol
+check:
 	$(MAKE) pytest
 
-pytest: daemon/lightningd daemon/lightning-cli lightningd-all
+pytest: $(ALL_PROGRAMS)
 	PYTHONPATH=contrib/pylightning python3 tests/test_lightningd.py -f
 
 # Keep includes in alpha order.
@@ -254,9 +175,7 @@ check-hdr-include-order/%: %
 	@if [ "$$(grep '^#include' < $< | tail -n +2)" != "$$(grep '^#include' < $< | tail -n +2 | LC_ALL=C sort)" ]; then echo "$<:1: includes out of order"; exit 1; fi
 
 # Make sure Makefile includes all headers.
-check-makefile: check-daemon-makefile
-	@if [ "`echo bitcoin/*.h`" != "$(BITCOIN_HEADERS)" ]; then echo BITCOIN_HEADERS incorrect; exit 1; fi
-	@if [ x"`ls *.h | grep -v ^gen_ | fgrep -v lightning.pb-c.h`" != x"`echo $(CORE_HEADERS) $(CORE_TX_HEADERS) | tr ' ' '\n' | LC_ALL=C sort`" ]; then echo CORE_HEADERS incorrect; exit 1; fi
+check-makefile:
 	@if [ x"$(CCANDIR)/config.h `find $(CCANDIR)/ccan -name '*.h' | grep -v /test/ | LC_ALL=C sort | tr '\n' ' '`" != x"$(CCAN_HEADERS) " ]; then echo CCAN_HEADERS incorrect; exit 1; fi
 
 # Any mention of BOLT# must be followed by an exact quote, modulo whitepace.
@@ -266,7 +185,7 @@ bolt-check/%: % bolt-precheck tools/check-bolt
 bolt-precheck:
 	@rm -rf .tmp.lightningrfc; if [ ! -d $(BOLTDIR) ]; then echo Not checking BOLT references: BOLTDIR $(BOLTDIR) does not exist >&2; exit 0; fi; set -e; if [ -n "$(BOLTVERSION)" ]; then git clone -q -b $(BOLTVERSION) $(BOLTDIR) .tmp.lightningrfc; else cp -a $(BOLTDIR) .tmp.lightningrfc; fi
 
-check-source-bolt: $(CORE_SRC:%=bolt-check/%) $(CORE_TX_SRC:%=bolt-check/%) $(CORE_PROTOBUF_SRC:%=bolt-check/%) $(CORE_HEADERS:%=bolt-check/%) $(TEST_PROGRAMS:%=bolt-check/%.c)
+check-source-bolt: $(ALL_TEST_PROGRAMS:%=bolt-check/%.c)
 
 tools/check-bolt: tools/check-bolt.o $(CCAN_OBJS)
 
@@ -275,20 +194,13 @@ tools/check-bolt.o: $(CCAN_HEADERS)
 check-whitespace/%: %
 	@if grep -Hn '[ 	]$$' $<; then echo Extraneous whitespace found >&2; exit 1; fi
 
-check-whitespace: check-whitespace/Makefile check-whitespace/tools/check-bolt.c $(CORE_SRC:%=check-whitespace/%) $(CORE_TX_SRC:%=check-whitespace/%) $(CORE_PROTOBUF_SRC:%=check-whitespace/%) $(CORE_HEADERS:%=check-whitespace/%)
+check-whitespace: check-whitespace/Makefile check-whitespace/tools/check-bolt.c $(ALL_TEST_PROGRAMS:%=check-whitespace/%.c)
 
-check-source: check-makefile check-source-bolt check-whitespace	\
-	$(CORE_SRC:%=check-src-include-order/%)			\
-	$(CORE_TX_SRC:%=check-src-include-order/%)		\
-	$(CORE_PROTOBUF_SRC:%=check-src-include-order/%)	\
-	$(BITCOIN_SRC:%=check-src-include-order/%)		\
-	$(CORE_HEADERS:%=check-hdr-include-order/%)		\
-	$(CORE_TX_HEADERS:%=check-hdr-include-order/%)		\
-	$(BITCOIN_HEADERS:%=check-hdr-include-order/%)
+check-source: check-makefile check-source-bolt check-whitespace
 
-full-check: check $(TEST_PROGRAMS) check-source
+full-check: check check-source
 
-coverage/coverage.info: check $(TEST_PROGRAMS) pytest
+coverage/coverage.info: check pytest
 	mkdir coverage || true
 	lcov --capture --directory . --output-file coverage/coverage.info
 
@@ -302,29 +214,9 @@ FORCE::
 
 ccan/ccan/cdump/tools/cdump-enumstr: ccan/ccan/cdump/tools/cdump-enumstr.o $(CDUMP_OBJS) $(CCAN_OBJS)
 
-# We build libsodium, since Ubuntu xenial has one too old.
-libsodium.a: libsodium/src/libsodium/libsodium.la
-	$(MAKE) -C libsodium install-exec
-
-libsodium/src/libsodium/include/sodium.h:
-	git submodule update libsodium
-	[ -f $@ ] || git submodule update --init libsodium
-
-libsodium/src/libsodium/libsodium.la: libsodium/src/libsodium/include/sodium.h
-	cd libsodium && ./autogen.sh && ./configure CC="$(CC)" --enable-static=yes --enable-shared=no --enable-tests=no --libdir=`pwd`/.. && $(MAKE)
-
-# libsecp included in libwally.
-# Wildcards here are magic.  See http://stackoverflow.com/questions/2973445/gnu-makefile-rule-generating-a-few-targets-from-a-single-source-file
-libsecp256k1.% libwallycore.%: libwally-core/src/secp256k1/libsecp256k1.la libwally-core/src/libwallycore.la
-	$(MAKE) -C libwally-core install-exec
-
-libwally-core/src/libwallycore.% libwally-core/src/secp256k1/libsecp256k1.%: $(LIBWALLY_HEADERS) $(LIBSECP_HEADERS)
-	cd libwally-core && ./tools/autogen.sh && ./configure CC="$(CC)" --enable-static=yes --enable-shared=no --libdir=`pwd`/.. && $(MAKE)
-
-lightning.pb-c.c lightning.pb-c.h: lightning.proto
-	@if $(CHANGED_FROM_GIT); then echo $(PROTOCC) lightning.proto --c_out=.; $(PROTOCC) lightning.proto --c_out=.; else touch $@; fi
-
-$(TEST_PROGRAMS): % : %.o $(BITCOIN_OBJS) $(LIBBASE58_OBJS) $(WIRE_OBJS) $(CCAN_OBJS) lightningd/sphinx.o utils.o version.o libwallycore.a libsecp256k1.a libsodium.a
+ALL_PROGRAMS += ccan/ccan/cdump/tools/cdump-enumstr
+# Can't add to ALL_OBJS, as that makes a circular dep.
+ccan/ccan/cdump/tools/cdump-enumstr.o: $(CCAN_HEADERS)
 
 ccan/config.h: ccan/tools/configurator/configurator
 	if $< > $@.new; then mv $@.new $@; else rm $@.new; exit 1; fi
@@ -333,7 +225,27 @@ gen_version.h: FORCE
 	@(echo "#define VERSION \"`git describe --always --dirty`\"" && echo "#define VERSION_NAME \"$(NAME)\"" && echo "#define BUILD_FEATURES \"$(FEATURES)\"") > $@.new
 	@if cmp $@.new $@ >/dev/null 2>&2; then rm -f $@.new; else mv $@.new $@; echo Version updated; fi
 
-version.o: gen_version.h
+# All binaries require the external libs, ccan
+$(ALL_PROGRAMS) $(ALL_TEST_PROGRAMS): $(EXTERNAL_LIBS) $(CCAN_OBJS)
+
+# Each test program depends on its own object.
+$(ALL_TEST_PROGRAMS): %: %.o
+
+# Without this rule, the (built-in) link line contains
+# external/libwallycore.a directly, which causes a symbol clash (it
+# uses some ccan modules internally).  We want to rely on -lwallycore etc.
+# (as per EXTERNAL_LDLIBS) so we filter them out here.
+$(ALL_PROGRAMS) $(ALL_TEST_PROGRAMS):
+	$(LINK.o) $(filter-out %.a,$^) $(LOADLIBES) $(EXTERNAL_LDLIBS) $(LDLIBS) -o $@
+
+# Everything depends on the CCAN headers.
+$(CCAN_OBJS) $(CDUMP_OBJS): $(CCAN_HEADERS)
+
+# Except for CCAN, we treat everything else as dependent on external/ bitcoin/ common/ wire/ and all generated headers.
+$(ALL_OBJS): $(BITCOIN_HEADERS) $(COMMON_HEADERS) $(CCAN_HEADERS) $(WIRE_HEADERS) $(ALL_GEN_HEADERS) $(EXTERNAL_HEADERS)
+
+# We generate headers in two ways, so regen when either changes.
+$(ALL_GEN_HEADERS): ccan/ccan/cdump/tools/cdump-enumstr $(WIRE_GEN)
 
 update-ccan:
 	mv ccan ccan.old
@@ -354,31 +266,20 @@ update-secp256k1:
 	$(RM) -r secp256k1.old
 
 distclean: clean
-	$(MAKE) -C secp256k1/ distclean || true
-	$(RM) libsecp256k1.a secp256k1/libsecp256k1.la
-	$(RM) libsodium.a libsodium.la libsodium/libsodium.la
-	$(RM) libwallycore.a libwallycore.la
-	$(RM) libwally-core/src/secp256k1/libsecp256k1.la libwally-core/src/libwallycore.la
-	cd libwally-core && tools/cleanup.sh
 
 maintainer-clean: distclean
 	@echo 'This command is intended for maintainers to use; it'
 	@echo 'deletes files that may need special tools to rebuild.'
-	$(RM) lightning.pb-c.c lightning.pb-c.h
 
-clean: daemon-clean wire-clean
-	$(MAKE) -C secp256k1/ clean || true
-	$(RM) libsecp256k1.{a,la}
-	$(RM) libsodium.{a,la}
-	$(RM) $(PROGRAMS)
-	$(RM) bitcoin/*.o *.o $(PROGRAMS:=.o) $(CCAN_OBJS)
+clean: wire-clean
+	$(RM) $(CCAN_OBJS) $(CDUMP_OBJS) $(ALL_OBJS)
+	$(RM) $(ALL_PROGRAMS) $(ALL_PROGRAMS:=.o)
+	$(RM) $(ALL_TEST_PROGRAMS) $(ALL_TEST_PROGRAMS:=.o)
 	$(RM) ccan/config.h gen_*.h
 	$(RM) ccan/ccan/cdump/tools/cdump-enumstr.o
 	$(RM) check-bolt tools/check-bolt tools/*.o
 	find . -name '*gcda' -delete
 	find . -name '*gcno' -delete
-
-include daemon/Makefile
 
 update-mocks/%: %
 	@set -e; BASE=/tmp/mocktmp.$$$$.`echo $* | tr / _`; trap "rm -f $$BASE.*" EXIT; \
@@ -394,8 +295,6 @@ update-mocks/%: %
           fi; \
 	  tail -n +$$END $< >> $$BASE.new; mv $$BASE.new $<; \
 	fi
-
-test/test_sphinx: libsodium.a
 
 unittest/%: %
 	$(VALGRIND) $(VALGRIND_TEST_ARGS) $*
@@ -440,7 +339,7 @@ ccan-crypto-hmac.o: $(CCANDIR)/ccan/crypto/hmac_sha256/hmac_sha256.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 ccan-crypto-hkdf.o: $(CCANDIR)/ccan/crypto/hkdf_sha256/hkdf_sha256.c
 	$(CC) $(CFLAGS) -c -o $@ $<
-ccan-crypto-shachain-48.o: $(CCANDIR)/ccan/crypto/shachain/shachain.c
+ccan-crypto-shachain.o: $(CCANDIR)/ccan/crypto/shachain/shachain.c
 	$(CC) $(CFLAGS) -DSHACHAIN_BITS=48 -c -o $@ $<
 ccan-crypto-sha256.o: $(CCANDIR)/ccan/crypto/sha256/sha256.c
 	$(CC) $(CFLAGS) -c -o $@ $<
