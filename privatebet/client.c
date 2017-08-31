@@ -47,7 +47,7 @@ int32_t BET_client_gameeval(cJSON *argjson,struct privatebet_info *bet,struct pr
 int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
 {
     cJSON *array,*pubkeys,*retjson,*channels,*item; int32_t i,n,flag,already_connected=0,len,err=0; bits256 hash; char *idstr,*source,*dest,*short_id,*rstr;
-    if ( Host_peerid[0] == 0 )
+    if ( jstr(argjson,"hostid") != 0 )
     {
         safecopy(Host_peerid,jstr(argjson,"hostid"),sizeof(Host_peerid));
         if ( BET_peer_state(Host_peerid,"CHANNELD_NORMAL") == 0 )
@@ -106,7 +106,7 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
                 }
             }
         }
-    }
+    } 
     BET_hosthash_extract(argjson,bet->chipsize);
     BET_clientpay(bet->chipsize);
     BET_statemachine_joined_table(bet,vars);
