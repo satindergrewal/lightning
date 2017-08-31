@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #define NO_ERROR 0
 #define ERROR_FROM_LIGHTNINGD 1
