@@ -1,4 +1,4 @@
-LIGHTNING_CLI_SRC := cli/lightning-cli.c  cli/cli_main.c
+LIGHTNING_CLI_SRC := cli/lightning-cli.c  #cli/cli_main.c
 LIGHTNING_CLI_OBJS := $(LIGHTNING_CLI_SRC:.c=.o)
 
 LIGHTNING_CLI_COMMON_OBJS :=			\
