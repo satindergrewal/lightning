@@ -61,7 +61,7 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
             if ( (idstr= jstr(retjson,"id")) != 0 && strcmp(idstr,Host_peerid) == 0 )
                 already_connected = 1;
             free_json(retjson);
-        }
+        } else printf("null return from chipsln_connect\n");
         if ( already_connected != 0 )
         {
             BET_channels_parse();
@@ -106,7 +106,7 @@ int32_t BET_client_join(cJSON *argjson,struct privatebet_info *bet,struct privat
                 }
             }
         }
-    } 
+    } else printf("no hostid in (%s)\n",jprint(argjson,0));
     BET_hosthash_extract(argjson,bet->chipsize);
     BET_clientpay(bet->chipsize);
     BET_statemachine_joined_table(bet,vars);
