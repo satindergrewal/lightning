@@ -178,9 +178,11 @@ cJSON *chipsln_getroute(char *idstr,uint64_t msatoshi)
 
 cJSON *chipsln_connect(char *ipaddr,uint16_t port,char *destid)
 {
-    char buf[4096];
+    char buf[4096],*retstr;
     sprintf(buf,"{ \"method\":\"connect\", \"id\":\"chipsln-%d\", \"params\":[\"%s\", %u, \"%s\"] }",getpid(),ipaddr,port,destid);
-    return(chipsln_issue(buf));
+    retstr = chipsln_issue(buf);
+    printf("(%s) -> %s\n",buf,retstr);
+    return(retstr);
 }
 
 cJSON *chipsln_sendpay(cJSON *routejson,bits256 rhash)
