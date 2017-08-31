@@ -4,11 +4,11 @@
 /*#include "configdir.h"
 #include "json.h"
 #include "version.h"*/
-//#include <ccan/err/err.h>
-#include <ccan/opt/opt.h>
-#include <ccan/read_write_all/read_write_all.h>
-#include <ccan/str/str.h>
-#include <ccan/tal/str/str.h>
+#include "../ccan/ccan/err/err.h"
+#include "../ccan/ccan/opt/opt.h"
+#include "../ccan/ccan/read_write_all/read_write_all.h"
+#include "../ccan/ccan/str/str.h"
+#include "../ccan/ccan/tal/str/str.h"
 #include <common/configdir.h>
 #include <common/json.h>
 #include <common/version.h>

@@ -1,9 +1,6 @@
 /*
  * Helper to submit via JSON-RPC and get back response.
  */
-#include "configdir.h"
-#include "json.h"
-#include "version.h"
 #include <ccan/err/err.h>
 #include <ccan/opt/opt.h>
 #include <ccan/read_write_all/read_write_all.h>
