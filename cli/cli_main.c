@@ -11,7 +11,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include "jsonrpc.h"
+#include "../external/jsmn/jsmn.h"
 
 #define NO_ERROR 0
 #define ERROR_FROM_LIGHTNINGD 1
