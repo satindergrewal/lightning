@@ -56,7 +56,7 @@ DAEMON_OBJS := $(DAEMON_SRC:.c=.o)
 BET_SRC := daemon/_lightning-cli.c privatebet/bet.c #privatebet/cards777.c privatebet/client.c privatebet/commands.c privatebet/gameloop.c privatebet/gfshare.c privatebet/network.c privatebet/states.c
 BET_OBJS := $(DAEMON_CLI_SRC:.c=.o)
 
-DAEMON_CLI_SRC := daemon/lightning-cli.c daemon/cli_main.c
+DAEMON_CLI_SRC := cli/lightning-cli.c daemon/cli_main.c
 DAEMON_CLI_OBJS := $(DAEMON_CLI_SRC:.c=.o)
 
 DAEMON_JSMN_OBJS := daemon/jsmn.o
