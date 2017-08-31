@@ -598,7 +598,7 @@ static struct io_plan *jcon_connected(struct io_conn *conn,
 static struct io_plan *incoming_jcon_connected(struct io_conn *conn,
 					       struct lightningd *ld)
 {
-	log_info(ld->log, "Connected json input");
+	//log_info(ld->log, "Connected json input");
 	return jcon_connected(conn, ld);
 }
 
