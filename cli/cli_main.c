@@ -50,7 +50,7 @@ char *netaddr_name(const tal_t *ctx, const struct netaddr *a)
     return NULL;
 }
 
-int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[],char *cmd)
+int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
 {
     int fd, i, off;
     const char *method;

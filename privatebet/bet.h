@@ -320,7 +320,7 @@ void BET_statemachine_consensus(struct privatebet_info *bet,struct privatebet_va
 int32_t BET_statemachine_outofgame(struct privatebet_info *bet,struct privatebet_vars *vars,int32_t round,int32_t senderid);
 int32_t BET_statemachine_turnivalidate(struct privatebet_info *bet,struct privatebet_vars *vars,int32_t round,int32_t senderid);
 
-int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[],char *cmdstr);
+int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[]);
 struct privatebet_peerln *BET_peerln_find(char *peerid);
 
 void stats_rpcloop(void *args);
