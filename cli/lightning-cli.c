@@ -1,6 +1,10 @@
 /*
  * Helper to submit via JSON-RPC and get back response.
  */
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+
 #ifdef newversion
 #include <ccan/err/err.h>
 #include <ccan/opt/opt.h>
@@ -15,9 +19,6 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
 
 #define NO_ERROR 0
 #define ERROR_FROM_LIGHTNINGD 1
