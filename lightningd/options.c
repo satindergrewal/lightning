@@ -224,9 +224,6 @@ static void config_register_opts(struct lightningd *ld)
 	opt_register_arg("--fee-per-satoshi", opt_set_s32, opt_show_s32,
 			 &ld->config.fee_per_satoshi,
 			 "Microsatoshi fee for every satoshi in HTLC");
-	opt_register_noarg("--disable-irc", opt_set_invbool,
-			   &ld->config.use_irc,
-			   "Disable IRC peer discovery for routing");
 
 	opt_register_noarg("--ignore-dbversion", opt_set_bool,
 			   &ld->config.db_version_ignore,
@@ -301,9 +298,6 @@ static const struct config testnet_config = {
 	/* Take 0.001% */
 	.fee_per_satoshi = 1,
 
-	/* Discover new peers using IRC */
-	.use_irc = true,
-
 	/* Don't ignore database version */
 	.db_version_ignore = false,
 
@@ -364,9 +358,6 @@ static const struct config mainnet_config = {
 	.fee_base = 546000,
 	/* Take 0.0001% */
 	.fee_per_satoshi = 1,
-
-	/* Discover new peers using IRC */
-	.use_irc = true,
 
 	/* Don't ignore database version */
 	.db_version_ignore = false,

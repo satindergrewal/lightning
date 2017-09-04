@@ -16,6 +16,14 @@
 /* 365.25 * 24 * 60 / 10 */
 #define BLOCKS_PER_YEAR 52596
 
+static struct node_map *empty_node_map(const tal_t *ctx)
+{
+	struct node_map *map = tal(ctx, struct node_map);
+	node_map_init(map);
+	tal_add_destructor(map, node_map_clear);
+	return map;
+}
+
 struct routing_state *new_routing_state(const tal_t *ctx,
 					const struct sha256_double *chain_hash)
 {
@@ -42,19 +50,6 @@ bool node_map_node_eq(const struct node *n, const secp256k1_pubkey *key)
 	return structeq(&n->id.pubkey, key);
 }
 
-struct node_map *empty_node_map(const tal_t *ctx)
-{
-	struct node_map *map = tal(ctx, struct node_map);
-	node_map_init(map);
-	return map;
-}
-
-struct node *get_node(struct routing_state *rstate,
-		      const struct pubkey *id)
-{
-	return node_map_get(rstate->nodes, &id->pubkey);
-}
-
 static void destroy_node(struct node *node)
 {
 	/* These remove themselves from the array. */
@@ -64,8 +59,14 @@ static void destroy_node(struct node *node)
 		tal_free(node->out[0]);
 }
 
-struct node *new_node(struct routing_state *rstate,
+static struct node *get_node(struct routing_state *rstate,
 		      const struct pubkey *id)
+{
+	return node_map_get(rstate->nodes, &id->pubkey);
+}
+
+static struct node *new_node(struct routing_state *rstate,
+			     const struct pubkey *id)
 {
 	struct node *n;
 
@@ -77,27 +78,11 @@ struct node *new_node(struct routing_state *rstate,
 	n->out = tal_arr(n, struct node_connection *, 0);
 	n->alias = NULL;
 	n->node_announcement = NULL;
-	n->last_timestamp = 0;
+	n->last_timestamp = -1;
 	n->addresses = tal_arr(n, struct ipaddr, 0);
 	node_map_add(rstate->nodes, n);
 	tal_add_destructor(n, destroy_node);
 
-	return n;
-}
-
-struct node *add_node(
-	struct routing_state *rstate,
-	const struct pubkey *pk)
-{
-	struct node *n = get_node(rstate, pk);
-	if (!n) {
-		n = new_node(rstate, pk);
-		status_trace("Creating new node %s",
-			     type_to_string(trc, struct pubkey, pk));
-	} else {
-		status_trace("Update existing node %s",
-			     type_to_string(trc, struct pubkey, pk));
-	}
 	return n;
 }
 
@@ -126,9 +111,9 @@ static void destroy_connection(struct node_connection *nc)
 		abort();
 }
 
-struct node_connection * get_connection(struct routing_state *rstate,
-					const struct pubkey *from_id,
-					const struct pubkey *to_id)
+static struct node_connection * get_connection(struct routing_state *rstate,
+					       const struct pubkey *from_id,
+					       const struct pubkey *to_id)
 {
 	int i, n;
 	struct node *from, *to;
@@ -229,66 +214,12 @@ struct node_connection *half_add_connection(struct routing_state *rstate,
 	nc = get_or_make_connection(rstate, from, to);
 	nc->short_channel_id = *schanid;
 	nc->active = false;
-	nc->last_timestamp = 0;
 	nc->flags = flags;
-	nc->min_blocks = 0;
-	nc->proportional_fee = 0;
-	nc->base_fee = 0;
-	nc->delay = 0;
+	nc->last_timestamp = -1;
 	return nc;
 }
 
 
-
-/* Updates existing route if required. */
-struct node_connection *add_connection(struct routing_state *rstate,
-				       const struct pubkey *from,
-				       const struct pubkey *to,
-				       u32 base_fee, s32 proportional_fee,
-				       u32 delay, u32 min_blocks)
-{
-	struct node_connection *c = get_or_make_connection(rstate, from, to);
-	c->base_fee = base_fee;
-	c->proportional_fee = proportional_fee;
-	c->delay = delay;
-	c->min_blocks = min_blocks;
-	c->active = true;
-	c->last_timestamp = 0;
-	memset(&c->short_channel_id, 0, sizeof(c->short_channel_id));
-	c->flags = get_channel_direction(from, to);
-	return c;
-}
-
-void remove_connection(struct routing_state *rstate,
-		       const struct pubkey *src, const struct pubkey *dst)
-{
-	struct node *from, *to;
-	size_t i, num_edges;
-
-	status_trace("Removing route from %s to %s",
-		     type_to_string(trc, struct pubkey, src),
-		     type_to_string(trc, struct pubkey, dst));
-
-	from = get_node(rstate, src);
-	to = get_node(rstate, dst);
-	if (!from || !to) {
-		status_trace("Not found: src=%p dst=%p", from, to);
-		return;
-	}
-
-	num_edges = tal_count(from->out);
-
-	for (i = 0; i < num_edges; i++) {
-		if (from->out[i]->dst != to)
-			continue;
-
-		status_trace("Matched route %zu of %zu", i, num_edges);
-		/* Destructor makes it delete itself */
-		tal_free(from->out[i]);
-		return;
-	}
-	status_trace(" None of %zu routes matched", num_edges);
-}
 
 /* Too big to reach, but don't overflow if added. */
 #define INFINITE 0x3FFFFFFFFFFFFFFFULL
@@ -339,11 +270,21 @@ static void bfg_one_edge(struct node *node, size_t edgenum, double riskfactor)
 	assert(c->dst == node);
 	for (h = 0; h < ROUTING_MAX_HOPS; h++) {
 		/* FIXME: Bias against smaller channels. */
-		s64 fee = connection_fee(c, node->bfg[h].total);
-		u64 risk = node->bfg[h].risk + risk_fee(node->bfg[h].total + fee,
-							c->delay, riskfactor);
+		s64 fee;
+		u64 risk;
+
+		if (node->bfg[h].total == INFINITE)
+			continue;
+
+		fee = connection_fee(c, node->bfg[h].total);
+		risk = node->bfg[h].risk + risk_fee(node->bfg[h].total + fee,
+						    c->delay, riskfactor);
 		if (node->bfg[h].total + (s64)fee + (s64)risk
 		    < c->src->bfg[h+1].total + (s64)c->src->bfg[h+1].risk) {
+			status_trace("...%s can reach here in hoplen %zu total %"PRIu64,
+				     type_to_string(trc, struct pubkey,
+						    &c->src->id),
+				     h, node->bfg[h].total + fee);
 			c->src->bfg[h+1].total = node->bfg[h].total + fee;
 			c->src->bfg[h+1].risk = risk;
 			c->src->bfg[h+1].prev = c;
@@ -351,7 +292,7 @@ static void bfg_one_edge(struct node *node, size_t edgenum, double riskfactor)
 	}
 }
 
-struct node_connection *
+static struct node_connection *
 find_route(const tal_t *ctx, struct routing_state *rstate,
 	   const struct pubkey *from, const struct pubkey *to, u64 msatoshi,
 	   double riskfactor, s64 *fee, struct node_connection ***route)
@@ -396,19 +337,16 @@ find_route(const tal_t *ctx, struct routing_state *rstate,
 		     n = node_map_next(rstate->nodes, &it)) {
 			size_t num_edges = tal_count(n->in);
 			for (i = 0; i < num_edges; i++) {
-				if (!n->in[i]->active)
+				status_trace("Node %s edge %i/%zu",
+					     type_to_string(trc, struct pubkey,
+							    &n->id),
+					     i, num_edges);
+				if (!n->in[i]->active) {
+					status_trace("...inactive");
 					continue;
+				}
 				bfg_one_edge(n, i, riskfactor);
-				status_trace("We seek %p->%p, this is %p -> %p",
-					     dst, src,
-					     n->in[i]->src, n->in[i]->dst);
-				status_trace("Checking from %s to %s",
-					     type_to_string(trc,
-							    struct pubkey,
-							    &n->in[i]->src->id),
-					     type_to_string(trc,
-							    struct pubkey,
-							    &n->in[i]->dst->id));
+				status_trace("...done");
 			}
 		}
 	}
@@ -462,11 +400,11 @@ find_route(const tal_t *ctx, struct routing_state *rstate,
 	return first_conn;
 }
 
-bool add_channel_direction(struct routing_state *rstate,
-			   const struct pubkey *from,
-			   const struct pubkey *to,
-			   const struct short_channel_id *short_channel_id,
-			   const u8 *announcement)
+static bool add_channel_direction(struct routing_state *rstate,
+				  const struct pubkey *from,
+				  const struct pubkey *to,
+				  const struct short_channel_id *short_channel_id,
+				  const u8 *announcement)
 {
 	struct node_connection *c = get_connection(rstate, from, to);
 	u16 direction = get_channel_direction(from, to);
@@ -487,109 +425,6 @@ bool add_channel_direction(struct routing_state *rstate,
 	c->channel_announcement = tal_dup_arr(c, u8, announcement,
 					      tal_count(announcement), 0);
 	return true;
-}
-
-/* BOLT #7:
- *
- * The following `address descriptor` types are defined:
- *
- * * `0`: padding.  data = none (length 0).
- * * `1`: ipv4. data = `[4:ipv4_addr][2:port]` (length 6)
- * * `2`: ipv6. data = `[16:ipv6_addr][2:port]` (length 18)
- */
-
-/* FIXME: Don't just take first one, depends whether we have IPv6 ourselves */
-/* Returns false iff it was malformed */
-bool read_ip(const tal_t *ctx, const u8 *addresses, char **hostname,
-		    int *port)
-{
-	size_t len = tal_count(addresses);
-	const u8 *p = addresses;
-	char tempaddr[INET6_ADDRSTRLEN];
-	be16 portnum;
-
-	*hostname = NULL;
-	while (len) {
-		u8 type = *p;
-		p++;
-		len--;
-
-		switch (type) {
-		case 0:
-			break;
-		case 1:
-			/* BOLT #7:
-			 *
-			 * The receiving node SHOULD fail the connection if
-			 * `addrlen` is insufficient to hold the address
-			 * descriptors of the known types.
-			 */
-			if (len < 6)
-				return false;
-			inet_ntop(AF_INET, p, tempaddr, sizeof(tempaddr));
-			memcpy(&portnum, p + 4, sizeof(portnum));
-			*hostname = tal_strdup(ctx, tempaddr);
-			*port = be16_to_cpu(portnum);
-			return true;
-		case 2:
-			if (len < 18)
-				return false;
-			inet_ntop(AF_INET6, p, tempaddr, sizeof(tempaddr));
-			memcpy(&portnum, p + 16, sizeof(portnum));
-			*hostname = tal_strdup(ctx, tempaddr);
-			*port = be16_to_cpu(portnum);
-			return true;
-		default:
-			/* BOLT #7:
-			 *
-			 * The receiving node SHOULD ignore the first `address
-			 * descriptor` which does not match the types defined
-			 * above.
-			 */
-			return true;
-		}
-	}
-
-	/* Not a fatal error. */
-	return true;
-}
-
-/* BOLT #7:
- *
- * The creating node SHOULD fill `addresses` with an address descriptor for
- * each public network address which expects incoming connections, and MUST
- * set `addrlen` to the number of bytes in `addresses`.  Non-zero typed
- * address descriptors MUST be placed in ascending order; any number of
- * zero-typed address descriptors MAY be placed anywhere, but SHOULD only be
- * used for aligning fields following `addresses`.
- *
- * The creating node MUST NOT create a type 1 or type 2 address descriptor
- * with `port` equal to zero, and SHOULD ensure `ipv4_addr` and `ipv6_addr`
- * are routable addresses.  The creating node MUST NOT include more than one
- * `address descriptor` of the same type.
- */
-/* FIXME: handle case where we have both ipv6 and ipv4 addresses! */
-u8 *write_ip(const tal_t *ctx, const char *srcip, int port)
-{
-	u8 *address;
-	be16 portnum = cpu_to_be16(port);
-
-	if (!port)
-		return tal_arr(ctx, u8, 0);
-
-	if (!strchr(srcip, ':')) {
-		address = tal_arr(ctx, u8, 7);
-		address[0] = 1;
-		inet_pton(AF_INET, srcip, address+1);
-		memcpy(address + 5, &portnum, sizeof(portnum));
-		return address;
-	} else {
-		address = tal_arr(ctx, u8, 18);
-		address[0] = 2;
-		inet_pton(AF_INET6, srcip, address+1);
-		memcpy(address + 17, &portnum, sizeof(portnum));
-		return address;
-	}
 }
 
 /* Verify the signature of a channel_update message */
@@ -793,20 +628,32 @@ void handle_channel_update(struct routing_state *rstate, const u8 *update, size_
 	tal_free(tmpctx);
 }
 
-static struct ipaddr *read_addresses(const tal_t *ctx, u8 *ser)
+static struct ipaddr *read_addresses(const tal_t *ctx, const u8 *ser)
 {
 	const u8 *cursor = ser;
 	size_t max = tal_len(ser);
 	struct ipaddr *ipaddrs = tal_arr(ctx, struct ipaddr, 0);
 	int numaddrs = 0;
-	while (cursor < ser + max) {
-		numaddrs++;
-		tal_resize(&ipaddrs, numaddrs);
-		fromwire_ipaddr(&cursor, &max, &ipaddrs[numaddrs-1]);
-		if (cursor == NULL) {
-			/* Parsing address failed */
-			return tal_free(ipaddrs);
+	while (cursor && cursor < ser + max) {
+		struct ipaddr ipaddr;
+
+		/* BOLT #7:
+		 *
+		 * The receiving node SHOULD ignore the first `address
+		 * descriptor` which does not match the types defined
+		 * above.
+		 */
+		if (!fromwire_ipaddr(&cursor, &max, &ipaddr)) {
+			if (!cursor)
+				/* Parsing address failed */
+				return tal_free(ipaddrs);
+			/* Unknown type, stop there. */
+			break;
 		}
+
+		tal_resize(&ipaddrs, numaddrs+1);
+		ipaddrs[numaddrs] = ipaddr;
+		numaddrs++;
 	}
 	return ipaddrs;
 }
@@ -913,8 +760,6 @@ struct route_hop *get_route(tal_t *ctx, struct routing_state *rstate,
 		total_amount += connection_fee(route[i], total_amount);
 
 		total_delay += route[i]->delay;
-		if (total_delay < route[i]->min_blocks)
-			total_delay = route[i]->min_blocks;
 		hops[i + 1].delay = total_delay;
 	}
 	/* Backfill the first hop manually */
