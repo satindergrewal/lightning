@@ -59,7 +59,7 @@ chips-cli sendtoaddress <address> <amount>
 chips-cli getrawtransaction <txid>
 
 # Notifies `lightningd` that there are now funds available:
-daemon/lightning-cli addfunds <rawtx>
+cli/lightning-cli addfunds <rawtx>
 ```
 
 Eventually `lightningd` will include its own wallet making this transfer easier, but for now this is how it gets its funds.

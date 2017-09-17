@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "db.h"
+#include <bitcoin/tx.h>
 #include <ccan/crypto/shachain/shachain.h>
 #include <ccan/list/list.h>
 #include <ccan/tal/tal.h>
@@ -39,7 +40,8 @@ enum wallet_output_type {
 	p2sh_wpkh = 0,
 	to_local = 1,
 	htlc_offer = 3,
-	htlc_recv = 4
+	htlc_recv = 4,
+	our_change = 5
 };
 
 /* A database backed shachain struct. The datastructure is
@@ -210,5 +212,11 @@ bool wallet_peer_by_nodeid(struct wallet *w, const struct pubkey *nodeid,
  * loaded from the database to the list without checking.
  */
 bool wallet_channels_load_active(struct wallet *w, struct list_head *peers);
+
+/**
+ * wallet_extract_owned_outputs - given a tx, extract all of our outputs
+ */
+int wallet_extract_owned_outputs(struct wallet *w, const struct bitcoin_tx *tx,
+				 u64 *total_satoshi);
 
 #endif /* WALLET_WALLET_H */

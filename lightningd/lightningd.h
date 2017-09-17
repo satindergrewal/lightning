@@ -62,9 +62,6 @@ struct config {
 	/* How long between changing commit and sending COMMIT message. */
 	struct timerel commit_time;
 
-	/* Whether to ignore database version. */
-	bool db_version_ignore;
-
 	/* IPv4 or IPv6 address to announce to the network */
 	struct ipaddr ipaddr;
 };
@@ -114,6 +111,9 @@ struct lightningd {
 
 	/* If we have a --dev-disconnect file */
 	int dev_disconnect_fd;
+
+	/* If we have --dev-fail-on-subdaemon-fail */
+	bool dev_subdaemon_fail;
 
 	/* HTLCs in flight. */
 	struct htlc_in_map htlcs_in;

@@ -417,8 +417,8 @@ static struct io_plan *new_peer(struct io_conn *conn, struct daemon *daemon,
 {
 	struct peer *peer = setup_new_peer(daemon, msg);
 	if (!peer)
-		status_failed(WIRE_GOSSIPSTATUS_BAD_NEW_PEER_REQUEST,
-			      "%s", tal_hex(trc, msg));
+		status_failed(STATUS_FAIL_MASTER_IO,
+			      "bad gossipctl_new_peer: %s", tal_hex(trc, msg));
 	return io_recv_fd(conn, &peer->fd, new_peer_got_fd, peer);
 }
 
@@ -439,8 +439,7 @@ static struct io_plan *release_peer(struct io_conn *conn, struct daemon *daemon,
 	struct peer *peer;
 
 	if (!fromwire_gossipctl_release_peer(msg, NULL, &unique_id))
-		status_failed(WIRE_GOSSIPSTATUS_BAD_RELEASE_REQUEST,
-			      "%s", tal_hex(trc, msg));
+		master_badmsg(WIRE_GOSSIPCTL_RELEASE_PEER, msg);
 
 	peer = find_peer(daemon, unique_id);
 	if (!peer) {
@@ -464,8 +463,7 @@ static struct io_plan *fail_peer(struct io_conn *conn, struct daemon *daemon,
 	struct peer *peer;
 
 	if (!fromwire_gossipctl_fail_peer(msg, NULL, &unique_id))
-		status_failed(WIRE_GOSSIPSTATUS_BAD_FAIL_REQUEST,
-			      "%s", tal_hex(trc, msg));
+		master_badmsg(WIRE_GOSSIPCTL_FAIL_PEER, msg);
 
 	/* This may not find the peer, if we fail beforehand. */
 	peer = find_peer(daemon, unique_id);
@@ -498,8 +496,7 @@ static struct io_plan *new_peer_fd(struct io_conn *conn, struct daemon *daemon,
 
 	if (!fromwire_gossipctl_get_peer_gossipfd(msg, NULL,
 						  &unique_id, &sync))
-		status_failed(WIRE_GOSSIPSTATUS_BAD_FAIL_REQUEST,
-			      "%s", tal_hex(trc, msg));
+		master_badmsg(WIRE_GOSSIPCTL_GET_PEER_GOSSIPFD, msg);
 
 	peer = setup_new_remote_peer(daemon, unique_id, sync);
 
@@ -617,17 +614,17 @@ static struct io_plan *ping_req(struct io_conn *conn, struct daemon *daemon,
 	u8 *ping;
 
 	if (!fromwire_gossip_ping(msg, NULL, &unique_id, &num_pong_bytes, &len))
-		status_failed(WIRE_GOSSIPSTATUS_BAD_REQUEST,
-			      "%s", tal_hex(trc, msg));
+		master_badmsg(WIRE_GOSSIP_PING, msg);
 
+	/* FIXME: This is racy, but this op only for testing anywat. */
 	peer = find_peer(daemon, unique_id);
 	if (!peer)
-		status_failed(WIRE_GOSSIPSTATUS_BAD_REQUEST,
-			      "Unknown peer %"PRIu64, unique_id);
+		status_failed(STATUS_FAIL_MASTER_IO,
+			      "gossip_ping: unknown peer %"PRIu64, unique_id);
 
 	ping = make_ping(peer, num_pong_bytes, len);
 	if (tal_len(ping) > 65535)
-		status_failed(WIRE_GOSSIPSTATUS_BAD_REQUEST, "Oversize ping");
+		status_failed(STATUS_FAIL_MASTER_IO, "Oversize ping");
 
 	msg_enqueue(&peer->peer_out, take(ping));
 	status_trace("sending ping expecting %sresponse",
@@ -657,8 +654,7 @@ static struct io_plan *gossip_init(struct daemon_conn *master,
 
 	if (!fromwire_gossipctl_init(msg, NULL, &daemon->broadcast_interval,
 				     &chain_hash)) {
-		status_failed(WIRE_GOSSIPSTATUS_INIT_FAILED,
-			      "Unable to parse init message");
+		master_badmsg(WIRE_GOSSIPCTL_INIT, msg);
 	}
 	daemon->rstate = new_routing_state(daemon, &chain_hash);
 	return daemon_conn_read_next(master->conn, master);
@@ -672,8 +668,7 @@ static struct io_plan *resolve_channel_req(struct io_conn *conn,
 	struct pubkey *keys;
 
 	if (!fromwire_gossip_resolve_channel_request(msg, NULL, &scid))
-		status_failed(WIRE_GOSSIPSTATUS_BAD_REQUEST,
-			      "Unable to parse resolver request");
+		master_badmsg(WIRE_GOSSIP_RESOLVE_CHANNEL_REQUEST, msg);
 
 	nc = get_connection_by_scid(daemon->rstate, &scid, 0);
 	if (!nc) {
@@ -697,12 +692,12 @@ static struct io_plan *resolve_channel_req(struct io_conn *conn,
 static void handle_forwarded_msg(struct io_conn *conn, struct daemon *daemon, const u8 *msg)
 {
 	u8 *payload;
-	if (!fromwire_gossip_forwarded_msg(msg, msg, NULL, &payload)) {
-		status_trace("Malformed forwarded message: %s", tal_hex(trc, msg));
-		return;
-	}
+	if (!fromwire_gossip_forwarded_msg(msg, msg, NULL, &payload))
+		master_badmsg(WIRE_GOSSIP_FORWARDED_MSG, msg);
+
 	handle_gossip_msg(daemon->rstate, payload);
 }
+
 static struct io_plan *recv_req(struct io_conn *conn, struct daemon_conn *master)
 {
 	struct daemon *daemon = container_of(master, struct daemon, master);
@@ -751,20 +746,15 @@ static struct io_plan *recv_req(struct io_conn *conn, struct daemon_conn *master
 	case WIRE_GOSSIP_GETCHANNELS_REPLY:
 	case WIRE_GOSSIP_PING_REPLY:
 	case WIRE_GOSSIP_RESOLVE_CHANNEL_REPLY:
-	case WIRE_GOSSIPSTATUS_INIT_FAILED:
-	case WIRE_GOSSIPSTATUS_BAD_NEW_PEER_REQUEST:
-	case WIRE_GOSSIPSTATUS_BAD_RELEASE_REQUEST:
-	case WIRE_GOSSIPSTATUS_BAD_FAIL_REQUEST:
-	case WIRE_GOSSIPSTATUS_BAD_REQUEST:
-	case WIRE_GOSSIPSTATUS_FDPASS_FAILED:
 	case WIRE_GOSSIPSTATUS_PEER_BAD_MSG:
 	case WIRE_GOSSIPSTATUS_PEER_FAILED:
 	case WIRE_GOSSIPSTATUS_PEER_NONGOSSIP:
 		break;
 	}
 
-	/* Control shouldn't give bad requests. */
-	status_failed(WIRE_GOSSIPSTATUS_BAD_REQUEST, "%i", t);
+	/* Master shouldn't give bad requests. */
+	status_failed(STATUS_FAIL_MASTER_IO, "%i: %s",
+		      t, tal_hex(trc, master->msg_in));
 }
 
 #ifndef TESTING
@@ -788,14 +778,6 @@ int main(int argc, char *argv[])
 	secp256k1_ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
 
 	daemon = tal(NULL, struct daemon);
-/*<<<<<<< HEAD
-	// Do not log absolutely anything, stdout is now a socket connected to some other daemon
-	log_book = new_log_book(daemon, 2 * 1024 * 1024, LOG_BROKEN + 1);
-	base_log =
-	    new_log(daemon, log_book, "lightningd_gossip(%u):", (int)getpid());
-	daemon->rstate = new_routing_state(daemon, base_log);
-=======
->>>>>>> ElementsProject/master*/
 	list_head_init(&daemon->peers);
 	timers_init(&daemon->timers, time_mono());
 	daemon->broadcast_interval = 30000;

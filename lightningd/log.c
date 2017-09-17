@@ -1,4 +1,5 @@
 #include "log.h"
+#include <backtrace.h>
 #include <ccan/array_size/array_size.h>
 #include <ccan/list/list.h>
 #include <ccan/opt/opt.h>
@@ -16,6 +17,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+static struct backtrace_state *backtrace_state;
 
 struct log_entry {
 	struct list_node list;
@@ -108,6 +111,10 @@ struct log_book *new_log_book(const tal_t *ctx,
 	lr->init_time = time_now();
 	list_head_init(&lr->log);
 
+	/* In case ltmp not initialized, do so now. */
+	if (!ltmp)
+		ltmp = tal_tmpctx(lr);
+
 	return lr;
 }
 
@@ -184,6 +191,12 @@ static void add_entry(struct log *log, struct log_entry *l)
 		deleted = prune_log(log->lr);
 		log_debug(log, "Log pruned %zu entries (mem %zu -> %zu)",
 			  deleted, old_mem, log->lr->mem_used);
+	}
+
+	/* Free up temporaries now if any */
+	if (tal_first(ltmp)) {
+		tal_free(ltmp);
+		ltmp = tal_tmpctx(log->lr);
 	}
 }
 
@@ -268,53 +281,6 @@ void log_add(struct log *log, const char *fmt, ...)
 	va_start(ap, fmt);
 	logv_add(log, fmt, ap);
 	va_end(ap);
-}
-
-void log_struct_(struct log *log, int level,
-		 const char *structname,
-		 const char *fmt, ...)
-{
-	const tal_t *ctx = tal_tmpctx(log);
-	char *s;
-	union printable_types u;
-	va_list ap;
-
-	/* Macro wrappers ensure we only have one arg. */
-	va_start(ap, fmt);
-	u.charp_ = va_arg(ap, const char *);
-	va_end(ap);
-
-	/* GCC checks we're one of these, so we should be. */
-	s = type_to_string_(ctx, structname, u);
-	if (!s)
-		fatal("Logging unknown type %s", structname);
-
-	if (level == -1)
-		log_add(log, fmt, s);
-	else
-		log_(log, level, fmt, s);
-
-	tal_free(ctx);
-}
-
-void log_blob_(struct log *log, int level, const char *fmt,
-	       size_t len, ...)
-{
-	va_list ap;
-	const void *blob;
-	const char *hex;
-
-	/* Macro wrappers ensure we only have one arg. */
-	va_start(ap, len);
-	blob = va_arg(ap, void *);
-	va_end(ap);
-
-	hex = tal_hexstr(log, blob, len);
-	if (level == -1)
-		log_add(log, fmt, hex);
-	else
-		log_(log, level, fmt, hex);
-	tal_free(hex);
 }
 
 void log_each_line_(const struct log_book *lr,
@@ -448,6 +414,15 @@ void opt_register_logging(struct log *log)
 			 "log to file instead of stdout");
 }
 
+static int log_backtrace(void *log, uintptr_t pc,
+			 const char *filename, int lineno,
+			 const char *function)
+{
+	log_broken(log, "backtrace: %s:%u (%s) %p",
+		   filename, lineno, function, (void *)pc);
+	return 0;
+}
+
 static struct log *crashlog;
 
 /* FIXME: Dump peer logs! */
@@ -456,8 +431,9 @@ static void log_crash(int sig)
 	const char *logfile = NULL;
 
 	if (sig) {
-		/* FIXME: Backtrace! */
 		log_broken(crashlog, "FATAL SIGNAL %i RECEIVED", sig);
+		backtrace_full(backtrace_state, 0, log_backtrace, NULL,
+			       crashlog);
 	}
 
 	if (crashlog->lr->print == log_default_print) {
@@ -479,18 +455,21 @@ static void log_crash(int sig)
 			logfile = NULL;
 	}
 
-	if (sig)
+	if (sig) {
 		fprintf(stderr, "Fatal signal %u. ", sig);
+		backtrace_print(backtrace_state, 0, stderr);
+	}
 	if (logfile)
 		fprintf(stderr, "Log dumped in %s", logfile);
 	fprintf(stderr, "\n");
 }
 
-void crashlog_activate(struct log *log)
+void crashlog_activate(const char *argv0, struct log *log)
 {
 	struct sigaction sa;
 	crashlog = log;
 
+	backtrace_state = backtrace_create_state(argv0, 0, NULL, NULL);
 	sa.sa_handler = log_crash;
 	sigemptyset(&sa.sa_mask);
 	/* We want to fall through to default handler */

@@ -225,10 +225,6 @@ static void config_register_opts(struct lightningd *ld)
 			 &ld->config.fee_per_satoshi,
 			 "Microsatoshi fee for every satoshi in HTLC");
 
-	opt_register_noarg("--ignore-dbversion", opt_set_bool,
-			   &ld->config.db_version_ignore,
-			   "Continue despite invalid database version (DANGEROUS!)");
-
 	opt_register_arg("--ipaddr", opt_set_ipaddr, NULL,
 			   &ld->config.ipaddr,
 			   "Set the IP address (v4 or v6) to announce to the network for incoming connections");
@@ -243,6 +239,8 @@ static void dev_register_opts(struct lightningd *ld)
 {
 	opt_register_noarg("--dev-no-broadcast", opt_set_bool,
 			   &ld->topology->dev_no_broadcast, opt_hidden);
+	opt_register_noarg("--dev-fail-on-subdaemon-fail", opt_set_bool,
+			   &ld->dev_subdaemon_fail, opt_hidden);
 }
 
 static const struct config testnet_config = {
@@ -297,9 +295,6 @@ static const struct config testnet_config = {
 	.fee_base = 1,
 	/* Take 0.001% */
 	.fee_per_satoshi = 1,
-
-	/* Don't ignore database version */
-	.db_version_ignore = false,
 
 	/* Do not advertise any IP */
 	.ipaddr.type = 0,
@@ -358,9 +353,6 @@ static const struct config mainnet_config = {
 	.fee_base = 546000,
 	/* Take 0.0001% */
 	.fee_per_satoshi = 1,
-
-	/* Don't ignore database version */
-	.db_version_ignore = false,
 
 	/* Do not advertise any IP */
 	.ipaddr.type = 0,

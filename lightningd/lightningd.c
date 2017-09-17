@@ -14,6 +14,7 @@
 #include <ccan/take/take.h>
 #include <ccan/tal/grab_file/grab_file.h>
 #include <ccan/tal/path/path.h>
+#include <ccan/tal/str/str.h>
 #include <common/timeout.h>
 #include <common/utils.h>
 #include <common/version.h>
@@ -28,8 +29,6 @@
 #include <unistd.h>
 
 char *bitcoin_datadir;
-
-#define FIXME_IMPLEMENT() errx(1, "FIXME: Implement %s", __func__)
 
 struct peer *find_peer_by_unique_id(struct lightningd *ld, u64 unique_id)
 {
@@ -85,28 +84,6 @@ static struct lightningd *new_lightningd(const tal_t *ctx)
 	htlc_in_map_init(&ld->htlcs_in);
 	htlc_out_map_init(&ld->htlcs_out);
 	ld->dev_disconnect_fd = -1;
-/*<<<<<<< HEAD
-	ld->dstate.log_book = new_log_book(&ld->dstate, 20*1024*1024,LOG_INFORM);
-	ld->log = ld->dstate.base_log = new_log(&ld->dstate,
-						ld->dstate.log_book,
-						"lightningd(%u):",
-						(int)getpid());
-
-	list_head_init(&ld->dstate.peers);
-	list_head_init(&ld->dstate.pay_commands);
-	ld->dstate.portnum = DEFAULT_PORT;
-    ld->dstate.testnet = false;//true;
-	timers_init(&ld->dstate.timers, time_mono());
-	list_head_init(&ld->dstate.wallet);
-	list_head_init(&ld->dstate.addresses);
-	ld->dstate.dev_never_routefail = false;
-	ld->dstate.reexec = NULL;
-	ld->dstate.external_ip = NULL;
-	ld->dstate.announce = NULL;
-	ld->topology = ld->dstate.topology = new_topology(ld, ld->log);
-	ld->bitcoind = ld->dstate.bitcoind = new_bitcoind(ld, ld->log);
-	ld->chainparams = chainparams_for_network("chips");
-=======*/
 	ld->log_book = new_log_book(ld, 20*1024*1024, LOG_INFORM);
 	ld->log = new_log(ld, ld->log_book, "lightningd(%u):", (int)getpid());
 
@@ -114,7 +91,6 @@ static struct lightningd *new_lightningd(const tal_t *ctx)
 	ld->portnum = DEFAULT_PORT;
 	timers_init(&ld->timers, time_mono());
 	ld->topology = new_topology(ld, ld->log);
-//>>>>>>> ElementsProject/master
 
 	/* FIXME: Move into invoice daemon. */
 	ld->invoices = invoices_init(ld);
@@ -158,11 +134,50 @@ static void test_daemons(const struct lightningd *ld)
 
 static const char *find_my_path(const tal_t *ctx, const char *argv0)
 {
-	char *me = path_canon(ctx, argv0);
+	char *me, *tmpctx = tal_tmpctx(ctx);
 
-	if (access(me, X_OK) != 0)
-		errx(1, "I cannot find myself at %s based on my name %s",
-		     me, argv0);
+	/* FIXME: Expose in CCAN! */
+#define PATH_SEP_STR "/"
+#define PATH_SEP (PATH_SEP_STR[0])
+
+	if (strchr(argv0, PATH_SEP)) {
+		const char *path;
+		/* Absolute paths are easy. */
+		if (strstarts(argv0, PATH_SEP_STR))
+			path = argv0;
+		/* It contains a '/', it's relative to current dir. */
+		else
+			path = path_join(tmpctx, path_cwd(tmpctx), argv0);
+
+		me = path_canon(ctx, path);
+		if (!me || access(me, X_OK) != 0)
+			errx(1, "I cannot find myself at %s based on my name %s",
+			     path, argv0);
+	} else {
+		/* No /, search path */
+		char **pathdirs;
+		const char *pathenv = getenv("PATH");
+		size_t i;
+
+		if (!pathenv)
+			errx(1, "Cannot find myself: no $PATH set");
+
+		pathdirs = tal_strsplit(tmpctx, pathenv, ":", STR_NO_EMPTY);
+		me = NULL;
+		for (i = 0; pathdirs[i]; i++) {
+			/* This returns NULL if it doesn't exist. */
+			me = path_canon(ctx,
+					path_join(tmpctx, pathdirs[i], argv0));
+			if (me && access(me, X_OK) == 0)
+				break;
+			/* Nope, try again. */
+			me = tal_free(me);
+		}
+		if (!me)
+			errx(1, "Cannot find %s in $PATH", argv0);
+	}
+
+	tal_free(tmpctx);
 	return path_dirname(ctx, take(me));
 }
 
@@ -232,7 +247,7 @@ int main(int argc, char *argv[])
 	newdir = handle_opts(ld, argc, argv);
 
 	/* Activate crash log now we're in the right place. */
-	crashlog_activate(ld->log);
+	crashlog_activate(argv[0], ld->log);
 
 	/* Ignore SIGPIPE: we look at our write return values*/
 	signal(SIGPIPE, SIG_IGN);
@@ -253,15 +268,9 @@ int main(int argc, char *argv[])
 	gossip_init(ld);
 
 	/* Initialize block topology. */
-/*<<<<<<< HEAD
-    printf("call setup_topology\n");
-    setup_topology(ld->topology, ld->bitcoind, &ld->dstate.timers,
-		       ld->dstate.config.poll_time,
-=======*/
 	setup_topology(ld->topology,
 		       &ld->timers,
 		       ld->config.poll_time,
-//>>>>>>> ElementsProject/master
 		       /* FIXME: Load from peers. */
 		       0);
 
@@ -275,15 +284,11 @@ int main(int argc, char *argv[])
 		peer->seed = tal(peer, struct privkey);
 		derive_peer_seed(ld, peer->seed, &peer->id, peer->channel->id);
 		peer->htlcs = tal_arr(peer, struct htlc_stub, 0);
+		peer->owner = NULL;
 	}
 
 	/* Create RPC socket (if any) */
-/*<<<<<<< HEAD
-    printf("call jsonrpc\n");
-    setup_jsonrpc(&ld->dstate, ld->dstate.rpc_filename);
-=======*/
 	setup_jsonrpc(ld, ld->rpc_filename);
-//>>>>>>> ElementsProject/master
 
 	/* Ready for connections from peers. */
 	setup_listeners(ld);

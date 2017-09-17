@@ -59,15 +59,15 @@ class TailableProc(object):
         self.running = True
 
     def stop(self):
-        self.proc.terminate()
-        self.proc.kill()
-        self.proc.wait()
-        self.thread.join()
         if self.outputDir:
             logpath = os.path.join(self.outputDir, 'log')
             with open(logpath, 'w') as f:
                 for l in self.logs:
                     f.write(l + '\n')
+        self.proc.terminate()
+        self.proc.kill()
+        self.proc.wait()
+        self.thread.join()
 
     def tail(self):
         """Tail the stdout of the process and remember it.
@@ -227,6 +227,9 @@ class LightningD(TailableProc):
         logging.info("LightningD started")
 
     def stop(self):
+        # If it's already crashing, wait a bit for log dump.
+        if os.path.isfile(os.path.join(self.lightning_dir, 'crash.log')):
+            time.sleep(2)
         TailableProc.stop(self)
         logging.info("LightningD stopped")
 

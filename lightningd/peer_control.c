@@ -6,6 +6,7 @@
 #include <ccan/fdpass/fdpass.h>
 #include <ccan/io/io.h>
 #include <ccan/noerr/noerr.h>
+#include <ccan/str/str.h>
 #include <ccan/take/take.h>
 #include <ccan/tal/str/str.h>
 #include <channeld/gen_channel_wire.h>
@@ -218,6 +219,12 @@ void peer_fail_transient(struct peer *peer, const char *fmt, ...)
 	}
 }
 
+/* When daemon reports a STATUS_FAIL_PEER_BAD, it goes here. */
+static void bad_peer(struct subd *subd, const char *msg)
+{
+	peer_fail_permanent_str(subd->peer, msg);
+}
+
 void peer_set_condition(struct peer *peer, enum peer_state old_state,
 			enum peer_state state)
 {
@@ -258,6 +265,11 @@ char dev_disconnect(int pkt_type)
 }
 
 void dev_sabotage_fd(int fd)
+{
+	abort();
+}
+
+void dev_blackhole_fd(int fd)
 {
 	abort();
 }
@@ -448,6 +460,7 @@ static bool peer_reconnected(struct lightningd *ld,
 			     int fd,
 			     const struct crypto_state *cs)
 {
+	struct subd *subd;
 	struct peer *peer = peer_by_id(ld, id);
 	if (!peer)
 		return false;
@@ -489,8 +502,9 @@ static bool peer_reconnected(struct lightningd *ld,
 
 	case OPENINGD:
 		/* Kill off openingd, forget old peer. */
-		peer->owner->peer = NULL;
-		tal_free(peer->owner);
+		subd = peer->owner;
+		peer->owner = NULL; /* We'll free it ourselves */
+		tal_free(subd);
 		tal_free(peer);
 
 		/* A fresh start. */
@@ -1011,13 +1025,13 @@ static enum watch_result funding_announce_cb(struct peer *peer,
 	if (depth < ANNOUNCE_MIN_DEPTH) {
 		return KEEP_WATCHING;
 	}
-	if (peer->state != CHANNELD_NORMAL || !peer->owner) {
+
+	if (!peer->owner || !streq(peer->owner->name, "lightning_channeld")) {
 		log_debug(peer->ld->log,
-			  "Funding tx announce ready, but peer state %s %s",
-			  peer_state_name(peer->state),
-			  peer->owner ? peer->owner->name : "unowned");
+			  "Funding tx announce ready, but peer is not owned by channeld");
 		return KEEP_WATCHING;
 	}
+
 	subd_send_msg(peer->owner,
 		      take(towire_channel_funding_announce_depth(peer)));
 	return DELETE_WATCH;
@@ -1169,12 +1183,6 @@ static int onchain_msg(struct subd *sd, const u8 *msg, const int *fds)
 	enum onchain_wire_type t = fromwire_peektype(msg);
 
 	switch (t) {
-	/* We let peer_onchain_finished handle these. */
-	case WIRE_ONCHAIN_BAD_COMMAND:
-	case WIRE_ONCHAIN_INTERNAL_ERROR:
-	case WIRE_ONCHAIN_CRYPTO_FAILED:
-		break;
-
 	case WIRE_ONCHAIN_INIT_REPLY:
 		return handle_onchain_init_reply(sd->peer, msg);
 
@@ -1227,7 +1235,7 @@ static enum watch_result funding_spent(struct peer *peer,
 			       "lightning_onchaind", peer,
 			       onchain_wire_type_name,
 			       onchain_msg,
-			       peer_onchain_finished,
+			       NULL, peer_onchain_finished,
 			       NULL, NULL);
 
 	if (!peer->owner) {
@@ -1350,20 +1358,16 @@ static enum watch_result funding_lockin_cb(struct peer *peer,
 	if (!(peer->channel_flags & CHANNEL_FLAGS_ANNOUNCE_CHANNEL))
 		return DELETE_WATCH;
 
-	/* BOLT #7:
-	 *
-	 * If sent, `announcement_signatures` messages MUST NOT be sent until
-	 * `funding_locked` has been sent, and the funding transaction is has
-	 * at least 6 confirmations.
-	 */
-	if (depth >= ANNOUNCE_MIN_DEPTH && peer_ready) {
-		subd_send_msg(peer->owner,
-			      take(towire_channel_funding_announce_depth(peer)));
-	} else {
-		/* Worst case, we'll send next block. */
+	/* Tell channeld that we have reached the announce_depth and
+	 * that it may send the announcement_signatures upon receiving
+	 * funding_locked, or right now if it already received it
+	 * before. If we are at the right depth, call the callback
+	 * directly, otherwise schedule a callback */
+	if (depth >= ANNOUNCE_MIN_DEPTH)
+		funding_announce_cb(peer, tx, depth, NULL);
+	else
 		watch_txid(peer, peer->ld->topology, peer, &txid,
 			   funding_announce_cb, NULL);
-	}
 	return DELETE_WATCH;
 }
 
@@ -1374,6 +1378,7 @@ static void opening_got_hsm_funding_sig(struct funding_channel *fc,
 {
 	secp256k1_ecdsa_signature *sigs;
 	struct bitcoin_tx *tx = fc->funding_tx;
+	u64 change_satoshi;
 	size_t i;
 
 	if (!fromwire_hsmctl_sign_funding_reply(fc, resp, NULL, &sigs))
@@ -1403,6 +1408,9 @@ static void opening_got_hsm_funding_sig(struct funding_channel *fc,
 	watch_tx(fc->peer, fc->peer->ld->topology, fc->peer, tx,
 		 funding_lockin_cb, NULL);
 
+	/* Extract the change output and add it to the DB */
+	wallet_extract_owned_outputs(fc->peer->ld->wallet, tx, &change_satoshi);
+
 	/* FIXME: Remove arg from cb? */
 	watch_txo(fc->peer, fc->peer->ld->topology, fc->peer,
 		  fc->peer->funding_txid, fc->peer->funding_outnum,
@@ -1423,11 +1431,15 @@ static void opening_got_hsm_funding_sig(struct funding_channel *fc,
 
 /* Create a node_announcement with the given signature. It may be NULL
  * in the case we need to create a provisional announcement for the
- * HSM to sign. */
+ * HSM to sign. This is typically called twice: once with the dummy
+ * signature to get it signed and a second time to build the full
+ * packet with the signature. The timestamp is handed in since that is
+ * the only thing that may change between the dummy creation and the
+ * call with a signature.*/
 static u8 *create_node_announcement(const tal_t *ctx, struct lightningd *ld,
-				    secp256k1_ecdsa_signature *sig)
+				    secp256k1_ecdsa_signature *sig,
+				    u32 timestamp)
 {
-	u32 timestamp = time_now().ts.tv_sec;
 	u8 rgb[3] = {0x77, 0x88, 0x99};
 	u8 alias[32];
 	u8 *features = NULL;
@@ -1457,6 +1469,7 @@ static int peer_channel_announced(struct peer *peer, const u8 *msg)
 	tal_t *tmpctx = tal_tmpctx(peer);
 	secp256k1_ecdsa_signature sig;
 	u8 *announcement, *wrappedmsg;
+	u32 timestamp = time_now().ts.tv_sec;
 
 	if (!fromwire_channel_announced(msg, NULL)) {
 		peer_internal_error(peer, "bad fromwire_channel_announced %s",
@@ -1465,7 +1478,7 @@ static int peer_channel_announced(struct peer *peer, const u8 *msg)
 	}
 
 	msg = towire_hsmctl_node_announcement_sig_req(
-		tmpctx, create_node_announcement(tmpctx, ld, NULL));
+		tmpctx, create_node_announcement(tmpctx, ld, NULL, timestamp));
 
 	if (!wire_sync_write(ld->hsm_fd, take(msg)))
 		fatal("Could not write to HSM: %s", strerror(errno));
@@ -1477,7 +1490,7 @@ static int peer_channel_announced(struct peer *peer, const u8 *msg)
 	/* We got the signature for out provisional node_announcement back
 	 * from the HSM, create the real announcement and forward it to
 	 * gossipd so it can take care of forwarding it. */
-	announcement = create_node_announcement(tmpctx, ld, &sig);
+	announcement = create_node_announcement(tmpctx, ld, &sig, timestamp);
 	wrappedmsg = towire_gossip_forwarded_msg(tmpctx, announcement);
 	subd_send_msg(ld->gossip, take(wrappedmsg));
 	tal_free(tmpctx);
@@ -1590,52 +1603,6 @@ static int peer_got_shutdown(struct peer *peer, const u8 *msg)
 	return 0;
 }
 
-static int channeld_got_bad_message(struct peer *peer, const u8 *msg)
-{
-	u8 *err;
-
-	/* Don't try to fail this (again!) when owner dies. */
-	peer->owner = NULL;
-	if (!fromwire_channel_peer_bad_message(peer, NULL, NULL, &err))
-		peer_fail_permanent_str(peer,
-					"Internal error after bad message");
-	else
-		peer_fail_permanent(peer, take(err));
-
-	/* Kill daemon (though it's dying anyway) */
-	return -1;
-}
-
-static int closingd_got_bad_message(struct peer *peer, const u8 *msg)
-{
-	u8 *err;
-
-	/* Don't try to fail this (again!) when owner dies. */
-	peer->owner = NULL;
-	if (!fromwire_closing_peer_bad_message(peer, NULL, NULL, &err))
-		peer_fail_permanent_str(peer,
-					"Internal error after bad message");
-	else
-		peer_fail_permanent(peer, take(err));
-
-	/* Kill daemon (though it's dying anyway) */
-	return -1;
-}
-
-static int closingd_got_negotiation_error(struct peer *peer, const u8 *msg)
-{
-	u8 *err;
-
-	if (!fromwire_closing_negotiation_error(peer, NULL, NULL, &err))
-		peer_internal_error(peer, "Bad closing_negotiation %s",
-				    tal_hex(peer, msg));
-	else
-		peer_internal_error(peer, "%s", err);
-
-	/* Kill daemon (though it's dying anyway) */
-	return -1;
-}
-
 void peer_last_tx(struct peer *peer, struct bitcoin_tx *tx,
 		  const secp256k1_ecdsa_signature *sig)
 {
@@ -1731,20 +1698,6 @@ static int closing_msg(struct subd *sd, const u8 *msg, const int *fds)
 	enum closing_wire_type t = fromwire_peektype(msg);
 
 	switch (t) {
-	/* We let peer_owner_finished handle these as transient errors. */
-	case WIRE_CLOSING_BAD_COMMAND:
-	case WIRE_CLOSING_GOSSIP_FAILED:
-	case WIRE_CLOSING_INTERNAL_ERROR:
-	case WIRE_CLOSING_PEER_READ_FAILED:
-	case WIRE_CLOSING_PEER_WRITE_FAILED:
-		return -1;
-
-	/* These are permanent errors. */
-	case WIRE_CLOSING_PEER_BAD_MESSAGE:
-		return closingd_got_bad_message(sd->peer, msg);
-	case WIRE_CLOSING_NEGOTIATION_ERROR:
-		return closingd_got_negotiation_error(sd->peer, msg);
-
 	case WIRE_CLOSING_RECEIVED_SIGNATURE:
 		return peer_received_closing_signature(sd->peer, msg);
 
@@ -1786,6 +1739,7 @@ static void peer_start_closingd(struct peer *peer,
 			       "lightning_closingd", peer,
 			       closing_wire_type_name,
 			       closing_msg,
+			       bad_peer,
 			       peer_owner_finished,
 			       take(&peer_fd),
 			       take(&gossip_fd), NULL);
@@ -1890,20 +1844,6 @@ static int channel_msg(struct subd *sd, const u8 *msg, const int *fds)
 	case WIRE_CHANNEL_SHUTDOWN_COMPLETE:
 		return peer_start_closingd_after_shutdown(sd->peer, msg, fds);
 
-	/* We let peer_owner_finished handle these as transient errors. */
-	case WIRE_CHANNEL_BAD_COMMAND:
-	case WIRE_CHANNEL_HSM_FAILED:
-	case WIRE_CHANNEL_CRYPTO_FAILED:
-	case WIRE_CHANNEL_GOSSIP_BAD_MESSAGE:
-	case WIRE_CHANNEL_INTERNAL_ERROR:
-	case WIRE_CHANNEL_PEER_WRITE_FAILED:
-	case WIRE_CHANNEL_PEER_READ_FAILED:
-		return -1;
-
-	/* This is a permanent error. */
-	case WIRE_CHANNEL_PEER_BAD_MESSAGE:
-		return channeld_got_bad_message(sd->peer, msg);
-
 	/* And we never get these from channeld. */
 	case WIRE_CHANNEL_INIT:
 	case WIRE_CHANNEL_FUNDING_LOCKED:
@@ -1973,6 +1913,7 @@ static bool peer_start_channeld(struct peer *peer,
 			       "lightning_channeld", peer,
 			       channel_wire_type_name,
 			       channel_msg,
+			       bad_peer,
 			       peer_owner_finished,
 			       take(&peer_fd),
 			       take(&gossip_fd),
@@ -2030,7 +1971,7 @@ static bool peer_start_channeld(struct peer *peer,
 				      &peer->ld->id,
 				      &peer->id,
 				      time_to_msec(cfg->commit_time),
-				      cfg->deadline_blocks,
+				      cfg->min_htlc_expiry,
 				      peer->last_was_revoke,
 				      peer->last_sent_commit,
 				      peer->next_index[LOCAL],
@@ -2124,6 +2065,17 @@ static bool opening_funder_finished(struct subd *opening, const u8 *resp,
 				    &channel_info->remote_fundingkey,
 				    fc->change, &changekey,
 				    fc->peer->ld->wallet->bip32_base);
+	log_debug(fc->peer->log, "Funding tx has %zi inputs, %zu outputs:",
+		  tal_count(fc->funding_tx->input),
+		  tal_count(fc->funding_tx->output));
+	for (size_t i = 0; i < tal_count(fc->funding_tx->input); i++) {
+		log_debug(fc->peer->log, "%zi: %"PRIu64" satoshi (%s) %s\n",
+			  i, fc->utxomap[i]->amount,
+			  fc->utxomap[i]->is_p2sh ? "P2SH" : "SEGWIT",
+			  type_to_string(ltmp, struct sha256_double,
+					 &fc->funding_tx->input[i].txid));
+	}
+
 	fc->peer->funding_txid = tal(fc->peer, struct sha256_double);
 	bitcoin_txid(fc->funding_tx, fc->peer->funding_txid);
 
@@ -2311,7 +2263,7 @@ void peer_fundee_open(struct peer *peer, const u8 *from_peer,
 	peer_set_condition(peer, GOSSIPD, OPENINGD);
 	peer->owner = new_subd(ld, ld, "lightning_openingd", peer,
 			       opening_wire_type_name,
-			       NULL, peer_owner_finished,
+			       NULL, bad_peer, peer_owner_finished,
 			       take(&peer_fd), take(&gossip_fd),
 			       NULL);
 	if (!peer->owner) {
@@ -2395,7 +2347,7 @@ static bool gossip_peer_released(struct subd *gossip,
 	opening = new_subd(fc->peer->ld, ld,
 			   "lightning_openingd", fc->peer,
 			   opening_wire_type_name,
-			   NULL, peer_owner_finished,
+			   NULL, bad_peer, peer_owner_finished,
 			   take(&fds[0]), take(&fds[1]), NULL);
 	if (!opening) {
 		peer_fail_transient(fc->peer, "Failed to subdaemon opening: %s",

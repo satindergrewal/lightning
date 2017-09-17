@@ -92,7 +92,7 @@ struct onionpacket *parse_onionpacket(
 	m = talz(ctx, struct onionpacket);
 
 	read_buffer(&m->version, src, 1, &p);
-	if (m->version != 0x01) {
+	if (m->version != 0x00) {
 		// FIXME add logging
 		return tal_free(m);
 	}
@@ -357,7 +357,7 @@ struct onionpacket *create_onionpacket(
 
 	if (!params)
 		return NULL;
-	packet->version = 1;
+	packet->version = 0;
 	memset(nexthmac, 0, SECURITY_PARAMETER);
 	memset(packet->routinginfo, 0, ROUTING_INFO_SIZE);
 
@@ -420,7 +420,7 @@ struct route_step *process_onionpacket(
 	compute_packet_hmac(msg, assocdata, assocdatalen, keys.mu, hmac);
 
 	if (memcmp(msg->mac, hmac, sizeof(hmac)) != 0) {
-		warnx("Computed MAC does not match expected MAC, the message was modified.");
+		/* Computed MAC does not match expected MAC, the message was modified. */
 		return tal_free(step);
 	}
 

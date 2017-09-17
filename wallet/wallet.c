@@ -31,7 +31,7 @@ bool wallet_add_utxo(struct wallet *w, struct utxo *utxo,
 	bool result = db_exec(
 	    __func__, w->db,
 	    "INSERT INTO outputs (prev_out_tx, prev_out_index, value, type, "
-	    "status, keyindex) VALUES ('%s', %d, %zu, %d, %d, %d);",
+	    "status, keyindex) VALUES ('%s', %d, %"PRIu64", %d, %d, %d);",
 	    hextxid, utxo->outnum, utxo->amount, type, output_state_available,
 	    utxo->keyindex);
 	tal_free(tmpctx);
@@ -808,6 +808,43 @@ bool wallet_channel_save(struct wallet *w, struct wallet_channel *chan){
 	tal_free(tmpctx);
       	return ok;
 }
+
+int wallet_extract_owned_outputs(struct wallet *w, const struct bitcoin_tx *tx,
+				 u64 *total_satoshi)
+{
+	int num_utxos = 0;
+	for (size_t output = 0; output < tal_count(tx->output); output++) {
+		struct utxo *utxo;
+		u32 index;
+		bool is_p2sh;
+
+		if (!wallet_can_spend(w, tx->output[output].script, &index,
+				      &is_p2sh))
+			continue;
+
+		utxo = tal(w, struct utxo);
+		utxo->keyindex = index;
+		utxo->is_p2sh = is_p2sh;
+		utxo->amount = tx->output[output].amount;
+		utxo->status = output_state_available;
+		bitcoin_txid(tx, &utxo->txid);
+		utxo->outnum = output;
+		log_debug(w->log, "Owning output %zu %"PRIu64" (%s) txid %s",
+			  output, tx->output[output].amount,
+			  is_p2sh ? "P2SH" : "SEGWIT",
+			  type_to_string(ltmp, struct sha256_double,
+					 &utxo->txid));
+
+		if (!wallet_add_utxo(w, utxo, is_p2sh ? p2sh_wpkh : our_change)) {
+			tal_free(utxo);
+			return -1;
+		}
+		*total_satoshi += utxo->amount;
+		num_utxos++;
+	}
+	return num_utxos;
+}
+
 /**
  * wallet_shachain_delete - Drop the shachain from the database
  *

@@ -27,8 +27,7 @@ struct log_book *new_log_book(const tal_t *ctx,
 			      enum log_level printlevel);
 
 /* With different entry points */
-struct log *PRINTF_FMT(3,4)
-new_log(const tal_t *ctx, struct log_book *record, const char *fmt, ...);
+struct log *new_log(const tal_t *ctx, struct log_book *record, const char *fmt, ...) PRINTF_FMT(3,4);
 
 #define log_debug(log, ...) log_((log), LOG_DBG, __VA_ARGS__)
 #define log_info(log, ...) log_((log), LOG_INFORM, __VA_ARGS__)
@@ -42,46 +41,6 @@ void log_(struct log *log, enum log_level level, const char *fmt, ...)
 void log_add(struct log *log, const char *fmt, ...) PRINTF_FMT(2,3);
 void logv(struct log *log, enum log_level level, const char *fmt, va_list ap);
 void logv_add(struct log *log, const char *fmt, va_list ap);
-
-void log_blob_(struct log *log, int level, const char *fmt,
-	       size_t len, ...)
-	PRINTF_FMT(3,5);
-
-/* These must have %s where the blob is to go. */
-#define log_add_blob(log, fmt, blob, len)			\
-	log_blob_((log), -1, (fmt), (len), (char *)(blob))
-
-#define log_debug_blob(log, fmt, blob, len)			\
-	log_blob_((log), LOG_DBG, (fmt), (len), (char *)(blob))
-#define log_info_blob(log, fmt, blob, len)				\
-	log_blob_((log), LOG_INFORM, (fmt), (len), (char *)(blob))
-#define log_unusual_blob(log, fmt, blob, len)				\
-	log_blob_((log), LOG_UNUSUAL, (fmt), (len), (char *)(blob))
-#define log_broken_blob(log, fmt, blob, len)				\
-	log_blob_((log), LOG_BROKEN, (fmt), (len), (char *)(blob))
-
-/* Makes sure ptr is a 'structtype', makes sure it's in printable_types. */
-#define log_struct_check_(log, loglevel, fmt, structtype, ptr)		\
-	log_struct_((log), (loglevel), stringify(structtype), (fmt), 	\
-		    ((void)sizeof((ptr) == (structtype *)NULL),		\
-		     ((union printable_types)((const structtype *)ptr)).charp_))
-
-/* These must have %s where the struct is to go. */
-#define log_add_struct(log, fmt, structtype, ptr)			\
-	log_struct_check_((log), -1, (fmt), structtype, (ptr))
-
-#define log_debug_struct(log, fmt, structtype, ptr)	\
-	log_struct_check_((log), LOG_DBG, (fmt), structtype, (ptr))
-#define log_info_struct(log, fmt, structtype, ptr)	\
-	log_struct_check_((log), LOG_INFORM, (fmt), structtype, (ptr))
-#define log_unusual_struct(log, fmt, structtype, ptr)	\
-	log_struct_check_((log), LOG_UNUSUAL, (fmt), structtype, (ptr))
-#define log_broken_struct(log, fmt, structtype, ptr)	\
-	log_struct_check_((log), LOG_BROKEN, (fmt), structtype, (ptr))
-
-void PRINTF_FMT(4,5) log_struct_(struct log *log, int level,
-				 const char *structname,
-				 const char *fmt, ...);
 
 enum log_level get_log_level(struct log_book *lr);
 void set_log_level(struct log_book *lr, enum log_level level);
@@ -127,7 +86,11 @@ void log_each_line_(const struct log_book *lr,
 
 void log_dump_to_file(int fd, const struct log_book *lr);
 void opt_register_logging(struct log *log);
-void crashlog_activate(struct log *log);
+void crashlog_activate(const char *argv0, struct log *log);
+
+/* Convenience parent for temporary allocations (eg. type_to_string)
+ * during log calls; freed after every log_*() */
+const tal_t *ltmp;
 
 /* Before the crashlog is activated, just prints to stderr. */
 void NORETURN PRINTF_FMT(1,2) fatal(const char *fmt, ...);

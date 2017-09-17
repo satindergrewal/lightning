@@ -16,6 +16,12 @@
 // https://lists.linuxfoundation.org/pipermail/lightning-dev/2016-January/000403.html
 // ^ is multisig
 
+// jl777: oracle needs to include other data like deckid also, timestamp! thanks cryptographer
+// dealer needs to timestamp and sign
+// players need to sign their actions and gameeval
+// deterministic sort
+// new method for layered dealing, old method for layered shuffle
+
 #include "bet.h"
 char *LN_idstr,Host_ipaddr[64],Host_peerid[67],BET_ORACLEURL[64] = "127.0.0.1:7797";
 uint16_t LN_port;

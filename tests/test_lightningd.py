@@ -101,6 +101,7 @@ class NodeFactory(object):
             with open(os.path.join(lightning_dir, "dev_disconnect"), "w") as f:
                 f.write("\n".join(disconnect))
             daemon.cmd_line.append("--dev-disconnect=dev_disconnect")
+        daemon.cmd_line.append("--dev-fail-on-subdaemon-fail")
         rpc = LightningRpc(socket_path, self.executor)
 
         node = utils.LightningNode(daemon, rpc, bitcoind, self.executor)
@@ -151,18 +152,41 @@ class BaseLightningDTests(unittest.TestCase):
             print("-"*80)
         return 1 if errors else 0
 
+    def getCrashLog(self, node):
+        try:
+            crashlog = os.path.join(node.daemon.lightning_dir, 'crash.log')
+            with open(crashlog, 'r') as f:
+                return f.readlines(), crashlog
+        except:
+            return None, None
+
+    def printCrashLog(self, node):
+        errors, fname = self.getCrashLog(node)
+        if errors:
+            print("-"*10, "{} (last 50 lines)".format(fname), "-"*10)
+            for l in errors[-50:]:
+                print(l, end='')
+            print("-"*80)
+        return 1 if errors else 0
+
     def tearDown(self):
         self.node_factory.killall()
         self.executor.shutdown(wait=False)
 
+        err_count = 0
         # Do not check for valgrind error files if it is disabled
         if VALGRIND:
-            err_count = 0
             for node in self.node_factory.nodes:
                 err_count += self.printValgrindErrors(node)
             if err_count:
                 raise ValueError(
                     "{} nodes reported valgrind errors".format(err_count))
+
+        for node in self.node_factory.nodes:
+            err_count += self.printCrashLog(node)
+            if err_count:
+                raise ValueError(
+                    "{} nodes had crash.log files".format(err_count))
 
 class LightningDTests(BaseLightningDTests):
     def connect(self):
@@ -199,14 +223,12 @@ class LightningDTests(BaseLightningDTests):
         rhash = ldst.rpc.invoice(amt, label)['rhash']
         assert ldst.rpc.listinvoice(label)[0]['complete'] == False
 
-        def call_pay():
-            routestep = {
-                'msatoshi' : amt,
-                'id' : ldst.info['id'],
-                'delay' : 5,
-                'channel': '1:1:1'
-            }
-            lsrc.rpc.sendpay(to_json([routestep]), rhash, async=False)
+        routestep = {
+            'msatoshi' : amt,
+            'id' : ldst.info['id'],
+            'delay' : 5,
+            'channel': '1:1:1'
+        }
 
         def wait_pay():
             # Up to 10 seconds for payment to succeed.
@@ -217,12 +239,14 @@ class LightningDTests(BaseLightningDTests):
                 time.sleep(0.1)
 
         if async:
-            t = threading.Thread(target=call_pay)
-            t.daemon = True
-            t.start()
+            self.executor.submit(lsrc.rpc.sendpay, to_json([routestep]), rhash, async=False)
             return self.executor.submit(wait_pay)
         else:
-            call_pay()
+            lsrc.rpc.sendpay(to_json([routestep]), rhash, async=False)
+
+    def test_shutdown(self):
+        l1 = self.node_factory.get_node()
+        l1.rpc.stop()
 
     def test_connect(self):
         l1,l2 = self.connect()
@@ -469,7 +493,7 @@ class LightningDTests(BaseLightningDTests):
         self.fund_channel(l1, l2, 10**6)
 
         # This will fail at l2's end.
-        t=self.pay(l1,l2,200000000,async=True)
+        t=self.pay(l1, l2, 200000000, async=True)
 
         l2.daemon.wait_for_log('dev_disconnect permfail')
         l2.daemon.wait_for_log('sendrawtx exit 0')
@@ -615,6 +639,16 @@ class LightningDTests(BaseLightningDTests):
         for n in [l1, l2, l3]:
             wait_for(lambda: len(n.rpc.getchannels()['channels']) == 4)
 
+    def test_second_channel(self):
+        l1 = self.node_factory.get_node()
+        l2 = self.node_factory.get_node()
+        l3 = self.node_factory.get_node()
+
+        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        l1.rpc.connect('localhost', l3.info['port'], l3.info['id'])
+        self.fund_channel(l1, l2, 10**6)
+        self.fund_channel(l1, l3, 10**6)
+
     def test_routing_gossip(self):
         nodes = [self.node_factory.get_node() for _ in range(5)]
         l1 = nodes[0]
@@ -689,11 +723,11 @@ class LightningDTests(BaseLightningDTests):
 
         baseroute = [ { 'msatoshi' : amt + fee,
                         'id' : l2.info['id'],
-                        'delay' : 10,
+                        'delay' : 12,
                         'channel' : chanid1 },
                       { 'msatoshi' : amt,
                         'id' : l3.info['id'],
-                        'delay' : 5,
+                        'delay' : 6,
                         'channel' : chanid2 } ]
 
         # Unknown other peer
@@ -819,7 +853,40 @@ class LightningDTests(BaseLightningDTests):
 
         l1.daemon.wait_for_log('-> CHANNELD_NORMAL')
         l2.daemon.wait_for_log('-> CHANNELD_NORMAL')
-        
+
+    def test_reconnect_openingd(self):
+        # Openingd thinks we're still opening; funder reconnects..
+        disconnects = ['0WIRE_ACCEPT_CHANNEL']
+        l1 = self.node_factory.get_node()
+        l2 = self.node_factory.get_node(disconnect=disconnects)
+        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+
+        addr = l1.rpc.newaddr()['address']
+        txid = l1.bitcoin.rpc.sendtoaddress(addr, 20000 / 10**6)
+        tx = l1.bitcoin.rpc.getrawtransaction(txid)
+        l1.rpc.addfunds(tx)
+
+        # It closes on us, we forget about it.
+        self.assertRaises(ValueError, l1.rpc.fundchannel, l2.info['id'], 20000)
+        assert l1.rpc.getpeer(l2.info['id']) == None
+
+        # Reconnect.
+        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+
+        # Truncate (hack to release old openingd).
+        with open(os.path.join(l2.daemon.lightning_dir, 'dev_disconnect'), "w"):
+            pass
+
+        # We should get a message about old one exiting.
+        l2.daemon.wait_for_log('Subdaemon lightning_openingd died')
+
+        # Should work fine.
+        l1.rpc.fundchannel(l2.info['id'], 20000)
+        l1.daemon.wait_for_log('sendrawtx exit 0')
+
+        # Just to be sure, second openingd should die too.
+        l2.daemon.wait_for_log('Subdaemon lightning_openingd died \(0\)')
+
     def test_reconnect_normal(self):
         # Should reconnect fine even if locked message gets lost.
         disconnects = ['-WIRE_FUNDING_LOCKED',
@@ -1031,6 +1098,25 @@ class LightningDTests(BaseLightningDTests):
         c.execute('SELECT COUNT(*) FROM outputs WHERE status=2')
         assert(c.fetchone()[0] == 2)
 
+    def test_funding_change(self):
+        """Add some funds, fund a channel, and make sure we remember the change
+        """
+        l1, l2 = self.connect()
+        addr = l1.rpc.newaddr()['address']
+        txid = l1.bitcoin.rpc.sendtoaddress(addr, 0.1)
+        tx = l1.bitcoin.rpc.getrawtransaction(txid)
+        l1.rpc.addfunds(tx)
+        outputs = l1.db_query('SELECT value FROM outputs WHERE status=0;')
+        assert len(outputs) == 1 and outputs[0]['value'] == 10000000
+
+        l1.rpc.fundchannel(l2.info['id'], 1000000)
+        outputs = {r['status']: r['value'] for r in l1.db_query(
+            'SELECT status, SUM(value) AS value FROM outputs GROUP BY status;')}
+
+        # The 10m out is spent and we have a change output of 9m-fee
+        assert outputs[0] >   8990000
+        assert outputs[2] == 10000000
+
     def test_channel_persistence(self):
         # Start two nodes and open a channel (to remember)
         l1, l2 = self.connect()
@@ -1077,6 +1163,25 @@ class LightningDTests(BaseLightningDTests):
         l1.daemon.stop()
         l1.daemon.start()
         assert l1.rpc.getpeers()['peers'][0]['msatoshi_to_us'] == 99980000
+
+    def test_gossip_badsig(self):
+        l1 = self.node_factory.get_node()
+        l2 = self.node_factory.get_node()
+        l3 = self.node_factory.get_node()
+
+        # l2 connects to both, so l1 can't reconnect and thus l2 drops to chain
+        l2.rpc.connect('localhost', l1.info['port'], l1.info['id'])
+        l2.rpc.connect('localhost', l3.info['port'], l3.info['id'])
+        self.fund_channel(l2, l1, 10**6)
+        self.fund_channel(l2, l3, 10**6)
+
+        # Wait for route propagation.
+        l1.bitcoin.rpc.generate(5)
+        l1.daemon.wait_for_log('Received node_announcement for node {}'
+                               .format(l3.info['id']))
+        assert not l1.daemon.is_in_log('signature verification failed')
+        assert not l2.daemon.is_in_log('signature verification failed')
+        assert not l3.daemon.is_in_log('signature verification failed')
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
