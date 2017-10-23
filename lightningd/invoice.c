@@ -248,7 +248,7 @@ static void _json_delinvoice(int32_t paidflag,struct command *cmd,const char *bu
 	struct json_result *response = new_json_result(cmd);
 	const char *label;
 	struct invoices *invs = cmd->ld->invoices;
-    void *targetlist = (paidflag == 0) ? &invs->unpaid : &invs->paid;
+    //void *targetlist = (paidflag == 0) ? &invs->unpaid : &invs->paid;
 
 	if (!json_get_params(buffer, params,
 			     "label", &labeltok,
