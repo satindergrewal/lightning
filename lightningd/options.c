@@ -15,6 +15,7 @@
 #include <lightningd/log.h>
 #include <lightningd/opt_time.h>
 #include <lightningd/options.h>
+#include <lightningd/subd.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -111,24 +112,39 @@ static char *opt_set_s32(const char *arg, s32 *u)
 	return NULL;
 }
 
-static char *opt_set_ipaddr(const char *arg, struct ipaddr *addr)
+/* FIXME: Rename ipaddr and hoist up */
+bool parse_ipaddr(const char *arg, struct ipaddr *addr)
 {
 	struct in6_addr v6;
 	struct in_addr v4;
-	char *err = NULL;
+
+	/* FIXME: change arg to addr[:port] and use getaddrinfo? */
+	if (streq(arg, "localhost"))
+		arg = "127.0.0.1";
+	else if (streq(arg, "ip6-localhost"))
+		arg = "::1";
+
 	memset(&addr->addr, 0, sizeof(addr->addr));
 	if (inet_pton(AF_INET, arg, &v4) == 1) {
 		addr->type = ADDR_TYPE_IPV4;
 		addr->addrlen = 4;
 		memcpy(&addr->addr, &v4, addr->addrlen);
+		return true;
 	} else if (inet_pton(AF_INET6, arg, &v6) == 1) {
 		addr->type = ADDR_TYPE_IPV6;
 		addr->addrlen = 16;
 		memcpy(&addr->addr, &v6, addr->addrlen);
-	} else {
-		err = tal_fmt(NULL, "Unable to parse IP address '%s'", arg);
+		return true;
 	}
-	return err;
+	return false;
+}
+
+static char *opt_set_ipaddr(const char *arg, struct ipaddr *addr)
+{
+	if (parse_ipaddr(arg, addr))
+		return NULL;
+
+	return tal_fmt(NULL, "Unable to parse IP address '%s'", arg);
 }
 
 static void opt_show_u64(char buf[OPT_SHOW_LEN], const u64 *u)
@@ -224,6 +240,8 @@ static void config_register_opts(struct lightningd *ld)
 	opt_register_arg("--fee-per-satoshi", opt_set_s32, opt_show_s32,
 			 &ld->config.fee_per_satoshi,
 			 "Microsatoshi fee for every satoshi in HTLC");
+	opt_register_noarg("--no-reconnect", opt_set_bool,
+			   &ld->config.no_reconnect, "Disable automatic reconnect attempts");
 
 	opt_register_arg("--ipaddr", opt_set_ipaddr, NULL,
 			   &ld->config.ipaddr,
@@ -241,6 +259,13 @@ static void dev_register_opts(struct lightningd *ld)
 			   &ld->topology->dev_no_broadcast, opt_hidden);
 	opt_register_noarg("--dev-fail-on-subdaemon-fail", opt_set_bool,
 			   &ld->dev_subdaemon_fail, opt_hidden);
+	opt_register_arg("--dev-debugger=<subdaemon>", opt_subd_debug, NULL,
+			 ld, "Wait for gdb attach at start of <subdaemon>");
+	opt_register_arg("--dev-broadcast-interval=<ms>", opt_set_uintval,
+			 opt_show_uintval, &ld->broadcast_interval,
+			 "Time between gossip broadcasts in milliseconds (default: 30000)");
+	opt_register_arg("--dev-disconnect=<filename>", opt_subd_dev_disconnect,
+			 NULL, ld, "File containing disconnection points");
 }
 
 static const struct config testnet_config = {
@@ -298,6 +323,9 @@ static const struct config testnet_config = {
 
 	/* Do not advertise any IP */
 	.ipaddr.type = 0,
+
+	/* Automatically reconnect */
+	.no_reconnect = false,
 };
 
 /* aka. "Dude, where's my coins?" */
@@ -356,6 +384,9 @@ static const struct config mainnet_config = {
 
 	/* Do not advertise any IP */
 	.ipaddr.type = 0,
+
+	/* Automatically reconnect */
+	.no_reconnect = false,
 };
 
 static void check_config(struct lightningd *ld)

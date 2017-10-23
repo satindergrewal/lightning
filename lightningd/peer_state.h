@@ -5,9 +5,6 @@
 enum peer_state {
 	UNINITIALIZED,
 
-	/* In gossip daemon. */
-	GOSSIPD,
-
 	/* Negotiating channel opening: in opening daemon */
 	OPENINGD,
 
@@ -25,6 +22,9 @@ enum peer_state {
 
 	/* Waiting for onchain event. */
 	CLOSINGD_COMPLETE,
+
+	/* We've seen the funding spent, we're waiting for onchaind. */
+	FUNDING_SPEND_SEEN,
 
 	/* Various onchain states. */
 	ONCHAIND_CHEATED,

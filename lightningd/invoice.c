@@ -5,6 +5,8 @@
 #include <ccan/structeq/structeq.h>
 #include <ccan/tal/str/str.h>
 #include <common/utils.h>
+#include <inttypes.h>
+#include <lightningd/log.h>
 #include <sodium/randombytes.h>
 
 struct invoice_waiter {
@@ -14,19 +16,19 @@ struct invoice_waiter {
 
 struct invoices {
 	/* Payments for r values we know about. */
-	struct list_head paid, unpaid;
-	u64 invoices_completed;
+	struct list_head invlist;
 	/* Waiting for new invoices to be paid. */
 	struct list_head invoice_waiters;
 };
 
 static struct invoice *find_inv(const struct list_head *list,
-				const struct sha256 *rhash)
+				const struct sha256 *rhash,
+				enum invoice_status state)
 {
 	struct invoice *i;
 
 	list_for_each(list, i, list) {
-		if (structeq(rhash, &i->rhash))
+		if (structeq(rhash, &i->rhash) && i->state == state)
 			return i;
 	}
 	return NULL;
@@ -34,13 +36,13 @@ static struct invoice *find_inv(const struct list_head *list,
 
 struct invoice *find_unpaid(struct invoices *invs, const struct sha256 *rhash)
 {
-	return find_inv(&invs->unpaid, rhash);
+	return find_inv(&invs->invlist, rhash, UNPAID);
 }
 
 static struct invoice *find_paid(struct invoices *invs,
 				 const struct sha256 *rhash)
 {
-	return find_inv(&invs->paid, rhash);
+	return find_inv(&invs->invlist, rhash, PAID);
 }
 
 static struct invoice *find_invoice_by_label(const struct list_head *list,
@@ -56,34 +58,19 @@ static struct invoice *find_invoice_by_label(const struct list_head *list,
 }
 
 void invoice_add(struct invoices *invs,
-		 const struct preimage *r,
-		 u64 msatoshi,
-		 const char *label,
-		 u64 paid_num)
+		 struct invoice *inv)
 {
+	tal_steal(invs, inv);
 	struct invoice *invoice = tal(invs, struct invoice);
-
-	invoice->msatoshi = msatoshi;
-	invoice->r = *r;
-	invoice->paid_num = paid_num;
-	invoice->label = tal_strdup(invoice, label);
 	sha256(&invoice->rhash, invoice->r.r, sizeof(invoice->r.r));
-
-	if (paid_num) {
-		list_add(&invs->paid, &invoice->list);
-		if (paid_num > invs->invoices_completed)
-			invs->invoices_completed = paid_num;
-	} else
-		list_add(&invs->unpaid, &invoice->list);
+	list_add(&invs->invlist, &inv->list);
 }
 
 struct invoices *invoices_init(const tal_t *ctx)
 {
 	struct invoices *invs = tal(ctx, struct invoices);
 
-	list_head_init(&invs->unpaid);
-	list_head_init(&invs->paid);
-	invs->invoices_completed = 0;
+	list_head_init(&invs->invlist);
 	list_head_init(&invs->invoice_waiters);
 
 	return invs;
@@ -97,27 +84,17 @@ static void tell_waiter(struct command *cmd, const struct invoice *paid)
 	json_add_string(response, "label", paid->label);
 	json_add_hex(response, "rhash", &paid->rhash, sizeof(paid->rhash));
 	json_add_u64(response, "msatoshi", paid->msatoshi);
+	json_add_bool(response, "complete", paid->state == PAID);
 	json_object_end(response);
 	command_success(cmd, response);
 }
-
-/* UNIFICATION FIXME */
-void db_resolve_invoice(struct lightningd *ld,
-			const char *label, u64 paid_num);
-bool db_new_invoice(struct lightningd *ld,
-		    u64 msatoshi,
-		    const char *label,
-		    const struct preimage *r);
-bool db_remove_invoice(struct lightningd *ld, const char *label);
 
 void resolve_invoice(struct lightningd *ld, struct invoice *invoice)
 {
 	struct invoice_waiter *w;
 	struct invoices *invs = ld->invoices;
 
-	invoice->paid_num = ++invs->invoices_completed;
-	list_del_from(&invs->unpaid, &invoice->list);
-	list_add_tail(&invs->paid, &invoice->list);
+	invoice->state = PAID;
 
 	/* Tell all the waiters about the new paid invoice */
 	while ((w = list_pop(&invs->invoice_waiters,
@@ -125,7 +102,7 @@ void resolve_invoice(struct lightningd *ld, struct invoice *invoice)
 			     list)) != NULL)
 		tell_waiter(w->cmd, invoice);
 
-	db_resolve_invoice(ld, invoice->label, invoice->paid_num);
+	wallet_invoice_save(ld->wallet, invoice);
 }
 
 static void json_invoice(struct command *cmd,
@@ -146,6 +123,8 @@ static void json_invoice(struct command *cmd,
 	}
 
 	invoice = tal(cmd, struct invoice);
+	invoice->id = 0;
+	invoice->state = UNPAID;
 	if (r) {
 		if (!hex_decode(buffer + r->start, r->end - r->start,
 				invoice->r.r, sizeof(invoice->r.r))) {
@@ -175,8 +154,7 @@ static void json_invoice(struct command *cmd,
 
 	invoice->label = tal_strndup(invoice, buffer + label->start,
 				     label->end - label->start);
-	if (find_invoice_by_label(&invs->paid, invoice->label)
-	    || find_invoice_by_label(&invs->unpaid, invoice->label)) {
+	if (find_invoice_by_label(&invs->invlist, invoice->label)) {
 		command_fail(cmd, "Duplicate label '%s'", invoice->label);
 		return;
 	}
@@ -185,16 +163,17 @@ static void json_invoice(struct command *cmd,
 			     INVOICE_MAX_LABEL_LEN);
 		return;
 	}
-	invoice->paid_num = 0;
 
-	if (!db_new_invoice(cmd->ld, invoice->msatoshi, invoice->label,
-			    &invoice->r)) {
+	if (!wallet_invoice_save(cmd->ld->wallet, invoice)) {
+		printf("Could not save the invoice to the database: %s",
+			  cmd->ld->wallet->db->err);
 		command_fail(cmd, "database error");
 		return;
 	}
+
 	/* OK, connect it to main state, respond with hash */
 	tal_steal(invs, invoice);
-	list_add(&invs->unpaid, &invoice->list);
+	list_add(&invs->invlist, &invoice->list);
 
 	json_object_start(response, NULL);
 	json_add_hex(response, "rhash",
@@ -228,7 +207,7 @@ static void json_add_invoices(struct json_result *response,
 		json_add_string(response, "label", i->label);
 		json_add_hex(response, "rhash", &i->rhash, sizeof(i->rhash));
 		json_add_u64(response, "msatoshi", i->msatoshi);
-		json_add_bool(response, "complete", i->paid_num != 0);
+		json_add_bool(response, "complete", i->state == PAID);
 		json_object_end(response);
 	}
 }
@@ -249,8 +228,7 @@ static void json_listinvoice(struct command *cmd,
 
 
 	json_array_start(response, NULL);
-	json_add_invoices(response, &invs->paid, buffer, label);
-	json_add_invoices(response, &invs->unpaid, buffer, label);
+	json_add_invoices(response, &invs->invlist, buffer, label);
 	json_array_end(response);
 	command_success(cmd, response);
 }
@@ -281,16 +259,27 @@ static void _json_delinvoice(int32_t paidflag,struct command *cmd,const char *bu
 
 	label = tal_strndup(cmd, buffer + labeltok->start,
 			    labeltok->end - labeltok->start);
-	i = find_invoice_by_label(targetlist, label);
+//<<<<<<< HEAD
+//	i = find_invoice_by_label(targetlist, label);
+//=======
+	i = find_invoice_by_label(&invs->invlist, label);
+//>>>>>>> ElementsProject/master
 	if (!i) {
 		command_fail(cmd, "Unknown invoice");
 		return;
 	}
-	if (!db_remove_invoice(cmd->ld, i->label)) {
+
+	if (!wallet_invoice_remove(cmd->ld->wallet, i)) {
+		log_broken(cmd->ld->log, "Error attempting to remove invoice %"PRIu64": %s",
+			   i->id, cmd->ld->wallet->db->err);
 		command_fail(cmd, "Database error");
 		return;
 	}
-	list_del_from(targetlist, &i->list);
+//<<<<<<< HEAD
+//	list_del_from(targetlist, &i->list);
+//=======
+	list_del_from(&invs->invlist, &i->list);
+//>>>>>>> ElementsProject/master
 
 	json_object_start(response, NULL);
 	json_add_string(response, "label", i->label);
@@ -343,17 +332,24 @@ static void json_waitanyinvoice(struct command *cmd,
 		return;
 	}
 
-	if (!labeltok)
-		i = list_top(&invs->paid, struct invoice, list);
-	else {
+	if (!labeltok) {
+		i = list_top(&invs->invlist, struct invoice, list);
+
+		/* Advance until we find a PAID one */
+		while (i && i->state == UNPAID) {
+			i = list_next(&invs->invlist, i, list);
+		}
+	} else {
 		label = tal_strndup(cmd, buffer + labeltok->start,
 				    labeltok->end - labeltok->start);
-		i = find_invoice_by_label(&invs->paid, label);
+		i = find_invoice_by_label(&invs->invlist, label);
 		if (!i) {
 			command_fail(cmd, "Label not found");
 			return;
 		}
-		i = list_next(&invs->paid, i, list);
+		while (i && i->state == UNPAID) {
+			i = list_next(&invs->invlist, i, list);
+		}
 	}
 
 	/* If we found one, return it. */
@@ -399,23 +395,20 @@ static void json_waitinvoice(struct command *cmd,
 
 	/* Search in paid invoices, if found return immediately */
 	label = tal_strndup(cmd, buffer + labeltok->start, labeltok->end - labeltok->start);
-	i = find_invoice_by_label(&invs->paid, label);
-	if (i) {
-		tell_waiter(cmd, i);
-		return;
-	}
+	i = find_invoice_by_label(&invs->invlist, label);
 
-	/* No luck in paid ones? Now try the unpaid ones. */
-	i = find_invoice_by_label(&invs->unpaid, label);
 	if (!i) {
 		command_fail(cmd, "Label not found");
 		return;
+	} else if (i->state == PAID) {
+		tell_waiter(cmd, i);
+		return;
+	} else {
+		/* There is an unpaid one matching, let's wait... */
+		w = tal(cmd, struct invoice_waiter);
+		w->cmd = cmd;
+		list_add_tail(&invs->invoice_waiters, &w->list);
 	}
-
-	/* There is an unpaid one matching, let's wait... */
-	w = tal(cmd, struct invoice_waiter);
-	w->cmd = cmd;
-	list_add_tail(&invs->invoice_waiters, &w->list);
 }
 
 static const struct json_command waitinvoice_command = {

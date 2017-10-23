@@ -1,3 +1,4 @@
+#include <ccan/err/err.h>
 #include <ccan/io/fdpass/fdpass.h>
 #include <ccan/io/io.h>
 #include <ccan/mem/mem.h>
@@ -11,6 +12,7 @@
 #include <fcntl.h>
 #include <lightningd/lightningd.h>
 #include <lightningd/log.h>
+#include <lightningd/peer_control.h>
 #include <lightningd/subd.h>
 #include <stdarg.h>
 #include <sys/socket.h>
@@ -34,7 +36,7 @@ struct subd_req {
 
 	/* Callback for a reply. */
 	int type;
-	bool (*replycb)(struct subd *, const u8 *, const int *, void *);
+	void (*replycb)(struct subd *, const u8 *, const int *, void *);
 	void *replycb_data;
 
 	size_t num_reply_fds;
@@ -51,7 +53,7 @@ static void free_subd_req(struct subd_req *sr)
 }
 
 /* Called when the callback is disabled because caller was freed. */
-static bool ignore_reply(struct subd *sd, const u8 *msg, const int *fds,
+static void ignore_reply(struct subd *sd, const u8 *msg, const int *fds,
 			 void *arg)
 {
 	size_t i;
@@ -59,7 +61,6 @@ static bool ignore_reply(struct subd *sd, const u8 *msg, const int *fds,
 	log_debug(sd->log, "IGNORING REPLY");
 	for (i = 0; i < tal_count(fds); i++)
 		close(fds[i]);
-	return true;
 }
 
 static void disable_cb(void *disabler, struct subd_req *sr)
@@ -70,7 +71,7 @@ static void disable_cb(void *disabler, struct subd_req *sr)
 
 static void add_req(const tal_t *ctx,
 		    struct subd *sd, int type, size_t num_fds_in,
-		    bool (*replycb)(struct subd *, const u8 *, const int *,
+		    void (*replycb)(struct subd *, const u8 *, const int *,
 				    void *),
 		    void *replycb_data)
 {
@@ -112,6 +113,18 @@ static struct subd_req *get_req(struct subd *sd, int reply_type)
 		}
 	}
 	return NULL;
+}
+
+static void close_taken_fds(va_list *ap)
+{
+	int *fd;
+
+	while ((fd = va_arg(*ap, int *)) != NULL) {
+		if (taken(fd)) {
+			close(*fd);
+			*fd = -1;
+		}
+	}
 }
 
 /* We use sockets, not pipes, because fds are bidir. */
@@ -193,14 +206,8 @@ static int subd(const char *dir, const char *name, const char *debug_subdaemon,
 	close(childmsg[1]);
 	close(execfail[1]);
 
-	if (ap) {
-		while ((fd = va_arg(*ap, int *)) != NULL) {
-			if (taken(fd)) {
-				close(*fd);
-				*fd = -1;
-			}
-		}
-	}
+	if (ap)
+		close_taken_fds(ap);
 
 	/* Child will close this without writing on successful exec. */
 	if (read(execfail[0], &err, sizeof(err)) == sizeof(err)) {
@@ -220,6 +227,8 @@ close_msgfd_fail:
 	close_noerr(childmsg[0]);
 	close_noerr(childmsg[1]);
 fail:
+	if (ap)
+		close_taken_fds(ap);
 	return -1;
 }
 
@@ -241,12 +250,18 @@ int subd_raw(struct lightningd *ld, const char *name)
 
 static struct io_plan *sd_msg_read(struct io_conn *conn, struct subd *sd);
 
+static void mark_freed(struct subd *unused, bool *freed)
+{
+	*freed = true;
+}
+
 static struct io_plan *sd_msg_reply(struct io_conn *conn, struct subd *sd,
 				    struct subd_req *sr)
 {
 	int type = fromwire_peektype(sd->msg_in);
-	bool keep_open;
+	bool freed = false;
 	const tal_t *tmpctx = tal_tmpctx(conn);
+	int *fds_in;
 
 	log_info(sd->log, "REPLY %s with %zu fds",
 		 sd->msgname(type), tal_count(sd->fds_in));
@@ -257,19 +272,27 @@ static struct io_plan *sd_msg_reply(struct io_conn *conn, struct subd *sd,
 	/* We want to free the msg_in, unless they tal_steal() it. */
 	tal_steal(tmpctx, sd->msg_in);
 
-	/* And we need to free sr after this too (unless they free via sd!). */
+	/* And we need to free sr after this too. */
 	tal_steal(tmpctx, sr);
+	/* In case they free sd, don't deref. */
+	list_del_init(&sr->list);
 
-	keep_open = sr->replycb(sd, sd->msg_in, sd->fds_in, sr->replycb_data);
+	/* Free this array after, too. */
+	fds_in = tal_steal(tmpctx, sd->fds_in);
+	sd->fds_in = NULL;
+
+	/* Find out if they freed it. */
+	tal_add_destructor2(sd, mark_freed, &freed);
+	sr->replycb(sd, sd->msg_in, fds_in, sr->replycb_data);
 	tal_free(tmpctx);
 
-	if (!keep_open)
+	if (freed)
 		return io_close(conn);
+
+	tal_del_destructor2(sd, mark_freed, &freed);
 
 	/* Restore conn ptr. */
 	sd->conn = conn;
-	/* Free any fd array. */
-	sd->fds_in = tal_free(sd->fds_in);
 	return io_read_wire(conn, sd, &sd->msg_in, sd_msg_read, sd);
 }
 
@@ -419,18 +442,35 @@ static struct io_plan *sd_msg_read(struct io_conn *conn, struct subd *sd)
 		}
 
 		/* If they care, tell them about invalid peer behavior */
-		if (sd->peerbadcb && type == STATUS_FAIL_PEER_BAD) {
-			const char *errmsg = tal_fmt(sd, "%.*s", str_len, str);
-			sd->peerbadcb(sd, errmsg);
+		if (sd->peer && type == STATUS_FAIL_PEER_BAD) {
+			/* Don't free ourselves; we're about to do that. */
+			struct peer *peer = sd->peer;
+			sd->peer = NULL;
+
+			peer_fail_permanent(peer,
+					    take(tal_dup_arr(peer, u8,
+							     (u8 *)str, str_len,
+							     0)));
 		}
 		return io_close(conn);
 	}
 
 	log_info(sd->log, "UPDATE %s", sd->msgname(type));
 	if (sd->msgcb) {
-		int i = sd->msgcb(sd, sd->msg_in, sd->fds_in);
-		if (i < 0)
+		unsigned int i;
+		bool freed = false;
+
+		/* Might free sd (if returns negative); save/restore sd->conn */
+		sd->conn = NULL;
+		tal_add_destructor2(sd, mark_freed, &freed);
+
+		i = sd->msgcb(sd, sd->msg_in, sd->fds_in);
+		if (freed)
 			return io_close(conn);
+		tal_del_destructor2(sd, mark_freed, &freed);
+
+		sd->conn = conn;
+
 		if (i != 0) {
 			/* Don't ask for fds twice! */
 			assert(!sd->fds_in);
@@ -475,9 +515,23 @@ static void destroy_subd(struct subd *sd)
 	if (sd->conn)
 		sd->conn = tal_free(sd->conn);
 
-	log_debug(sd->log, "finishing: %p", sd->finished);
-	if (sd->finished)
-		sd->finished(sd, status);
+	/* Peer still attached? */
+	if (sd->peer) {
+		/* Don't loop back when we fail it. */
+		struct peer *peer = sd->peer;
+		sd->peer = NULL;
+		peer_fail_transient(peer,
+				    "Owning subdaemon %s died (%i)",
+				    sd->name, status);
+	}
+
+	if (sd->must_not_exit) {
+		if (WIFEXITED(status))
+			errx(1, "%s failed (exit status %i), exiting.",
+			     sd->name, WEXITSTATUS(status));
+		errx(1, "%s failed (signal %u), exiting.",
+		     sd->name, WTERMSIG(status));
+	}
 }
 
 static struct io_plan *msg_send_next(struct io_conn *conn, struct subd *sd)
@@ -504,24 +558,19 @@ static struct io_plan *msg_setup(struct io_conn *conn, struct subd *sd)
 			 msg_send_next(conn, sd));
 }
 
-struct subd *new_subd(const tal_t *ctx,
-		      struct lightningd *ld,
-		      const char *name,
-		      struct peer *peer,
-		      const char *(*msgname)(int msgtype),
-		      int (*msgcb)(struct subd *, const u8 *, const int *fds),
-		      void (*peerbadcb)(struct subd *, const char *),
-		      void (*finished)(struct subd *, int),
-		      ...)
+static struct subd *new_subd(struct lightningd *ld,
+			     const char *name,
+			     struct peer *peer,
+			     const char *(*msgname)(int msgtype),
+			     unsigned int (*msgcb)(struct subd *,
+						   const u8 *, const int *fds),
+			     va_list *ap)
 {
-	va_list ap;
-	struct subd *sd = tal(ctx, struct subd);
+	struct subd *sd = tal(ld, struct subd);
 	int msg_fd;
 
-	va_start(ap, finished);
 	sd->pid = subd(ld->daemon_dir, name, ld->dev_debug_subdaemon,
-		       &msg_fd, ld->dev_disconnect_fd, &ap);
-	va_end(ap);
+		       &msg_fd, ld->dev_disconnect_fd, ap);
 	if (sd->pid == (pid_t)-1) {
 		log_unusual(ld->log, "subd %s failed: %s",
 			    name, strerror(errno));
@@ -530,10 +579,9 @@ struct subd *new_subd(const tal_t *ctx,
 	sd->ld = ld;
 	sd->log = new_log(sd, ld->log_book, "%s(%u):", name, sd->pid);
 	sd->name = name;
-	sd->finished = finished;
+	sd->must_not_exit = false;
 	sd->msgname = msgname;
 	sd->msgcb = msgcb;
-	sd->peerbadcb = peerbadcb;
 	sd->fds_in = NULL;
 	msg_queue_init(&sd->outq, sd);
 	tal_add_destructor(sd, destroy_subd);
@@ -541,7 +589,7 @@ struct subd *new_subd(const tal_t *ctx,
 	sd->peer = peer;
 
 	/* conn actually owns daemon: we die when it does. */
-	sd->conn = io_new_conn(ctx, msg_fd, msg_setup, sd);
+	sd->conn = io_new_conn(ld, msg_fd, msg_setup, sd);
 	tal_steal(sd->conn, sd);
 
 	log_info(sd->log, "pid %u, msgfd %i", sd->pid, msg_fd);
@@ -549,8 +597,45 @@ struct subd *new_subd(const tal_t *ctx,
 	return sd;
 }
 
+struct subd *new_global_subd(struct lightningd *ld,
+			     const char *name,
+			     const char *(*msgname)(int msgtype),
+			     unsigned int (*msgcb)(struct subd *, const u8 *,
+						   const int *fds),
+			     ...)
+{
+	va_list ap;
+	struct subd *sd;
+
+	va_start(ap, msgcb);
+	sd = new_subd(ld, name, NULL, msgname, msgcb, &ap);
+	va_end(ap);
+
+	sd->must_not_exit = true;
+	return sd;
+}
+
+struct subd *new_peer_subd(struct lightningd *ld,
+			   const char *name,
+			   struct peer *peer,
+			   const char *(*msgname)(int msgtype),
+			   unsigned int (*msgcb)(struct subd *, const u8 *,
+						 const int *fds), ...)
+{
+	va_list ap;
+	struct subd *sd;
+
+	va_start(ap, msgcb);
+	sd = new_subd(ld, name, peer, msgname, msgcb, &ap);
+	va_end(ap);
+	return sd;
+}
+
 void subd_send_msg(struct subd *sd, const u8 *msg_out)
 {
+	/* FIXME: We should use unique upper bits for each daemon, then
+	 * have generate-wire.py add them, just assert here. */
+	assert(!strstarts(sd->msgname(fromwire_peektype(msg_out)), "INVALID"));
 	msg_enqueue(&sd->outq, msg_out);
 }
 
@@ -563,7 +648,7 @@ void subd_req_(const tal_t *ctx,
 	       struct subd *sd,
 	       const u8 *msg_out,
 	       int fd_out, size_t num_fds_in,
-	       bool (*replycb)(struct subd *, const u8 *, const int *, void *),
+	       void (*replycb)(struct subd *, const u8 *, const int *, void *),
 	       void *replycb_data)
 {
 	/* Grab type now in case msg_out is taken() */
@@ -578,27 +663,36 @@ void subd_req_(const tal_t *ctx,
 
 void subd_shutdown(struct subd *sd, unsigned int seconds)
 {
-	/* Idempotent. */
-	if (!sd->conn)
-		return;
-
 	log_debug(sd->log, "Shutting down");
 
-	/* No finished callback any more. */
-	sd->finished = NULL;
-	/* Don't free sd when we close connection manually. */
+	tal_del_destructor(sd, destroy_subd);
+
+	/* This should make it exit; steal so it stays around. */
 	tal_steal(sd->ld, sd);
-	/* Close connection: should begin shutdown now. */
 	sd->conn = tal_free(sd->conn);
 
-	/* Do we actually want to wait? */
+	/* Wait for a while. */
 	while (seconds) {
 		if (waitpid(sd->pid, NULL, WNOHANG) > 0) {
-			tal_del_destructor(sd, destroy_subd);
 			return;
 		}
 		sleep(1);
 		seconds--;
+	}
+
+	/* Didn't die?  This will kill it harder */
+	sd->must_not_exit = false;
+	destroy_subd(sd);
+	tal_free(sd);
+}
+
+void subd_release_peer(struct subd *owner, struct peer *peer)
+{
+	/* If owner is a per-peer-daemon, and not already freeing itself... */
+	if (owner->peer) {
+		assert(owner->peer == peer);
+		owner->peer = NULL;
+		tal_free(owner);
 	}
 }
 
@@ -629,7 +723,11 @@ bool dev_disconnect_permanent(struct lightningd *ld)
 	r = read(ld->dev_disconnect_fd, permfail, sizeof(permfail));
 	if (r < 0)
 		fatal("Reading dev_disconnect file: %s", strerror(errno));
-	lseek(ld->dev_disconnect_fd, -r, SEEK_CUR);
 
-	return memeq(permfail, r, "permfail", strlen("permfail"));
+	if (memeq(permfail, r, "permfail", strlen("permfail")))
+		return true;
+
+	/* Nope, restore. */
+	lseek(ld->dev_disconnect_fd, -r, SEEK_CUR);
+	return false;
 }

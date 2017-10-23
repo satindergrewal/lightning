@@ -24,7 +24,7 @@
 
 char *bitcoin_datadir;
 
-static char **gather_args(struct bitcoind *bitcoind,
+static char **gather_args(const struct bitcoind *bitcoind,
 			  const tal_t *ctx, const char *cmd, va_list ap)
 {
 	size_t n = 0;
@@ -122,13 +122,33 @@ static void bcli_finished(struct io_conn *conn, struct bitcoin_cli *bcli)
 
 	if (!bcli->exitstatus) {
 		if (WEXITSTATUS(status) != 0) {
-			fatal("%s exited %u: '%.*s'", bcli_args(bcli),
-			      WEXITSTATUS(status),
-			      (int)bcli->output_bytes,
-			      bcli->output);
+			/* Allow 60 seconds of spurious errors, eg. reorg. */
+			struct timerel t;
+
+			log_unusual(bcli->bitcoind->log,
+				    "%s exited with status %u",
+				    bcli_args(bcli),
+				    WEXITSTATUS(status));
+
+			if (!bitcoind->error_count)
+				bitcoind->first_error_time = time_mono();
+
+			t = timemono_between(time_mono(),
+					     bitcoind->first_error_time);
+			if (time_greater(t, time_from_sec(60)))
+				fatal("%s exited %u (after %u other errors) '%.*s'",
+				      bcli_args(bcli),
+				      WEXITSTATUS(status),
+				      bitcoind->error_count,
+				      (int)bcli->output_bytes,
+				      bcli->output);
+			bitcoind->error_count++;
 		}
 	} else
 		*bcli->exitstatus = WEXITSTATUS(status);
+
+	if (WEXITSTATUS(status) == 0)
+		bitcoind->error_count = 0;
 
 	bitcoind->req_running = false;
 
@@ -159,7 +179,6 @@ static void next_bcli(struct bitcoind *bitcoind)
 
 	bitcoind->req_running = true;
 	conn = io_new_conn(bitcoind, bcli->fd, output_init, bcli);
-	tal_steal(conn, bcli);
 	io_set_finish(conn, bcli_finished, bcli);
 }
 
@@ -456,6 +475,63 @@ static void destroy_bitcoind(struct bitcoind *bitcoind)
 	bitcoind->shutdown = true;
 }
 
+static char **cmdarr(const tal_t *ctx, const struct bitcoind *bitcoind,
+		     const char *cmd, ...)
+{
+	va_list ap;
+	char **args;
+
+	va_start(ap, cmd);
+	args = gather_args(bitcoind, ctx, cmd, ap);
+	va_end(ap);
+	return args;
+}
+
+void wait_for_bitcoind(struct bitcoind *bitcoind)
+{
+	int from, ret, status;
+	pid_t child;
+	char **cmd = cmdarr(bitcoind, bitcoind, "echo", NULL);
+	char *output;
+	bool printed = false;
+
+	for (;;) {
+		child = pipecmdarr(&from, NULL, &from, cmd);
+		if (child < 0)
+			fatal("%s exec failed: %s", cmd[0], strerror(errno));
+
+		output = grab_fd(cmd, from);
+		if (!output)
+			fatal("Reading from %s failed: %s",
+			      cmd[0], strerror(errno));
+
+		ret = waitpid(child, &status, 0);
+		if (ret != child)
+			fatal("Waiting for %s: %s", cmd[0], strerror(errno));
+		if (!WIFEXITED(status))
+			fatal("Death of %s: signal %i",
+			      cmd[0], WTERMSIG(status));
+
+		if (WEXITSTATUS(status) == 0)
+			break;
+
+		/* bitcoin/src/rpc/protocol.h:
+		 *	RPC_IN_WARMUP = -28, //!< Client still warming up
+		 */
+		if (WEXITSTATUS(status) != 28)
+			fatal("%s exited with code %i: %s",
+			      cmd[0], WEXITSTATUS(status), output);
+
+		if (!printed) {
+			log_unusual(bitcoind->log,
+				    "Waiting for bitcoind to warm up...");
+			printed = true;
+		}
+		sleep(1);
+	}
+	tal_free(cmd);
+}
+
 struct bitcoind *new_bitcoind(const tal_t *ctx, struct log *log)
 {
 	struct bitcoind *bitcoind = tal(ctx, struct bitcoind);
@@ -466,6 +542,7 @@ struct bitcoind *new_bitcoind(const tal_t *ctx, struct log *log)
 	bitcoind->log = log;
 	bitcoind->req_running = false;
 	bitcoind->shutdown = false;
+	bitcoind->error_count = 0;
 	list_head_init(&bitcoind->pending);
 	tal_add_destructor(bitcoind, destroy_bitcoind);
 

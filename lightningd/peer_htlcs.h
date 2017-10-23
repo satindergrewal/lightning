@@ -27,9 +27,9 @@ void peer_htlcs(const tal_t *ctx,
 		struct failed_htlc **failed_htlcs,
 		enum side **failed_sides);
 
-int peer_sending_commitsig(struct peer *peer, const u8 *msg);
-int peer_got_commitsig(struct peer *peer, const u8 *msg);
-int peer_got_revoke(struct peer *peer, const u8 *msg);
+void peer_sending_commitsig(struct peer *peer, const u8 *msg);
+void peer_got_commitsig(struct peer *peer, const u8 *msg);
+void peer_got_revoke(struct peer *peer, const u8 *msg);
 
 void update_per_commit_point(struct peer *peer,
 			     const struct pubkey *per_commitment_point);
@@ -41,5 +41,10 @@ enum onion_type send_htlc_out(struct peer *out, u64 amount, u32 cltv,
 			      struct pay_command *pc,
 			      struct htlc_out **houtp);
 
+struct htlc_out *find_htlc_out_by_ripemd(const struct peer *peer,
+					 const struct ripemd160 *ripemd160);
+void onchain_failed_our_htlc(const struct peer *peer,
+			     const struct htlc_stub *htlc,
+			     const char *why);
 void onchain_fulfilled_htlc(struct peer *peer, const struct preimage *preimage);
 #endif /* LIGHTNING_LIGHTNINGD_PEER_HTLCS_H */

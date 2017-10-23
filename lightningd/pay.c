@@ -232,9 +232,7 @@ static void json_sendpay(struct command *cmd,
 			command_fail(cmd, "route %zu invalid channel_id", n_hops);
 			return;
 		}
-		if (!pubkey_from_hexstr(buffer + idtok->start,
-					idtok->end - idtok->start,
-					&ids[n_hops])) {
+		if (!json_tok_pubkey(buffer, idtok, &ids[n_hops])) {
 			command_fail(cmd, "route %zu invalid id", n_hops);
 			return;
 		}
@@ -332,6 +330,11 @@ static void json_sendpay(struct command *cmd,
 
 	/* Wait until we get response. */
 	tal_add_destructor2(cmd, remove_cmd_from_pc, pc);
+
+	/* They're both children of ld, but on shutdown make sure we
+	 * destroy the command before the pc, otherwise the
+	 * remove_cmd_from_pc destructor causes a use-after-free */
+	tal_steal(pc, cmd);
 
 	failcode = send_htlc_out(peer, amount, first_hop_data.outgoing_cltv,
 				 &rhash, onion, NULL, pc, &pc->out);

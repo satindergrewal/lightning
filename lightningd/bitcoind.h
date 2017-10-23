@@ -5,6 +5,7 @@
 #include <ccan/list/list.h>
 #include <ccan/short_types/short_types.h>
 #include <ccan/tal/tal.h>
+#include <ccan/time/time.h>
 #include <ccan/typesafe_cb/typesafe_cb.h>
 #include <stdbool.h>
 
@@ -37,11 +38,17 @@ struct bitcoind {
 	/* What network are we on? */
 	const struct chainparams *chainparams;
 
+	/* If non-zero, time we first hit a bitcoind error. */
+	unsigned int error_count;
+	struct timemono first_error_time;
+
 	/* Ignore results, we're shutting down. */
 	bool shutdown;
 };
 
 struct bitcoind *new_bitcoind(const tal_t *ctx, struct log *log);
+
+void wait_for_bitcoind(struct bitcoind *bitcoind);
 
 void bitcoind_estimate_fee_(struct bitcoind *bitcoind,
 			    void (*cb)(struct bitcoind *bitcoind,

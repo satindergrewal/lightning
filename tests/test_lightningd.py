@@ -7,6 +7,7 @@ from lightning import LightningRpc
 import copy
 import json
 import logging
+import queue
 import os
 import random
 import re
@@ -76,6 +77,8 @@ def setUpModule():
 def tearDownModule():
     tearDownBitcoind()
 
+def breakpoint():
+    import pdb; pdb.set_trace()
 
 class NodeFactory(object):
     """A factory to setup and start `lightningd` daemons.
@@ -86,7 +89,7 @@ class NodeFactory(object):
         self.nodes = []
         self.executor = executor
 
-    def get_node(self, disconnect=None):
+    def get_node(self, disconnect=None, options=None, may_fail=False):
         node_id = self.next_id
         self.next_id += 1
 
@@ -102,9 +105,12 @@ class NodeFactory(object):
                 f.write("\n".join(disconnect))
             daemon.cmd_line.append("--dev-disconnect=dev_disconnect")
         daemon.cmd_line.append("--dev-fail-on-subdaemon-fail")
+        opts = [] if options is None else options
+        for opt in opts:
+            daemon.cmd_line.append(opt)
         rpc = LightningRpc(socket_path, self.executor)
 
-        node = utils.LightningNode(daemon, rpc, bitcoind, self.executor)
+        node = utils.LightningNode(daemon, rpc, bitcoind, self.executor, may_fail=may_fail)
         self.nodes.append(node)
         if VALGRIND:
             node.daemon.cmd_line = [
@@ -122,8 +128,16 @@ class NodeFactory(object):
         return node
 
     def killall(self):
+        rcs = []
+        failed = False
         for n in self.nodes:
-            n.daemon.stop()
+            try:
+                n.stop()
+            except:
+                failed = True
+            rcs.append(n.daemon.proc.returncode)
+        if failed:
+            raise Exception("At least one lightning exited with non-zero return code: {}".format(rcs))
 
 
 class BaseLightningDTests(unittest.TestCase):
@@ -153,6 +167,8 @@ class BaseLightningDTests(unittest.TestCase):
         return 1 if errors else 0
 
     def getCrashLog(self, node):
+        if node.may_fail:
+            return None, None
         try:
             crashlog = os.path.join(node.daemon.lightning_dir, 'crash.log')
             with open(crashlog, 'r') as f:
@@ -192,12 +208,12 @@ class LightningDTests(BaseLightningDTests):
     def connect(self):
         l1 = self.node_factory.get_node()
         l2 = self.node_factory.get_node()
-        ret = l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        ret = l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
 
         assert ret['id'] == l2.info['id']
 
-        l1.daemon.wait_for_log('WIRE_GOSSIPCTL_NEW_PEER')
-        l2.daemon.wait_for_log('WIRE_GOSSIPCTL_NEW_PEER')
+        l1.daemon.wait_for_log('WIRE_GOSSIPCTL_HANDLE_PEER')
+        l2.daemon.wait_for_log('WIRE_GOSSIPCTL_HANDLE_PEER')
         return l1,l2
 
     def fund_channel(self, l1, l2, amount):
@@ -251,18 +267,13 @@ class LightningDTests(BaseLightningDTests):
     def test_connect(self):
         l1,l2 = self.connect()
 
-        p1 = l1.rpc.getpeer(l2.info['id'], 'info')
-        p2 = l2.rpc.getpeer(l1.info['id'], 'info')
+        # Main daemon has no idea about these peers; they're in gossipd.
+        assert l1.rpc.getpeer(l2.info['id'], 'info') == None
+        assert l2.rpc.getpeer(l1.info['id'], 'info') == None
 
-        assert p1['state'] == 'GOSSIPD'
-        assert p2['state'] == 'GOSSIPD'
-
-        # It should have gone through these steps
-        assert 'state: UNINITIALIZED -> GOSSIPD' in p1['log']
-
-        # Both should still be owned by gossip
-        assert p1['owner'] == 'lightning_gossipd'
-        assert p2['owner'] == 'lightning_gossipd'
+        # Both gossipds will have them as new peers once handed back.
+        l1.daemon.wait_for_log('handle_peer {}: new peer'.format(l2.info['id']))
+        l2.daemon.wait_for_log('handle_peer {}: new peer'.format(l1.info['id']))
 
     def test_balance(self):
         l1,l2 = self.connect()
@@ -379,6 +390,26 @@ class LightningDTests(BaseLightningDTests):
         # But this should work.
         self.pay(l2, l1, available - reserve*2)
 
+    def test_bad_opening(self):
+        # l1 asks for a too-long locktime
+        l1 = self.node_factory.get_node(options=['--locktime-blocks=100'])
+        l2 = self.node_factory.get_node(options=['--max-locktime-blocks=99'])
+        ret = l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
+
+        assert ret['id'] == l2.info['id']
+
+        l1.daemon.wait_for_log('WIRE_GOSSIPCTL_HANDLE_PEER')
+        l2.daemon.wait_for_log('WIRE_GOSSIPCTL_HANDLE_PEER')
+
+        addr = l1.rpc.newaddr()['address']
+        txid = l1.bitcoin.rpc.sendtoaddress(addr, 10**6 / 10**8 + 0.01)
+        tx = l1.bitcoin.rpc.getrawtransaction(txid)
+
+        l1.rpc.addfunds(tx)
+        self.assertRaises(ValueError, l1.rpc.fundchannel, l2.info['id'], 10**6)
+
+        l2.daemon.wait_for_log('to_self_delay 100 larger than 99')
+
     def test_closing(self):
         l1,l2 = self.connect()
 
@@ -427,21 +458,365 @@ class LightningDTests(BaseLightningDTests):
         l1.daemon.wait_for_log('Their unilateral tx, old commit point')
         l1.daemon.wait_for_log('-> ONCHAIND_THEIR_UNILATERAL')
         l2.daemon.wait_for_log('-> ONCHAIND_OUR_UNILATERAL')
-        l2.daemon.wait_for_log('Propose handling OUR_UNILATERAL/DELAYED_OUTPUT_TO_US by OUR_UNILATERAL_TO_US_RETURN_TO_WALLET (.*) in 6 blocks')
+        l2.daemon.wait_for_log('Propose handling OUR_UNILATERAL/DELAYED_OUTPUT_TO_US by OUR_DELAYED_RETURN_TO_WALLET (.*) in 6 blocks')
 
         # Now, mine 6 blocks so it sends out the spending tx.
         bitcoind.rpc.generate(6)
 
         # It should send the to-wallet tx.
-        l2.daemon.wait_for_log('Broadcasting OUR_UNILATERAL_TO_US_RETURN_TO_WALLET')
+        l2.daemon.wait_for_log('Broadcasting OUR_DELAYED_RETURN_TO_WALLET')
         l2.daemon.wait_for_log('sendrawtx exit 0')
 
         # 100 after l1 sees tx, it should be done.
         bitcoind.rpc.generate(94)
         l1.daemon.wait_for_log('onchaind complete, forgetting peer')
 
-        # Now, 100 blocks it should be done.
+        # Now, 100 blocks l2 should be done.
+        bitcoind.rpc.generate(6)
+        l2.daemon.wait_for_log('onchaind complete, forgetting peer')
+
+    def test_onchain_first_commit(self):
+        """Onchain handling where funder immediately drops to chain"""
+
+        # HTLC 1->2, 1 fails just after funding.
+        disconnects = ['+WIRE_FUNDING_LOCKED', 'permfail']
+        l1 = self.node_factory.get_node(disconnect=disconnects)
+        l2 = self.node_factory.get_node()
+
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
+
+        # Like fundchannel, but we'll probably fail before CHANNELD_NORMAL.
+        addr = l1.rpc.newaddr()['address']
+
+        txid = l1.bitcoin.rpc.sendtoaddress(addr, 10**6 / 10**8 + 0.01)
+        tx = l1.bitcoin.rpc.getrawtransaction(txid)
+
+        l1.rpc.addfunds(tx)
+        l1.rpc.fundchannel(l2.info['id'], 10**6)
+        l1.daemon.wait_for_log('sendrawtx exit 0')
+
+        l1.bitcoin.rpc.generate(1)
+
+        # l1 will drop to chain.
+        l1.daemon.wait_for_log('permfail')
+        l1.daemon.wait_for_log('sendrawtx exit 0')
+        l1.bitcoin.rpc.generate(1)
+        l1.daemon.wait_for_log('-> ONCHAIND_OUR_UNILATERAL')
+        l2.daemon.wait_for_log('-> ONCHAIND_THEIR_UNILATERAL')
+
+        # 6 later, l1 should collect its to-self payment.
+        bitcoind.rpc.generate(6)
+        l1.daemon.wait_for_log('Broadcasting OUR_DELAYED_RETURN_TO_WALLET .* to resolve OUR_UNILATERAL/DELAYED_OUTPUT_TO_US')
+        l1.daemon.wait_for_log('sendrawtx exit 0')
+
+        # 94 later, l2 is done.
+        bitcoind.rpc.generate(94)
+        l2.daemon.wait_for_log('onchaind complete, forgetting peer')
+
+        # Now, 100 blocks and l1 should be done.
+        bitcoind.rpc.generate(6)
+        l1.daemon.wait_for_log('onchaind complete, forgetting peer')
+
+    def test_onchain_dust_out(self):
+        """Onchain handling of outgoing dust htlcs (they should fail)"""
+        # HTLC 1->2, 1 fails after it's irrevocably committed
+        disconnects = ['@WIRE_REVOKE_AND_ACK', 'permfail']
+        l1 = self.node_factory.get_node(disconnect=disconnects)
+        l2 = self.node_factory.get_node()
+
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
+        self.fund_channel(l1, l2, 10**6)
+
+        # Must be dust!
+        rhash = l2.rpc.invoice(1, 'onchain_dust_out')['rhash']
+        routestep = {
+            'msatoshi' : 1,
+            'id' : l2.info['id'],
+            'delay' : 5,
+            'channel': '1:1:1'
+        }
+
+        payfuture = self.executor.submit(l1.rpc.sendpay, to_json([routestep]), rhash)
+
+        # l1 will drop to chain.
+        l1.daemon.wait_for_log('permfail')
+        l1.daemon.wait_for_log('sendrawtx exit 0')
+        l1.bitcoin.rpc.generate(1)
+        l1.daemon.wait_for_log('-> ONCHAIND_OUR_UNILATERAL')
+        l2.daemon.wait_for_log('-> ONCHAIND_THEIR_UNILATERAL')
+
+        # We use 3 blocks for "reasonable depth"
+        bitcoind.rpc.generate(3)
+
+        # It should fail.
+        self.assertRaises(ValueError, payfuture.result, 5)
+
+        l1.daemon.wait_for_log('WIRE_PERMANENT_CHANNEL_FAILURE: missing in commitment tx')
+
+        # 6 later, l1 should collect its to-self payment.
+        bitcoind.rpc.generate(6)
+        l1.daemon.wait_for_log('Broadcasting OUR_DELAYED_RETURN_TO_WALLET .* to resolve OUR_UNILATERAL/DELAYED_OUTPUT_TO_US')
+        l1.daemon.wait_for_log('sendrawtx exit 0')
+
+        # 94 later, l2 is done.
+        bitcoind.rpc.generate(94)
+        l2.daemon.wait_for_log('onchaind complete, forgetting peer')
+
+        # Now, 100 blocks and l1 should be done.
+        bitcoind.rpc.generate(6)
+        l1.daemon.wait_for_log('onchaind complete, forgetting peer')
+
+        # Payment failed, BTW
+        assert l2.rpc.listinvoice('onchain_dust_out')[0]['complete'] == False
+
+    def test_onchain_timeout(self):
+        """Onchain handling of outgoing failed htlcs"""
+        # HTLC 1->2, 1 fails just after it's irrevocably committed
+        disconnects = ['+WIRE_REVOKE_AND_ACK', 'permfail']
+        l1 = self.node_factory.get_node(disconnect=disconnects)
+        l2 = self.node_factory.get_node()
+
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
+        self.fund_channel(l1, l2, 10**6)
+
+        rhash = l2.rpc.invoice(10**8, 'onchain_timeout')['rhash']
+        # We underpay, so it fails.
+        routestep = {
+            'msatoshi' : 10**8 - 1,
+            'id' : l2.info['id'],
+            'delay' : 5,
+            'channel': '1:1:1'
+        }
+
+        payfuture = self.executor.submit(l1.rpc.sendpay, to_json([routestep]), rhash)
+
+        # l1 will drop to chain.
+        l1.daemon.wait_for_log('permfail')
+        l1.daemon.wait_for_log('sendrawtx exit 0')
+        l1.bitcoin.rpc.generate(1)
+        l1.daemon.wait_for_log('-> ONCHAIND_OUR_UNILATERAL')
+        l2.daemon.wait_for_log('-> ONCHAIND_THEIR_UNILATERAL')
+
+        # Wait for timeout.
+        l1.daemon.wait_for_log('Propose handling OUR_UNILATERAL/DELAYED_OUTPUT_TO_US by OUR_DELAYED_RETURN_TO_WALLET .* in 6 blocks')
+        bitcoind.rpc.generate(6)
+
+        # (l1 will also collect its to-self payment.)
+        l1.daemon.wait_for_log('sendrawtx exit 0')
+        l1.daemon.wait_for_log('sendrawtx exit 0')
+
+        # We use 3 blocks for "reasonable depth"
+        bitcoind.rpc.generate(3)
+
+        # It should fail.
+        self.assertRaises(ValueError, payfuture.result, 5)
+
+        l1.daemon.wait_for_log('WIRE_PERMANENT_CHANNEL_FAILURE: timed out')
+
+        # 91 later, l2 is done.
+        bitcoind.rpc.generate(91)
+        l2.daemon.wait_for_log('onchaind complete, forgetting peer')
+
+        # Now, 100 blocks and l1 should be done.
+        bitcoind.rpc.generate(6)
+        l1.daemon.wait_for_log('onchaind complete, forgetting peer')
+
+        # Payment failed, BTW
+        assert l2.rpc.listinvoice('onchain_timeout')[0]['complete'] == False
+
+    def test_onchain_middleman(self):
+        # HTLC 1->2->3, 1->2 goes down after 2 gets preimage from 3.
+        disconnects = ['-WIRE_UPDATE_FULFILL_HTLC', 'permfail']
+        l1 = self.node_factory.get_node()
+        l2 = self.node_factory.get_node(disconnect=disconnects)
+        l3 = self.node_factory.get_node()
+
+        # l2 connects to both, so l1 can't reconnect and thus l2 drops to chain
+        l2.rpc.connect(l1.info['id'], 'localhost:{}'.format(l1.info['port']))
+        l2.rpc.connect(l3.info['id'], 'localhost:{}'.format(l3.info['port']))
+        self.fund_channel(l2, l1, 10**6)
+        self.fund_channel(l2, l3, 10**6)
+
+        # Give l1 some money to play with.
+        self.pay(l2, l1, 2 * 10**8)
+
+        # Must be bigger than dust!
+        rhash = l3.rpc.invoice(10**8, 'middleman')['rhash']
+        # Wait for route propagation.
+        l1.bitcoin.rpc.generate(5)
+        l1.daemon.wait_for_log('Received node_announcement for node {}'
+                               .format(l3.info['id']))
+
+        route = l1.rpc.getroute(l3.info['id'], 10**8, 1)["route"]
+        assert len(route) == 2
+
+        q = queue.Queue()
+
+        def try_pay():
+            try:
+                l1.rpc.sendpay(to_json(route), rhash, async=False)
+                q.put(None)
+            except Exception as err:
+                q.put(err)
+
+        t = threading.Thread(target=try_pay)
+        t.daemon = True
+        t.start()
+
+        # l2 will drop to chain.
+        l2.daemon.wait_for_log('sendrawtx exit 0')
+        l1.bitcoin.rpc.generate(1)
+        l2.daemon.wait_for_log('-> ONCHAIND_OUR_UNILATERAL')
+        l1.daemon.wait_for_log('-> ONCHAIND_THEIR_UNILATERAL')
+        l2.daemon.wait_for_log('OUR_UNILATERAL/THEIR_HTLC')
+
+        # l2 should fulfill HTLC onchain, and spend to-us (any order)
+        l2.daemon.wait_for_log('Propose handling OUR_UNILATERAL/THEIR_HTLC by OUR_HTLC_SUCCESS_TX .* in 0 blocks')
+        l2.daemon.wait_for_log('sendrawtx exit 0')
+
+        # Payment should succeed.
+        l1.bitcoin.rpc.generate(1)
+        l1.daemon.wait_for_log('THEIR_UNILATERAL/OUR_HTLC gave us preimage')
+        err = q.get(timeout = 10)
+        if err:
+            print("Got err from sendpay thread")
+            raise err
+        t.join(timeout=1)
+        assert not t.isAlive()
+
+        # After 4 more blocks, l2 can spend to-us.
+        l1.bitcoin.rpc.generate(4)
+        l2.daemon.wait_for_log('Broadcasting OUR_DELAYED_RETURN_TO_WALLET .* to resolve OUR_UNILATERAL/DELAYED_OUTPUT_TO_US')
+        l2.daemon.wait_for_log('sendrawtx exit 0')
+
+        # One more, HTLC tx is now spentable.
+        l1.bitcoin.rpc.generate(1)
+        l2.daemon.wait_for_log('Broadcasting OUR_DELAYED_RETURN_TO_WALLET .* to resolve OUR_HTLC_SUCCESS_TX/DELAYED_OUTPUT_TO_US')
+        l2.daemon.wait_for_log('sendrawtx exit 0')
+
+        # 100 blocks after last spend, l2 should be done.
+        l1.bitcoin.rpc.generate(100)
+        l2.daemon.wait_for_log('onchaind complete, forgetting peer')
+
+    def test_penalty_inhtlc(self):
+        """Test penalty transaction with an incoming HTLC"""
+        # We suppress each one after first commit; HTLC gets added not fulfilled.
+        l1 = self.node_factory.get_node(disconnect=['=WIRE_COMMITMENT_SIGNED-nocommit'], may_fail=True)
+        l2 = self.node_factory.get_node(disconnect=['=WIRE_COMMITMENT_SIGNED-nocommit'])
+
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
+        self.fund_channel(l1, l2, 10**6)
+
+        # Now, this will get stuck due to l1 commit being disabled..
+        t = self.pay(l1,l2,100000000,async=True)
+
+        # They should both have commitments blocked now.
+        l1.daemon.wait_for_log('=WIRE_COMMITMENT_SIGNED-nocommit')
+        l2.daemon.wait_for_log('=WIRE_COMMITMENT_SIGNED-nocommit')
+
+        # Make sure l1 got l2's commitment to the HTLC, and sent to master.
+        l1.daemon.wait_for_log('UPDATE WIRE_CHANNEL_GOT_COMMITSIG')
+
+        # Take our snapshot.
+        tx = l1.rpc.dev_sign_last_tx(l2.info['id'])['tx']
+
+        # Let them continue
+        l1.rpc.dev_reenable_commit(l2.info['id'])
+        l2.rpc.dev_reenable_commit(l1.info['id'])
+
+        # Should fulfill.
+        l1.daemon.wait_for_log('peer_in WIRE_UPDATE_FULFILL_HTLC')
+        l1.daemon.wait_for_log('peer_out WIRE_REVOKE_AND_ACK')
+
+        l2.daemon.wait_for_log('peer_out WIRE_UPDATE_FULFILL_HTLC')
+        l1.daemon.wait_for_log('peer_in WIRE_REVOKE_AND_ACK')
+
+        # Payment should now complete.
+        t.result(timeout=10)
+
+        # Now we really mess things up!
+        bitcoind.rpc.sendrawtransaction(tx)
+        bitcoind.rpc.generate(1)
+
+        l2.daemon.wait_for_log('-> ONCHAIND_CHEATED')
+        # FIXME: l1 should try to stumble along!
+
+        # l2 should spend all of the outputs (except to-us).
+        # Could happen in any order, depending on commitment tx.
+        l2.daemon.wait_for_logs(['Propose handling THEIR_REVOKED_UNILATERAL/DELAYED_OUTPUT_TO_THEM by OUR_PENALTY_TX .* in 0 blocks',
+                                 'sendrawtx exit 0',
+                                 'Propose handling THEIR_REVOKED_UNILATERAL/THEIR_HTLC by OUR_PENALTY_TX .* in 0 blocks',
+                                 'sendrawtx exit 0'])
+
+        # FIXME: test HTLC tx race!
+
+        # 100 blocks later, all resolved.
         bitcoind.rpc.generate(100)
+
+        # FIXME: Test wallet balance...
+        l2.daemon.wait_for_log('onchaind complete, forgetting peer')
+
+    @unittest.skip("flaky test causing CI fails too often")
+    def test_penalty_outhtlc(self):
+        """Test penalty transaction with an outgoing HTLC"""
+        # First we need to get funds to l2, so suppress after second.
+        l1 = self.node_factory.get_node(disconnect=['=WIRE_COMMITMENT_SIGNED*3-nocommit'], may_fail=True)
+        l2 = self.node_factory.get_node(disconnect=['=WIRE_COMMITMENT_SIGNED*3-nocommit'])
+
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
+        self.fund_channel(l1, l2, 10**6)
+
+        # Move some across to l2.
+        self.pay(l1,l2,200000000)
+
+        assert not l1.daemon.is_in_log('=WIRE_COMMITMENT_SIGNED')
+        assert not l2.daemon.is_in_log('=WIRE_COMMITMENT_SIGNED')
+
+        # Now, this will get stuck due to l1 commit being disabled..
+        t = self.pay(l2,l1,100000000,async=True)
+        # Make sure we get signature from them.
+        l1.daemon.wait_for_log('peer_in WIRE_UPDATE_ADD_HTLC')
+        l1.daemon.wait_for_log('peer_in WIRE_COMMITMENT_SIGNED')
+
+        # They should both have commitments blocked now.
+        l1.daemon.wait_for_log('dev_disconnect: =WIRE_COMMITMENT_SIGNED')
+        l2.daemon.wait_for_log('dev_disconnect: =WIRE_COMMITMENT_SIGNED')
+
+        # Take our snapshot.
+        tx = l1.rpc.dev_sign_last_tx(l2.info['id'])['tx']
+
+        # Let the continue
+        l1.rpc.dev_reenable_commit(l2.info['id'])
+        l2.rpc.dev_reenable_commit(l1.info['id'])
+
+        # Thread should complete.
+        t.result(timeout=10)
+
+        # Make sure both sides got revoke_and_ack for final.
+        l1.daemon.wait_for_log('peer_in WIRE_REVOKE_AND_ACK')
+        l2.daemon.wait_for_log('peer_in WIRE_REVOKE_AND_ACK')
+
+        # Now we really mess things up!
+        bitcoind.rpc.sendrawtransaction(tx)
+        bitcoind.rpc.generate(1)
+
+        l2.daemon.wait_for_log('-> ONCHAIND_CHEATED')
+        # FIXME: l1 should try to stumble along!
+
+        # l2 should spend all of the outputs (except to-us).
+        # Could happen in any order, depending on commitment tx.
+        l2.daemon.wait_for_logs(['Ignoring output.*: THEIR_REVOKED_UNILATERAL/OUTPUT_TO_US',
+                                 'Propose handling THEIR_REVOKED_UNILATERAL/DELAYED_OUTPUT_TO_THEM by OUR_PENALTY_TX .* in 0 blocks',
+                                 'sendrawtx exit 0',
+                                 'Propose handling THEIR_REVOKED_UNILATERAL/OUR_HTLC by OUR_PENALTY_TX .* in 0 blocks',
+                                 'sendrawtx exit 0'])
+
+        # FIXME: test HTLC tx race!
+
+        # 100 blocks later, all resolved.
+        bitcoind.rpc.generate(100)
+
+        # FIXME: Test wallet balance...
         l2.daemon.wait_for_log('onchaind complete, forgetting peer')
 
     def test_permfail_new_commit(self):
@@ -450,12 +825,12 @@ class LightningDTests(BaseLightningDTests):
         l1 = self.node_factory.get_node()
         l2 = self.node_factory.get_node(disconnect=disconnects)
 
-        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
         self.fund_channel(l1, l2, 10**6)
 
         # This will fail at l2's end.
         t=self.pay(l1,l2,200000000,async=True)
-        
+
         l2.daemon.wait_for_log('dev_disconnect permfail')
         l2.daemon.wait_for_log('sendrawtx exit 0')
         bitcoind.rpc.generate(1)
@@ -465,8 +840,6 @@ class LightningDTests(BaseLightningDTests):
         l2.daemon.wait_for_log('Propose handling OUR_UNILATERAL/THEIR_HTLC by THEIR_HTLC_TIMEOUT_TO_THEM \\(IGNORING\\) in 5 blocks')
         l1.daemon.wait_for_log('Propose handling THEIR_UNILATERAL/OUR_HTLC by OUR_HTLC_TIMEOUT_TO_US (.*) in 5 blocks')
 
-        # FIXME: Implement FULFILL!
-
         # OK, time out HTLC.
         bitcoind.rpc.generate(5)
         l1.daemon.wait_for_log('sendrawtx exit 0')
@@ -474,22 +847,20 @@ class LightningDTests(BaseLightningDTests):
         l1.daemon.wait_for_log('Resolved THEIR_UNILATERAL/OUR_HTLC by our proposal OUR_HTLC_TIMEOUT_TO_US')
         l2.daemon.wait_for_log('Ignoring output.*: OUR_UNILATERAL/THEIR_HTLC')
 
-        # FIXME: This doesn't work :(
-        # FIXME: sendpay command should time out!
         t.cancel()
 
         # Now, 100 blocks it should be done.
         bitcoind.rpc.generate(100)
         l1.daemon.wait_for_log('onchaind complete, forgetting peer')
         l2.daemon.wait_for_log('onchaind complete, forgetting peer')
-        
+
     def test_permfail_htlc_in(self):
         # Test case where we fail with unsettled incoming HTLC.
         disconnects = ['-WIRE_UPDATE_FULFILL_HTLC', 'permfail']
         l1 = self.node_factory.get_node()
         l2 = self.node_factory.get_node(disconnect=disconnects)
 
-        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
         self.fund_channel(l1, l2, 10**6)
 
         # This will fail at l2's end.
@@ -503,32 +874,34 @@ class LightningDTests(BaseLightningDTests):
         l2.daemon.wait_for_log('-> ONCHAIND_OUR_UNILATERAL')
         l2.daemon.wait_for_log('Propose handling OUR_UNILATERAL/THEIR_HTLC by THEIR_HTLC_TIMEOUT_TO_THEM \\(IGNORING\\) in 5 blocks')
         l1.daemon.wait_for_log('Propose handling THEIR_UNILATERAL/OUR_HTLC by OUR_HTLC_TIMEOUT_TO_US (.*) in 5 blocks')
-
-        # FIXME: Implement FULFILL!
-
-        # OK, time out HTLC.
-        bitcoind.rpc.generate(5)
-        l1.daemon.wait_for_log('sendrawtx exit 0')
+        # l2 then gets preimage, uses it instead of ignoring
+        l2.daemon.wait_for_log('Propose handling OUR_UNILATERAL/THEIR_HTLC by OUR_HTLC_SUCCESS_TX .* in 0 blocks')
+        l2.daemon.wait_for_log('sendrawtx exit 0')
         bitcoind.rpc.generate(1)
-        l1.daemon.wait_for_log('Resolved THEIR_UNILATERAL/OUR_HTLC by our proposal OUR_HTLC_TIMEOUT_TO_US')
-        l2.daemon.wait_for_log('Ignoring output.*: OUR_UNILATERAL/THEIR_HTLC')
 
-        # FIXME: This doesn't work :(
-        # FIXME: sendpay command should time out!
+        # OK, l1 sees l2 fulfill htlc.
+        l1.daemon.wait_for_log('THEIR_UNILATERAL/OUR_HTLC gave us preimage')
+        l2.daemon.wait_for_log('Propose handling OUR_HTLC_SUCCESS_TX/DELAYED_OUTPUT_TO_US by OUR_DELAYED_RETURN_TO_WALLET .* in 6 blocks')
+        bitcoind.rpc.generate(6)
+
+        l2.daemon.wait_for_log('sendrawtx exit 0')
+
         t.cancel()
 
         # Now, 100 blocks it should be done.
-        bitcoind.rpc.generate(100)
+        bitcoind.rpc.generate(94)
         l1.daemon.wait_for_log('onchaind complete, forgetting peer')
+        assert not l2.daemon.is_in_log('onchaind complete, forgetting peer')
+        bitcoind.rpc.generate(6)
         l2.daemon.wait_for_log('onchaind complete, forgetting peer')
-        
+
     def test_permfail_htlc_out(self):
         # Test case where we fail with unsettled outgoing HTLC.
         disconnects = ['+WIRE_REVOKE_AND_ACK', 'permfail']
         l1 = self.node_factory.get_node()
         l2 = self.node_factory.get_node(disconnect=disconnects)
 
-        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
         self.fund_channel(l2, l1, 10**6)
 
         # This will fail at l2's end.
@@ -540,25 +913,35 @@ class LightningDTests(BaseLightningDTests):
         l1.daemon.wait_for_log('Their unilateral tx, old commit point')
         l1.daemon.wait_for_log('-> ONCHAIND_THEIR_UNILATERAL')
         l2.daemon.wait_for_log('-> ONCHAIND_OUR_UNILATERAL')
-        l2.daemon.wait_for_log('Propose handling OUR_UNILATERAL/OUR_HTLC by OUR_HTLC_TIMEOUT_TO_US \\(.*\\) in 5 blocks')
+        l2.daemon.wait_for_logs(['Propose handling OUR_UNILATERAL/OUR_HTLC by OUR_HTLC_TIMEOUT_TO_US \\(.*\\) in 5 blocks',
+                                 'Propose handling OUR_UNILATERAL/DELAYED_OUTPUT_TO_US by OUR_DELAYED_RETURN_TO_WALLET .* in 6 blocks'])
+
         l1.daemon.wait_for_log('Propose handling THEIR_UNILATERAL/THEIR_HTLC by THEIR_HTLC_TIMEOUT_TO_THEM \\(IGNORING\\) in 5 blocks')
+        # l1 then gets preimage, uses it instead of ignoring
+        l1.daemon.wait_for_log('Propose handling THEIR_UNILATERAL/THEIR_HTLC by THEIR_HTLC_FULFILL_TO_US .* in 0 blocks')
+        l1.daemon.wait_for_log('sendrawtx exit 0')
 
-        # FIXME: Implement FULFILL!
-
-        # OK, time out HTLC.
-        bitcoind.rpc.generate(5)
-        l2.daemon.wait_for_log('sendrawtx exit 0')
+        # l2 sees l1 fulfill tx.
         bitcoind.rpc.generate(1)
-        l1.daemon.wait_for_log('Ignoring output.*: THEIR_UNILATERAL/THEIR_HTLC')
-        l2.daemon.wait_for_log('Resolved OUR_UNILATERAL/OUR_HTLC by our proposal OUR_HTLC_TIMEOUT_TO_US')
 
-        # FIXME: This doesn't work :(
-        # FIXME: sendpay command should time out!
+        l2.daemon.wait_for_log('OUR_UNILATERAL/OUR_HTLC gave us preimage')
         t.cancel()
 
-        # Now, 100 blocks it should be done.
-        bitcoind.rpc.generate(100)
+        # l2 can send OUR_DELAYED_RETURN_TO_WALLET after 5 more blocks.
+        bitcoind.rpc.generate(5)
+        l2.daemon.wait_for_log('Broadcasting OUR_DELAYED_RETURN_TO_WALLET .* to resolve OUR_UNILATERAL/DELAYED_OUTPUT_TO_US')
+        l2.daemon.wait_for_log('sendrawtx exit 0')
+
+        # Now, 100 blocks they should be done.
+        bitcoind.rpc.generate(93)
+        assert not l1.daemon.is_in_log('onchaind complete, forgetting peer')
+        assert not l2.daemon.is_in_log('onchaind complete, forgetting peer')
+        bitcoind.rpc.generate(1)
         l1.daemon.wait_for_log('onchaind complete, forgetting peer')
+        assert not l2.daemon.is_in_log('onchaind complete, forgetting peer')
+        bitcoind.rpc.generate(5)
+        assert not l2.daemon.is_in_log('onchaind complete, forgetting peer')
+        bitcoind.rpc.generate(1)
         l2.daemon.wait_for_log('onchaind complete, forgetting peer')
 
     def test_gossip_jsonrpc(self):
@@ -628,11 +1011,11 @@ class LightningDTests(BaseLightningDTests):
         l1 = self.node_factory.get_node(disconnect=disconnects)
         l2 = self.node_factory.get_node()
         l3 = self.node_factory.get_node()
-        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
         l1.openchannel(l2, 20000)
 
         # Now open new channels and everybody should sync
-        l2.rpc.connect('localhost', l3.info['port'], l3.info['id'])
+        l2.rpc.connect(l3.info['id'], 'localhost:{}'.format(l3.info['port']))
         l2.openchannel(l3, 20000)
 
         # Settle the gossip
@@ -644,8 +1027,8 @@ class LightningDTests(BaseLightningDTests):
         l2 = self.node_factory.get_node()
         l3 = self.node_factory.get_node()
 
-        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
-        l1.rpc.connect('localhost', l3.info['port'], l3.info['id'])
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
+        l1.rpc.connect(l3.info['id'], 'localhost:{}'.format(l3.info['port']))
         self.fund_channel(l1, l2, 10**6)
         self.fund_channel(l1, l3, 10**6)
 
@@ -656,7 +1039,7 @@ class LightningDTests(BaseLightningDTests):
 
         for i in range(len(nodes)-1):
             src, dst = nodes[i], nodes[i+1]
-            src.rpc.connect('localhost', dst.info['port'], dst.info['id'])
+            src.rpc.connect(dst.info['id'], 'localhost:{}'.format(dst.info['port']))
             src.openchannel(dst, 20000)
 
         # Allow announce messages.
@@ -695,11 +1078,11 @@ class LightningDTests(BaseLightningDTests):
         # Connect 1 -> 2 -> 3.
         l1,l2 = self.connect()
         l3 = self.node_factory.get_node()
-        ret = l2.rpc.connect('localhost', l3.info['port'], l3.info['id'])
+        ret = l2.rpc.connect(l3.info['id'], 'localhost:{}'.format(l3.info['port']))
 
         assert ret['id'] == l3.info['id']
 
-        l3.daemon.wait_for_log('WIRE_GOSSIPCTL_NEW_PEER')
+        l3.daemon.wait_for_log('WIRE_GOSSIPCTL_HANDLE_PEER')
         self.fund_channel(l1, l2, 10**6)
         self.fund_channel(l2, l3, 10**6)
 
@@ -750,20 +1133,25 @@ class LightningDTests(BaseLightningDTests):
         l1.rpc.sendpay(to_json(route), rhash)
 
     def test_disconnect(self):
-        # These should all make us fail.
+        # These should all make us fail, and retry.
+        # FIXME: Configure short timeout for reconnect!
         disconnects = ['-WIRE_INIT',
                        '@WIRE_INIT',
                        '+WIRE_INIT']
         l1 = self.node_factory.get_node(disconnect=disconnects)
         l2 = self.node_factory.get_node()
-        for d in disconnects:
-            self.assertRaises(ValueError, l1.rpc.connect,
-                              'localhost', l2.info['port'], l2.info['id'])
-            assert l1.rpc.getpeer(l2.info['id']) == None
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
 
+/*<<<<<<< HEAD
         # Now we should connect normally.
         l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
         l1.daemon.stop()
+=======*/
+        # Should have 3 connect fails.
+        for d in disconnects:
+            l1.daemon.wait_for_log('Failed connected out for {}, will try again'
+                                   .format(l2.info['id']))
+//>>>>>>> ElementsProject/master
 
         # Now error on funder side duringchannel open.
         disconnects = ['-WIRE_OPEN_CHANNEL',
@@ -780,7 +1168,7 @@ class LightningDTests(BaseLightningDTests):
         l1.rpc.addfunds(tx)
 
         for d in disconnects:
-            l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+            l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
             self.assertRaises(ValueError, l1.rpc.fundchannel, l2.info['id'], 20000)
             assert l1.rpc.getpeer(l2.info['id']) == None
 
@@ -800,7 +1188,7 @@ class LightningDTests(BaseLightningDTests):
         l1.rpc.addfunds(tx)
 
         for d in disconnects:
-            l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+            l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
             self.assertRaises(ValueError, l1.rpc.fundchannel, l2.info['id'], 20000)
             assert l1.rpc.getpeer(l2.info['id']) == None
 
@@ -818,7 +1206,7 @@ class LightningDTests(BaseLightningDTests):
         tx = l1.bitcoin.rpc.getrawtransaction(txid)
         l1.rpc.addfunds(tx)
 
-        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
         self.assertRaises(ValueError, l1.rpc.fundchannel, l2.info['id'], 20000)
 
         # Fundee remembers, funder doesn't.
@@ -836,7 +1224,7 @@ class LightningDTests(BaseLightningDTests):
         tx = l1.bitcoin.rpc.getrawtransaction(txid)
         l1.rpc.addfunds(tx)
 
-        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
         l1.rpc.fundchannel(l2.info['id'], 20000)
 
         # They haven't forgotten each other.
@@ -859,33 +1247,29 @@ class LightningDTests(BaseLightningDTests):
         disconnects = ['0WIRE_ACCEPT_CHANNEL']
         l1 = self.node_factory.get_node()
         l2 = self.node_factory.get_node(disconnect=disconnects)
-        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
 
         addr = l1.rpc.newaddr()['address']
         txid = l1.bitcoin.rpc.sendtoaddress(addr, 20000 / 10**6)
         tx = l1.bitcoin.rpc.getrawtransaction(txid)
         l1.rpc.addfunds(tx)
 
-        # It closes on us, we forget about it.
+        # l2 closes on l1, l1 forgets.
         self.assertRaises(ValueError, l1.rpc.fundchannel, l2.info['id'], 20000)
         assert l1.rpc.getpeer(l2.info['id']) == None
 
         # Reconnect.
-        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
 
-        # Truncate (hack to release old openingd).
-        with open(os.path.join(l2.daemon.lightning_dir, 'dev_disconnect'), "w"):
-            pass
-
-        # We should get a message about old one exiting.
-        l2.daemon.wait_for_log('Subdaemon lightning_openingd died')
+        # We should get a message about reconnecting.
+        l2.daemon.wait_for_log('Peer has reconnected, state OPENINGD')
 
         # Should work fine.
         l1.rpc.fundchannel(l2.info['id'], 20000)
         l1.daemon.wait_for_log('sendrawtx exit 0')
 
-        # Just to be sure, second openingd should die too.
-        l2.daemon.wait_for_log('Subdaemon lightning_openingd died \(0\)')
+        # Just to be sure, second openingd hand over to channeld.
+        l2.daemon.wait_for_log('lightning_openingd.*REPLY WIRE_OPENING_FUNDEE_REPLY with 2 fds')
 
     def test_reconnect_normal(self):
         # Should reconnect fine even if locked message gets lost.
@@ -894,16 +1278,38 @@ class LightningDTests(BaseLightningDTests):
                        '+WIRE_FUNDING_LOCKED']
         l1 = self.node_factory.get_node(disconnect=disconnects)
         l2 = self.node_factory.get_node()
-        ret = l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        ret = l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
 
         self.fund_channel(l1, l2, 10**6)
 
-    def test_reconnect_sender_add(self):
+    def test_reconnect_sender_add1(self):
         # Fail after add is OK, will cause payment failure though.
-        disconnects = ['-WIRE_UPDATE_ADD_HTLC',
-                       '@WIRE_UPDATE_ADD_HTLC',
-                       '+WIRE_UPDATE_ADD_HTLC',
-                       '-WIRE_COMMITMENT_SIGNED',
+        disconnects = ['-WIRE_UPDATE_ADD_HTLC-nocommit',
+                       '+WIRE_UPDATE_ADD_HTLC-nocommit',
+                       '@WIRE_UPDATE_ADD_HTLC-nocommit']
+
+        l1 = self.node_factory.get_node(disconnect=disconnects)
+        l2 = self.node_factory.get_node()
+        ret = l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
+
+        self.fund_channel(l1, l2, 10**6)
+
+        amt = 200000000
+        rhash = l2.rpc.invoice(amt, 'test_reconnect_sender_add1')['rhash']
+        assert l2.rpc.listinvoice('test_reconnect_sender_add1')[0]['complete'] == False
+
+        route = [ { 'msatoshi' : amt, 'id' : l2.info['id'], 'delay' : 5, 'channel': '1:1:1'} ]
+
+        for i in range(0,len(disconnects)):
+            self.assertRaises(ValueError, l1.rpc.sendpay, to_json(route), rhash)
+            # Wait for reconnection.
+            l1.daemon.wait_for_log('Already have funding locked in')
+
+        # This will send commit, so will reconnect as required.
+        l1.rpc.sendpay(to_json(route), rhash)
+
+    def test_reconnect_sender_add(self):
+        disconnects = ['-WIRE_COMMITMENT_SIGNED',
                        '@WIRE_COMMITMENT_SIGNED',
                        '+WIRE_COMMITMENT_SIGNED',
                        '-WIRE_REVOKE_AND_ACK',
@@ -911,7 +1317,7 @@ class LightningDTests(BaseLightningDTests):
                        '+WIRE_REVOKE_AND_ACK']
         l1 = self.node_factory.get_node(disconnect=disconnects)
         l2 = self.node_factory.get_node()
-        ret = l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        ret = l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
 
         self.fund_channel(l1, l2, 10**6)
 
@@ -920,27 +1326,11 @@ class LightningDTests(BaseLightningDTests):
         assert l2.rpc.listinvoice('testpayment')[0]['complete'] == False
 
         route = [ { 'msatoshi' : amt, 'id' : l2.info['id'], 'delay' : 5, 'channel': '1:1:1'} ]
-        # First time, it will fail because it doesn't send commit.
-        self.assertRaises(ValueError, l1.rpc.sendpay, to_json(route), rhash)
-        # Wait for reconnection.
-        l1.daemon.wait_for_log('Already have funding locked in')
-
-        # These are *racy* whether they succeeds or not: does the commit timer
-        # fire before it tries reading and notices fd is closed?
-        for i in range(1,3):
-            try:
-                l1.rpc.sendpay(to_json(route), rhash)
-                assert l2.rpc.listinvoice('testpayment')[0]['complete'] == True
-                rhash = l2.rpc.invoice(amt, 'testpayment' + str(i))['rhash']
-            except:
-                pass
-            # Wait for reconnection.
-            l1.daemon.wait_for_log('Already have funding locked in')
 
         # This will send commit, so will reconnect as required.
         l1.rpc.sendpay(to_json(route), rhash)
         # Should have printed this for every reconnect.
-        for i in range(3,len(disconnects)):
+        for i in range(0,len(disconnects)):
             l1.daemon.wait_for_log('Already have funding locked in')
 
     def test_reconnect_receiver_add(self):
@@ -952,7 +1342,7 @@ class LightningDTests(BaseLightningDTests):
                        '+WIRE_REVOKE_AND_ACK']
         l1 = self.node_factory.get_node()
         l2 = self.node_factory.get_node(disconnect=disconnects)
-        ret = l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        ret = l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
 
         self.fund_channel(l1, l2, 10**6)
 
@@ -967,9 +1357,12 @@ class LightningDTests(BaseLightningDTests):
         assert l2.rpc.listinvoice('testpayment2')[0]['complete'] == True
 
     def test_reconnect_receiver_fulfill(self):
-        disconnects = ['-WIRE_UPDATE_FULFILL_HTLC',
-                       '@WIRE_UPDATE_FULFILL_HTLC',
+        # Ordering matters: after +WIRE_UPDATE_FULFILL_HTLC, channeld
+        # will continue and try to send WIRE_COMMITMENT_SIGNED: if
+        # that's the next failure, it will do two in one run.
+        disconnects = ['@WIRE_UPDATE_FULFILL_HTLC',
                        '+WIRE_UPDATE_FULFILL_HTLC',
+                       '-WIRE_UPDATE_FULFILL_HTLC',
                        '-WIRE_COMMITMENT_SIGNED',
                        '@WIRE_COMMITMENT_SIGNED',
                        '+WIRE_COMMITMENT_SIGNED',
@@ -978,7 +1371,7 @@ class LightningDTests(BaseLightningDTests):
                        '+WIRE_REVOKE_AND_ACK']
         l1 = self.node_factory.get_node()
         l2 = self.node_factory.get_node(disconnect=disconnects)
-        ret = l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        ret = l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
 
         self.fund_channel(l1, l2, 10**6)
 
@@ -998,7 +1391,7 @@ class LightningDTests(BaseLightningDTests):
                        '+WIRE_SHUTDOWN']
         l1 = self.node_factory.get_node(disconnect=disconnects)
         l2 = self.node_factory.get_node()
-        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
 
         self.fund_channel(l1, l2, 10**6)
         self.pay(l1,l2,200000000)
@@ -1025,7 +1418,7 @@ class LightningDTests(BaseLightningDTests):
                        '+WIRE_CLOSING_SIGNED']
         l1 = self.node_factory.get_node(disconnect=disconnects)
         l2 = self.node_factory.get_node()
-        l1.rpc.connect('localhost', l2.info['port'], l2.info['id'])
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
 
         self.fund_channel(l1, l2, 10**6)
         self.pay(l1,l2,200000000)
@@ -1118,8 +1511,12 @@ class LightningDTests(BaseLightningDTests):
         assert outputs[2] == 10000000
 
     def test_channel_persistence(self):
-        # Start two nodes and open a channel (to remember)
-        l1, l2 = self.connect()
+        # Start two nodes and open a channel (to remember). l2 will
+        # mysteriously die while committing the first HTLC so we can
+        # check that HTLCs reloaded from the DB work.
+        l1 = self.node_factory.get_node()
+        l2 = self.node_factory.get_node(disconnect=['=WIRE_COMMITMENT_SIGNED-nocommit'])
+        l1.rpc.connect(l2.info['id'], 'localhost:{}'.format(l2.info['port']))
 
         # Neither node should have a channel open, they are just connected
         for n in (l1, l2):
@@ -1134,14 +1531,18 @@ class LightningDTests(BaseLightningDTests):
         for n in (l1, l2):
             assert(n.db_query('SELECT COUNT(id) as count FROM channels;')[0]['count'] == 1)
 
-        # Perform a payment so we have something to restore
-        self.pay(l1, l2, 10000)
-        time.sleep(1)
-        assert l1.rpc.getpeers()['peers'][0]['msatoshi_to_us'] == 99990000
-        assert l2.rpc.getpeers()['peers'][0]['msatoshi_to_us'] == 10000
+        # Fire off a sendpay request, it'll get interrupted by a restart
+        fut = self.executor.submit(self.pay, l1, l2, 10000)
+        # Wait for it to be committed to, i.e., stored in the DB
+        l1.daemon.wait_for_log('peer_in WIRE_COMMITMENT_SIGNED')
 
         # Stop l2, l1 will reattempt to connect
-        l2.daemon.stop()
+        print("Killing l2 in mid HTLC")
+        l2.daemon.proc.terminate()
+
+        # Clear the disconnect and timer stop so we can proceed normally
+        l2.daemon.cmd_line = [e for e in l2.daemon.cmd_line if 'disconnect' not in e]
+        print(" ".join(l2.daemon.cmd_line + ['--dev-debugger=channeld']))
 
         # Wait for l1 to notice
         wait_for(lambda: not l1.rpc.getpeers()['peers'][0]['connected'])
@@ -1149,6 +1550,9 @@ class LightningDTests(BaseLightningDTests):
         # Now restart l1 and it should reload peers/channels from the DB
         l2.daemon.start()
         wait_for(lambda: len(l2.rpc.getpeers()['peers']) == 1)
+
+        # Wait for the restored HTLC to finish
+        wait_for(lambda: l1.rpc.getpeers()['peers'][0]['msatoshi_to_us'] == 99990000, interval=1)
 
         wait_for(lambda: len([p for p in l1.rpc.getpeers()['peers'] if p['connected']]), interval=1)
         wait_for(lambda: len([p for p in l2.rpc.getpeers()['peers'] if p['connected']]), interval=1)
@@ -1160,7 +1564,7 @@ class LightningDTests(BaseLightningDTests):
         assert l2.rpc.getpeers()['peers'][0]['msatoshi_to_us'] == 20000
 
         # Finally restart l1, and make sure it remembers
-        l1.daemon.stop()
+        l1.stop()
         l1.daemon.start()
         assert l1.rpc.getpeers()['peers'][0]['msatoshi_to_us'] == 99980000
 
@@ -1170,8 +1574,8 @@ class LightningDTests(BaseLightningDTests):
         l3 = self.node_factory.get_node()
 
         # l2 connects to both, so l1 can't reconnect and thus l2 drops to chain
-        l2.rpc.connect('localhost', l1.info['port'], l1.info['id'])
-        l2.rpc.connect('localhost', l3.info['port'], l3.info['id'])
+        l2.rpc.connect(l1.info['id'], 'localhost:{}'.format(l1.info['port']))
+        l2.rpc.connect(l3.info['id'], 'localhost:{}'.format(l3.info['port']))
         self.fund_channel(l2, l1, 10**6)
         self.fund_channel(l2, l3, 10**6)
 

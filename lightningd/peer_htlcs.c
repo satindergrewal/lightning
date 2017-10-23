@@ -18,6 +18,7 @@
 #include <lightningd/peer_control.h>
 #include <lightningd/peer_htlcs.h>
 #include <lightningd/subd.h>
+#include <onchaind/gen_onchain_wire.h>
 #include <onchaind/onchain_wire.h>
 #include <wire/gen_onion_wire.h>
 
@@ -55,7 +56,9 @@ static bool htlc_in_update_state(struct peer *peer,
 	if (!state_update_ok(peer, hin->hstate, newstate, hin->key.id, "in"))
 		return false;
 
-	/* FIXME: db commit */
+	if (!wallet_htlc_update(peer->ld->wallet, hin->dbid, newstate, hin->preimage))
+		return false;
+
 	hin->hstate = newstate;
 	htlc_in_check(hin, __func__);
 	return true;
@@ -68,28 +71,12 @@ static bool htlc_out_update_state(struct peer *peer,
 	if (!state_update_ok(peer, hout->hstate, newstate, hout->key.id, "out"))
 		return false;
 
-	/* FIXME: db commit */
+	if (!wallet_htlc_update(peer->ld->wallet, hout->dbid, newstate, NULL))
+		return false;
+
 	hout->hstate = newstate;
 	htlc_out_check(hout, __func__);
 	return true;
-}
-
-/* This is where we write to the database the minimal HTLC info
- * required to do penalty transaction */
-static void save_htlc_stub(struct lightningd *ld,
-			   struct peer *peer,
-			   enum side owner,
-			   u32 cltv_value,
-			   const struct sha256 *payment_hash)
-{
-	size_t n = tal_count(peer->htlcs);
-	tal_resize(&peer->htlcs, n+1);
-	peer->htlcs[n].owner = owner;
-	peer->htlcs[n].cltv_expiry = cltv_value;
-	ripemd160(&peer->htlcs[n].ripemd,
-		  payment_hash->u.u8, sizeof(payment_hash->u));
-
-	/* FIXME: save to db instead! */
 }
 
 static void fail_in_htlc(struct htlc_in *hin,
@@ -160,7 +147,7 @@ static u8 *make_failmsg(const tal_t *ctx, u64 msatoshi,
 	case WIRE_FEE_INSUFFICIENT:
 		return towire_fee_insufficient(ctx, msatoshi, channel_update);
 	case WIRE_INCORRECT_CLTV_EXPIRY:
-		/* FIXME: ctlv! */
+		/* FIXME: cltv! */
 		return towire_incorrect_cltv_expiry(ctx, 0, channel_update);
 	case WIRE_EXPIRY_TOO_SOON:
 		return towire_expiry_too_soon(ctx, channel_update);
@@ -171,7 +158,7 @@ static u8 *make_failmsg(const tal_t *ctx, u64 msatoshi,
 	case WIRE_FINAL_EXPIRY_TOO_SOON:
 		return towire_final_expiry_too_soon(ctx);
 	case WIRE_FINAL_INCORRECT_CLTV_EXPIRY:
-		/* FIXME: ctlv! */
+		/* FIXME: cltv! */
 		return towire_final_incorrect_cltv_expiry(ctx, 0);
 	case WIRE_FINAL_INCORRECT_HTLC_AMOUNT:
 		return towire_final_incorrect_htlc_amount(ctx, msatoshi);
@@ -263,14 +250,14 @@ static bool check_amount(struct htlc_in *hin,
  *     `outgoing_cltv_value` whether it is the final hop or not, to avoid
  *     leaking that information.
  */
-static bool check_ctlv(struct htlc_in *hin,
-		       u32 ctlv_expiry, u32 outgoing_cltv_value, u32 delta)
+static bool check_cltv(struct htlc_in *hin,
+		       u32 cltv_expiry, u32 outgoing_cltv_value, u32 delta)
 {
-	if (ctlv_expiry - delta == outgoing_cltv_value)
+	if (cltv_expiry - delta == outgoing_cltv_value)
 		return true;
 	log_debug(hin->key.peer->ld->log, "HTLC %"PRIu64" incorrect CLTV:"
 		  " %u in, %u out, delta reqd %u",
-		  hin->key.id, ctlv_expiry, outgoing_cltv_value, delta);
+		  hin->key.id, cltv_expiry, outgoing_cltv_value, delta);
 	return false;
 }
 
@@ -284,10 +271,21 @@ static void fulfill_htlc(struct htlc_in *hin, const struct preimage *preimage)
 	/* We update state now to signal it's in progress, for persistence. */
 	htlc_in_update_state(hin->key.peer, hin, SENT_REMOVE_HTLC);
 
-	/* FIXME: fail the peer if it doesn't tell us that htlc fulfill is
-	 * committed before deadline.
-	 */
-	msg = towire_channel_fulfill_htlc(hin->key.peer, hin->key.id, preimage);
+	/* No owner?  We'll either send to channeld in peer_htlcs, or
+	 * onchaind in onchaind_tell_fulfill. */
+	if (!hin->key.peer->owner) {
+		log_debug(hin->key.peer->log, "HTLC fulfilled, but no owner.");
+		return;
+	}
+
+	if (peer_state_on_chain(hin->key.peer->state)) {
+		msg = towire_onchain_known_preimage(hin, preimage);
+	} else {
+		/* FIXME: fail the peer if it doesn't tell us that htlc
+		 * fulfill is committed before deadline.
+		 */
+		msg = towire_channel_fulfill_htlc(hin, hin->key.id, preimage);
+	}
 	subd_send_msg(hin->key.peer->owner, take(msg));
 }
 
@@ -317,14 +315,14 @@ static void handle_localpay(struct htlc_in *hin,
 
 	/* BOLT #4:
 	 *
-	 * If the `outgoing_cltv_value` does not match the `ctlv_expiry` of
+	 * If the `outgoing_cltv_value` does not match the `cltv_expiry` of
 	 * the HTLC at the final hop:
 	 *
 	 * 1. type: 18 (`final_incorrect_cltv_expiry`)
 	 * 2. data:
 	 *   * [`4`:`cltv_expiry`]
 	 */
-	if (!check_ctlv(hin, cltv_expiry, outgoing_cltv_value, 0)) {
+	if (!check_cltv(hin, cltv_expiry, outgoing_cltv_value, 0)) {
 		failcode = WIRE_FINAL_INCORRECT_CLTV_EXPIRY;
 		goto fail;
 	}
@@ -399,7 +397,7 @@ static void hout_subd_died(struct htlc_out *hout)
 
 /* This is where channeld gives us the HTLC id, and also reports if it
  * failed immediately. */
-static bool rcvd_htlc_reply(struct subd *subd, const u8 *msg, const int *fds,
+static void rcvd_htlc_reply(struct subd *subd, const u8 *msg, const int *fds,
 			    struct htlc_out *hout)
 {
 	u16 failure_code;
@@ -411,7 +409,7 @@ static bool rcvd_htlc_reply(struct subd *subd, const u8 *msg, const int *fds,
 					       &failurestr)) {
 		peer_internal_error(subd->peer, "Bad channel_offer_htlc_reply");
 		tal_free(hout);
-		return false;
+		return;
 	}
 
 	if (failure_code) {
@@ -423,7 +421,7 @@ static bool rcvd_htlc_reply(struct subd *subd, const u8 *msg, const int *fds,
 			payment_failed(hout->key.peer->ld, hout, localfail);
 		} else
 			local_fail_htlc(hout->in, failure_code);
-		return true;
+		return;
 	}
 
 	if (find_htlc_out(&subd->ld->htlcs_out, hout->key.peer, hout->key.id)) {
@@ -432,14 +430,13 @@ static bool rcvd_htlc_reply(struct subd *subd, const u8 *msg, const int *fds,
 				    " is a duplicate",
 				    hout->key.id);
 		tal_free(hout);
-		return false;
+		return;
 	}
 
 	/* Add it to lookup table now we know id. */
 	connect_htlc_out(&subd->ld->htlcs_out, hout);
 
 	/* When channeld includes it in commitment, we'll make it persistent. */
-	return true;
 }
 
 enum onion_type send_htlc_out(struct peer *out, u64 amount, u32 cltv,
@@ -515,7 +512,7 @@ static void forward_htlc(struct htlc_in *hin,
 		goto fail;
 	}
 
-	if (!check_ctlv(hin, cltv_expiry, outgoing_cltv_value,
+	if (!check_cltv(hin, cltv_expiry, outgoing_cltv_value,
 			ld->config.min_htlc_expiry)) {
 		failcode = WIRE_INCORRECT_CLTV_EXPIRY;
 		goto fail;
@@ -523,7 +520,7 @@ static void forward_htlc(struct htlc_in *hin,
 
 	/* BOLT #4:
 	 *
-	 * If the ctlv-expiry is too near, we tell them the the current channel
+	 * If the cltv-expiry is too near, we tell them the the current channel
 	 * setting for the outgoing channel:
 	 * 1. type: UPDATE|14 (`expiry_too_soon`)
 	 * 2. data:
@@ -562,7 +559,7 @@ struct gossip_resolve {
 
 /* We received a resolver reply, which gives us the node_ids of the
  * channel we want to forward over */
-static bool channel_resolve_reply(struct subd *gossip, const u8 *msg,
+static void channel_resolve_reply(struct subd *gossip, const u8 *msg,
 				  const int *fds, struct gossip_resolve *gr)
 {
 	struct pubkey *nodes, *peer_id;
@@ -571,17 +568,17 @@ static bool channel_resolve_reply(struct subd *gossip, const u8 *msg,
 		log_broken(gossip->log,
 			   "bad fromwire_gossip_resolve_channel_reply %s",
 			   tal_hex(msg, msg));
-		return false;
+		return;
 	}
 
 	if (tal_count(nodes) == 0) {
 		local_fail_htlc(gr->hin, WIRE_UNKNOWN_NEXT_PEER);
-		return true;
+		return;
 	} else if (tal_count(nodes) != 2) {
 		log_broken(gossip->log,
 			   "fromwire_gossip_resolve_channel_reply has %zu nodes",
 			   tal_count(nodes));
-		return false;
+		return;
 	}
 
 	/* Get the other peer matching the id that is not us */
@@ -595,7 +592,6 @@ static bool channel_resolve_reply(struct subd *gossip, const u8 *msg,
 		     gr->amt_to_forward, gr->outgoing_cltv_value, peer_id,
 		     gr->next_onion);
 	tal_free(gr);
-	return true;
 }
 
 /* Everyone is committed to this htlc of theirs */
@@ -702,7 +698,7 @@ static void fulfill_our_htlc_out(struct peer *peer, struct htlc_out *hout,
 	hout->preimage = tal_dup(hout, struct preimage, preimage);
 	htlc_out_check(hout, __func__);
 
-	/* FIXME: Save to db */
+	wallet_htlc_update(peer->ld->wallet, hout->dbid, hout->hstate, preimage);
 
 	if (hout->in)
 		fulfill_htlc(hout->in, preimage);
@@ -781,6 +777,53 @@ static bool peer_failed_our_htlc(struct peer *peer,
 	return true;
 }
 
+/* FIXME: Crazy slow! */
+struct htlc_out *find_htlc_out_by_ripemd(const struct peer *peer,
+					 const struct ripemd160 *ripemd)
+{
+	struct htlc_out_map_iter outi;
+	struct htlc_out *hout;
+
+	for (hout = htlc_out_map_first(&peer->ld->htlcs_out, &outi);
+	     hout;
+	     hout = htlc_out_map_next(&peer->ld->htlcs_out, &outi)) {
+		struct ripemd160 hash;
+
+		if (hout->key.peer != peer)
+			continue;
+
+		ripemd160(&hash,
+			  &hout->payment_hash, sizeof(hout->payment_hash));
+		if (structeq(&hash, ripemd))
+			return hout;
+	}
+	return NULL;
+}
+
+void onchain_failed_our_htlc(const struct peer *peer,
+			     const struct htlc_stub *htlc,
+			     const char *why)
+{
+	struct htlc_out *hout = find_htlc_out_by_ripemd(peer, &htlc->ripemd);
+
+	/* Don't fail twice! */
+	if (hout->failuremsg)
+		return;
+
+	hout->failuremsg = make_failmsg(hout, hout->msatoshi,
+					WIRE_PERMANENT_CHANNEL_FAILURE,
+					NULL);
+
+	if (!hout->in) {
+		char *localfail = tal_fmt(peer, "%s: %s",
+					  onion_type_name(WIRE_PERMANENT_CHANNEL_FAILURE),
+					  why);
+		payment_failed(hout->key.peer->ld, hout, localfail);
+		tal_free(localfail);
+	} else
+		local_fail_htlc(hout->in, WIRE_PERMANENT_CHANNEL_FAILURE);
+}
+
 static void remove_htlc_in(struct peer *peer, struct htlc_in *hin)
 {
 	htlc_in_check(hin, __func__);
@@ -856,6 +899,13 @@ static bool update_out_htlc(struct peer *peer, u64 id, enum htlc_state newstate)
 		return false;
 	}
 
+	if (!hout->dbid && !wallet_htlc_save_out(peer->ld->wallet, peer->channel, hout)) {
+		peer_internal_error(
+		    peer, "Unable to save the htlc_out to the database: %s",
+		    peer->ld->wallet->db->err);
+		return false;
+	}
+
 	if (!htlc_out_update_state(peer, hout, newstate))
 		return false;
 
@@ -864,10 +914,6 @@ static bool update_out_htlc(struct peer *peer, u64 id, enum htlc_state newstate)
 		tal_del_destructor(hout, hout_subd_died);
 		tal_steal(peer->ld, hout);
 
-		/* From now onwards, penalty tx might need this */
-		save_htlc_stub(peer->ld, peer, LOCAL,
-			       hout->cltv_expiry,
-			       &hout->payment_hash);
 	} else if (newstate == RCVD_REMOVE_ACK_REVOCATION) {
 		remove_htlc_out(peer, hout);
 	}
@@ -924,7 +970,7 @@ static bool peer_save_commitsig_sent(struct peer *peer, u64 commitnum)
 	return true;
 }
 
-int peer_sending_commitsig(struct peer *peer, const u8 *msg)
+void peer_sending_commitsig(struct peer *peer, const u8 *msg)
 {
 	u64 commitnum;
 	struct changed_htlc *changed_htlcs;
@@ -938,14 +984,14 @@ int peer_sending_commitsig(struct peer *peer, const u8 *msg)
 						&commit_sig, &htlc_sigs)) {
 		peer_internal_error(peer, "bad channel_sending_commitsig %s",
 				    tal_hex(peer, msg));
-		return -1;
+		return;
 	}
 
 	for (i = 0; i < tal_count(changed_htlcs); i++) {
 		if (!changed_htlc(peer, changed_htlcs + i)) {
 			peer_internal_error(peer,
 				   "channel_sending_commitsig: update failed");
-			return -1;
+			return;
 		}
 
 		/* While we're here, sanity check added ones are in
@@ -964,14 +1010,14 @@ int peer_sending_commitsig(struct peer *peer, const u8 *msg)
 				   " Added %"PRIu64", maxid now %"PRIu64
 				   " from %"PRIu64,
 				   num_local_added, maxid, peer->next_htlc_id);
-			return -1;
+			return;
 		}
 		/* FIXME: Save to db */
 		peer->next_htlc_id += num_local_added;
 	}
 
 	if (!peer_save_commitsig_sent(peer, commitnum))
-		return -1;
+		return;
 
 	/* Last was commit. */
 	peer->last_was_revoke = false;
@@ -981,7 +1027,6 @@ int peer_sending_commitsig(struct peer *peer, const u8 *msg)
 	/* Tell it we've got it, and to go ahead with commitment_signed. */
 	subd_send_msg(peer->owner,
 		      take(towire_channel_sending_commitsig_reply(msg)));
-	return 0;
 }
 
 static void added_their_htlc(struct peer *peer,
@@ -996,17 +1041,11 @@ static void added_their_htlc(struct peer *peer,
 			  added->cltv_expiry, &added->payment_hash,
 			  shared_secret, added->onion_routing_packet);
 
-	/* FIXME: Save to db */
+	/* Save an incoming htlc to the wallet */
+	wallet_htlc_save_in(peer->ld->wallet, peer->channel, hin);
 
 	log_debug(peer->log, "Adding their HTLC %"PRIu64, added->id);
 	connect_htlc_in(&peer->ld->htlcs_in, hin);
-
-	/* Technically this can't be needed for a penalty transaction until
-	 * after we send revoke_and_ack, then commit, then receive their
-	 * revoke_and_ack.  But might as well record it while we have it:
-	 * a few extra entries won't hurt */
-	save_htlc_stub(peer->ld, peer, REMOTE, hin->cltv_expiry,
-		       &hin->payment_hash);
 
 }
 
@@ -1050,7 +1089,7 @@ static bool peer_sending_revocation(struct peer *peer,
 }
 
 /* This also implies we're sending revocation */
-int peer_got_commitsig(struct peer *peer, const u8 *msg)
+void peer_got_commitsig(struct peer *peer, const u8 *msg)
 {
 	u64 commitnum;
 	secp256k1_ecdsa_signature commit_sig;
@@ -1076,7 +1115,7 @@ int peer_got_commitsig(struct peer *peer, const u8 *msg)
 		peer_internal_error(peer,
 				    "bad fromwire_channel_got_commitsig %s",
 				    tal_hex(peer, msg));
-		return -1;
+		return;
 	}
 
 	log_debug(peer->log,
@@ -1094,28 +1133,28 @@ int peer_got_commitsig(struct peer *peer, const u8 *msg)
 	/* Save information now for fulfilled & failed HTLCs */
 	for (i = 0; i < tal_count(fulfilled); i++) {
 		if (!peer_fulfilled_our_htlc(peer, &fulfilled[i]))
-			return -1;
+			return;
 	}
 
 	for (i = 0; i < tal_count(failed); i++) {
 		if (!peer_failed_our_htlc(peer, &failed[i]))
-			return -1;
+			return;
 	}
 
 	for (i = 0; i < tal_count(changed); i++) {
 		if (!changed_htlc(peer, &changed[i])) {
 			peer_internal_error(peer,
 					    "got_commitsig: update failed");
-			return -1;
+			return;
 		}
 	}
 
 	/* Since we're about to send revoke, bump state again. */
 	if (!peer_sending_revocation(peer, added, fulfilled, failed, changed))
-		return -1;
+		return;
 
 	if (!peer_save_commitsig_received(peer, commitnum))
-		return -1;
+		return;
 
 	peer_last_tx(peer, tx, &commit_sig);
 	/* FIXME: Put these straight in the db! */
@@ -1125,7 +1164,6 @@ int peer_got_commitsig(struct peer *peer, const u8 *msg)
 	/* Tell it we've committed, and to go ahead with revoke. */
 	msg = towire_channel_got_commitsig_reply(msg);
 	subd_send_msg(peer->owner, take(msg));
-	return 0;
 }
 
 /* Shuffle them over, forgetting the ancient one. */
@@ -1137,7 +1175,7 @@ void update_per_commit_point(struct peer *peer,
 	ci->remote_per_commit = *per_commitment_point;
 }
 
-int peer_got_revoke(struct peer *peer, const u8 *msg)
+void peer_got_revoke(struct peer *peer, const u8 *msg)
 {
 	u64 revokenum;
 	struct sha256 per_commitment_secret;
@@ -1152,7 +1190,7 @@ int peer_got_revoke(struct peer *peer, const u8 *msg)
 					 &changed)) {
 		peer_internal_error(peer, "bad fromwire_channel_got_revoke %s",
 				    tal_hex(peer, msg));
-		return -1;
+		return;
 	}
 
 	log_debug(peer->log,
@@ -1166,12 +1204,12 @@ int peer_got_revoke(struct peer *peer, const u8 *msg)
 		if (changed[i].newstate == RCVD_ADD_ACK_REVOCATION) {
 			if (!peer_accepted_htlc(peer, changed[i].id,
 						&failcodes[i]))
-				return -1;
+				return;
 		} else {
 			if (!changed_htlc(peer, &changed[i])) {
 				peer_internal_error(peer,
 						    "got_revoke: update failed");
-				return -1;
+				return;
 			}
 		}
 	}
@@ -1179,14 +1217,14 @@ int peer_got_revoke(struct peer *peer, const u8 *msg)
 	if (revokenum >= (1ULL << 48)) {
 		peer_internal_error(peer, "got_revoke: too many txs %"PRIu64,
 				    revokenum);
-		return -1;
+		return;
 	}
 
 	if (revokenum != revocations_received(&peer->their_shachain.chain)) {
 		peer_internal_error(peer, "got_revoke: expected %"PRIu64
 				    " got %"PRIu64,
 				    revocations_received(&peer->their_shachain.chain), revokenum);
-		return -1;
+		return;
 	}
 
 	/* BOLT #2:
@@ -1203,7 +1241,7 @@ int peer_got_revoke(struct peer *peer, const u8 *msg)
 						   &per_commitment_secret),
 				    revokenum);
 		peer_fail_permanent(peer, take((u8 *)err));
-		return -1;
+		return;
 	}
 
 	/* FIXME: Check per_commitment_secret -> per_commit_point */
@@ -1229,8 +1267,6 @@ int peer_got_revoke(struct peer *peer, const u8 *msg)
 		fatal("Could not save channel to database: %s",
 		      peer->ld->wallet->db->err);
 	}
-
-	return 0;
 }
 
 static void *tal_arr_append_(void **p, size_t size)

@@ -9,6 +9,9 @@
 #include <ccan/tal/tal.h>
 #include <common/channel_config.h>
 #include <common/utxo.h>
+#include <lightningd/htlc_end.h>
+#include <lightningd/invoice.h>
+#include <onchaind/onchain_wire.h>
 #include <wally_bip32.h>
 
 struct lightningd;
@@ -218,5 +221,134 @@ bool wallet_channels_load_active(struct wallet *w, struct list_head *peers);
  */
 int wallet_extract_owned_outputs(struct wallet *w, const struct bitcoin_tx *tx,
 				 u64 *total_satoshi);
+
+/**
+ * wallet_htlc_save_in - store a htlc_in in the database
+ *
+ * @wallet: wallet to store the htlc into
+ * @chan: the `wallet_channel` this HTLC is associated with
+ * @in: the htlc_in to store
+ *
+ * This will store the contents of the `struct htlc_in` in the
+ * database. Since `struct htlc_in` commonly only change state after
+ * being created we do not support updating arbitrary fields and this
+ * function will fail when attempting to call it multiple times for
+ * the same `struct htlc_in`. Instead `wallet_htlc_update` may be used
+ * for state transitions or to set the `payment_key` for completed
+ * HTLCs.
+ */
+bool wallet_htlc_save_in(struct wallet *wallet,
+			 const struct wallet_channel *chan, struct htlc_in *in);
+
+/**
+ * wallet_htlc_save_out - store a htlc_out in the database
+ *
+ * See comment for wallet_htlc_save_in.
+ */
+bool wallet_htlc_save_out(struct wallet *wallet,
+			  const struct wallet_channel *chan,
+			  struct htlc_out *out);
+
+/**
+ * wallet_htlc_update - perform state transition or add payment_key
+ *
+ * @wallet: the wallet containing the HTLC to update
+ * @htlc_dbid: the database ID used to identify the HTLC
+ * @new_state: the state we should transition to
+ * @payment_key: the `payment_key` which hashes to the `payment_hash`,
+ *   or NULL if unknown.
+ *
+ * Used to update the state of an HTLC, either a `struct htlc_in` or a
+ * `struct htlc_out` and optionally set the `payment_key` should the
+ * HTLC have been settled.
+ */
+bool wallet_htlc_update(struct wallet *wallet, const u64 htlc_dbid,
+			const enum htlc_state new_state,
+			const struct preimage *payment_key);
+
+/**
+ * wallet_htlcs_load_for_channel - Load HTLCs associated with chan from DB.
+ *
+ * @wallet: wallet to load from
+ * @chan: load HTLCs associated with this channel
+ * @htlcs_in: htlc_in_map to store loaded htlc_in in
+ * @htlcs_out: htlc_out_map to store loaded htlc_out in
+ *
+ * This function looks for HTLCs that are associated with the given
+ * channel and loads them into the provided maps. One caveat is that
+ * the `struct htlc_out` instances are not wired up with the
+ * corresponding `struct htlc_in` in the forwarding case nor are they
+ * associated with a `struct pay_command` in the case we originated
+ * the payment. In the former case the corresponding `struct htlc_in`
+ * may not have been loaded yet. In the latter case the pay_command
+ * does not exist anymore since we restarted.
+ *
+ * Use `wallet_htlcs_reconnect` to wire htlc_out instances to the
+ * corresponding htlc_in after loading all channels.
+ */
+bool wallet_htlcs_load_for_channel(struct wallet *wallet,
+				   struct wallet_channel *chan,
+				   struct htlc_in_map *htlcs_in,
+				   struct htlc_out_map *htlcs_out);
+
+/**
+ * wallet_htlcs_reconnect -- Link outgoing HTLCs to their origins
+ *
+ * For each outgoing HTLC find the incoming HTLC that triggered it. If
+ * we are the origin of the transfer then we cannot resolve the
+ * incoming HTLC in which case we just leave it `NULL`.
+ */
+bool wallet_htlcs_reconnect(struct wallet *wallet,
+			    struct htlc_in_map *htlcs_in,
+			    struct htlc_out_map *htlcs_out);
+
+/**
+ * wallet_invoice_save -- Save/update an invoice to the wallet
+ *
+ * Save or update the invoice in the wallet. If `inv->id` is 0 this
+ * invoice will be considered a new invoice and result in an intert
+ * into the database, otherwise it'll be updated.
+ *
+ * @wallet: Wallet to store in
+ * @inv: Invoice to save
+ */
+bool wallet_invoice_save(struct wallet *wallet, struct invoice *inv);
+
+/**
+ * wallet_invoices_load -- Load all invoices into memory
+ *
+ * Load all invoices into the given `invoices` struct.
+ *
+ * @wallet: Wallet to load invoices from
+ * @invs: invoices container to load into
+ */
+bool wallet_invoices_load(struct wallet *wallet, struct invoices *invs);
+
+/**
+ * wallet_invoice_remove -- Remove the specified invoice from the wallet
+ *
+ * Remove the invoice from the underlying database. The invoice is
+ * identified by `inv->id` so if the caller does not have the full
+ * invoice, it may just instantiate a new one and set the `id` to
+ * match the desired invoice.
+ *
+ * @wallet: Wallet to remove from
+ * @inv: Invoice to remove.
+ */
+bool wallet_invoice_remove(struct wallet *wallet, struct invoice *inv);
+
+/**
+ * wallet_htlc_stubs - Retrieve HTLC stubs for the given channel
+ *
+ * Load minimal necessary information about HTLCs for the on-chain
+ * settlement. This returns a `tal_arr` allocated off of @ctx with the
+ * necessary size to hold all HTLCs.
+ *
+ * @ctx: Allocation context for the return value
+ * @wallet: Wallet to load from
+ * @chan: Channel to fetch stubs for
+ */
+struct htlc_stub *wallet_htlc_stubs(tal_t *ctx, struct wallet *wallet,
+				    struct wallet_channel *chan);
 
 #endif /* WALLET_WALLET_H */

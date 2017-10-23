@@ -10,6 +10,8 @@
 #include <lightningd/peer_htlcs.h>
 
 #define SQLITE_MAX_UINT 0x7FFFFFFFFFFFFFFF
+#define DIRECTION_INCOMING 0
+#define DIRECTION_OUTGOING 1
 
 struct wallet *wallet_new(const tal_t *ctx, struct log *log)
 {
@@ -845,17 +847,389 @@ int wallet_extract_owned_outputs(struct wallet *w, const struct bitcoin_tx *tx,
 	return num_utxos;
 }
 
-/**
- * wallet_shachain_delete - Drop the shachain from the database
- *
- * Deletes the shachain from the database, including dependent
- * shachain_known items.
- */
-/* TOOD(cdecker) Uncomment once we have implemented channel delete
-static bool wallet_shachain_delete(struct wallet *w,
-				   struct wallet_shachain *chain)
+bool wallet_htlc_save_in(struct wallet *wallet,
+			 const struct wallet_channel *chan, struct htlc_in *in)
 {
-	return db_exec(__func__, w->db,
-		       "DELETE FROM shachains WHERE id=%" PRIu64, chain->id);
+	bool ok = true;
+	tal_t *tmpctx = tal_tmpctx(wallet);
+
+	ok &= db_exec(
+	    __func__, wallet->db,
+	    "INSERT INTO channel_htlcs "
+	    "(channel_id, channel_htlc_id, direction, origin_htlc, msatoshi, cltv_expiry, payment_hash, payment_key, hstate, shared_secret, routing_onion) VALUES "
+	    "(%" PRIu64 ", %"PRIu64", %d, NULL, %"PRIu64", %d, '%s', %s, %d, '%s', '%s');",
+	    chan->id, in->key.id, DIRECTION_INCOMING, in->msatoshi, in->cltv_expiry,
+	    tal_hexstr(tmpctx, &in->payment_hash, sizeof(struct sha256)),
+	    in->preimage == NULL ? "NULL" : tal_hexstr(tmpctx, &in->preimage,
+						       sizeof(struct preimage)),
+	    in->hstate,
+	    tal_hexstr(tmpctx, &in->shared_secret, sizeof(struct secret)),
+	    tal_hexstr(tmpctx, &in->onion_routing_packet, sizeof(in->onion_routing_packet))
+	);
+
+	tal_free(tmpctx);
+	if (ok) {
+		in->dbid = sqlite3_last_insert_rowid(wallet->db->sql);
+	}
+	return ok;
 }
-*/
+
+bool wallet_htlc_save_out(struct wallet *wallet,
+			  const struct wallet_channel *chan,
+			  struct htlc_out *out)
+{
+	bool ok = true;
+	tal_t *tmpctx = tal_tmpctx(wallet);
+
+	/* We absolutely need the incoming HTLC to be persisted before
+	 * we can persist it's dependent */
+	assert(out->in == NULL || out->in->dbid != 0);
+	out->origin_htlc_id = out->in?out->in->dbid:0;
+
+	ok &= db_exec(
+	    __func__, wallet->db,
+	    "INSERT INTO channel_htlcs "
+	    "(channel_id, channel_htlc_id, direction, origin_htlc, msatoshi, cltv_expiry, "
+	    "payment_hash, payment_key, hstate, shared_secret, routing_onion) VALUES "
+	    "(%" PRIu64 ", %" PRIu64 ", %d, %s, %" PRIu64", %d, '%s', %s, %d, NULL, '%s');",
+	    chan->id,
+	    out->key.id,
+	    DIRECTION_OUTGOING,
+	    out->in ? tal_fmt(tmpctx, "%" PRIu64, out->in->dbid) : "NULL",
+	    out->msatoshi,
+	    out->cltv_expiry,
+	    tal_hexstr(tmpctx, &out->payment_hash, sizeof(struct sha256)),
+	    out->preimage ? tal_hexstr(tmpctx, &out->preimage, sizeof(struct preimage)) : "NULL",
+	    out->hstate,
+	    tal_hexstr(tmpctx, &out->onion_routing_packet, sizeof(out->onion_routing_packet))
+	);
+
+	tal_free(tmpctx);
+	if (ok) {
+		out->dbid = sqlite3_last_insert_rowid(wallet->db->sql);
+	}
+	return ok;
+}
+
+bool wallet_htlc_update(struct wallet *wallet, const u64 htlc_dbid,
+			const enum htlc_state new_state,
+			const struct preimage *payment_key)
+{
+	bool ok = true;
+	tal_t *tmpctx = tal_tmpctx(wallet);
+
+	/* The database ID must be set by a previous call to
+	 * `wallet_htlc_save_*` */
+	assert(htlc_dbid);
+	if (payment_key) {
+		ok &= db_exec(
+		    __func__, wallet->db, "UPDATE channel_htlcs SET hstate=%d, "
+					  "payment_key='%s' WHERE id=%" PRIu64,
+		    new_state,
+		    tal_hexstr(tmpctx, payment_key, sizeof(struct preimage)),
+		    htlc_dbid);
+
+	} else {
+		ok &= db_exec(
+		    __func__, wallet->db,
+		    "UPDATE channel_htlcs SET hstate = %d WHERE id=%" PRIu64,
+		    new_state, htlc_dbid);
+	}
+	tal_free(tmpctx);
+	return ok;
+}
+
+static bool wallet_stmt2htlc_in(const struct wallet_channel *channel,
+				sqlite3_stmt *stmt, struct htlc_in *in)
+{
+	bool ok = true;
+	in->dbid = sqlite3_column_int64(stmt, 0);
+	in->key.id = sqlite3_column_int64(stmt, 1);
+	in->key.peer = channel->peer;
+	in->msatoshi = sqlite3_column_int64(stmt, 2);
+	in->cltv_expiry = sqlite3_column_int(stmt, 3);
+	in->hstate = sqlite3_column_int(stmt, 4);
+
+	ok &= sqlite3_column_hexval(stmt, 5, &in->payment_hash,
+			      sizeof(in->payment_hash));
+	ok &= sqlite3_column_hexval(stmt, 6, &in->shared_secret,
+			      sizeof(in->shared_secret));
+
+	if (sqlite3_column_type(stmt, 7) != SQLITE_NULL) {
+		in->preimage = tal(in, struct preimage);
+		ok &= sqlite3_column_hexval(stmt, 7, in->preimage, sizeof(*in->preimage));
+	} else {
+		in->preimage = NULL;
+	}
+
+	sqlite3_column_hexval(stmt, 8, &in->onion_routing_packet,
+			      sizeof(in->onion_routing_packet));
+
+	in->failuremsg = NULL;
+	in->malformed = 0;
+
+	return ok;
+}
+static bool wallet_stmt2htlc_out(const struct wallet_channel *channel,
+				sqlite3_stmt *stmt, struct htlc_out *out)
+{
+	bool ok = true;
+	out->dbid = sqlite3_column_int64(stmt, 0);
+	out->key.id = sqlite3_column_int64(stmt, 1);
+	out->key.peer = channel->peer;
+	out->msatoshi = sqlite3_column_int64(stmt, 2);
+	out->cltv_expiry = sqlite3_column_int(stmt, 3);
+	out->hstate = sqlite3_column_int(stmt, 4);
+	ok &= sqlite3_column_hexval(stmt, 5, &out->payment_hash,
+			      sizeof(out->payment_hash));
+
+	if (sqlite3_column_type(stmt, 6) != SQLITE_NULL) {
+		out->origin_htlc_id = sqlite3_column_int64(stmt, 6);
+	} else {
+		out->origin_htlc_id = 0;
+	}
+
+	if (sqlite3_column_type(stmt, 7) != SQLITE_NULL) {
+		out->preimage = tal(out, struct preimage);
+		ok &= sqlite3_column_hexval(stmt, 7, &out->preimage, sizeof(struct preimage));
+	} else {
+		out->preimage = NULL;
+	}
+
+	sqlite3_column_hexval(stmt, 8, &out->onion_routing_packet,
+			      sizeof(out->onion_routing_packet));
+
+	out->failuremsg = NULL;
+	out->malformed = 0;
+
+	/* Need to defer wiring until we can look up all incoming
+	 * htlcs, will wire using origin_htlc_id */
+	out->in = NULL;
+
+	return ok;
+}
+
+bool wallet_htlcs_load_for_channel(struct wallet *wallet,
+				   struct wallet_channel *chan,
+				   struct htlc_in_map *htlcs_in,
+				   struct htlc_out_map *htlcs_out)
+{
+	bool ok = true;
+	int incount = 0, outcount = 0;
+
+	log_debug(wallet->log, "Loading HTLCs for channel %"PRIu64, chan->id);
+	sqlite3_stmt *stmt = db_query(
+	    __func__, wallet->db,
+	    "SELECT id, channel_htlc_id, msatoshi, cltv_expiry, hstate, "
+	    "payment_hash, shared_secret, payment_key, routing_onion FROM channel_htlcs WHERE "
+	    "direction=%d AND channel_id=%" PRIu64 " AND hstate != %d",
+	    DIRECTION_INCOMING, chan->id, SENT_REMOVE_ACK_REVOCATION);
+
+	if (!stmt) {
+		log_broken(wallet->log, "Could not select htlc_ins: %s", wallet->db->err);
+		return false;
+	}
+
+	while (ok && stmt && sqlite3_step(stmt) == SQLITE_ROW) {
+		struct htlc_in *in = tal(chan, struct htlc_in);
+		ok &= wallet_stmt2htlc_in(chan, stmt, in);
+		connect_htlc_in(htlcs_in, in);
+		ok &=  htlc_in_check(in, "wallet_htlcs_load") != NULL;
+		incount++;
+	}
+	sqlite3_finalize(stmt);
+
+	stmt = db_query(
+	    __func__, wallet->db,
+	    "SELECT id, channel_htlc_id, msatoshi, cltv_expiry, hstate, "
+	    "payment_hash, origin_htlc, payment_key, routing_onion FROM channel_htlcs WHERE "
+	    "direction=%d AND channel_id=%" PRIu64 " AND hstate != %d",
+	    DIRECTION_OUTGOING, chan->id, RCVD_REMOVE_ACK_REVOCATION);
+
+	if (!stmt) {
+		log_broken(wallet->log, "Could not select htlc_outs: %s", wallet->db->err);
+		return false;
+	}
+
+	while (ok && stmt && sqlite3_step(stmt) == SQLITE_ROW) {
+		struct htlc_out *out = tal(chan, struct htlc_out);
+		ok &= wallet_stmt2htlc_out(chan, stmt, out);
+		connect_htlc_out(htlcs_out, out);
+		/* Cannot htlc_out_check because we haven't wired the
+		 * dependencies in yet */
+		outcount++;
+	}
+	sqlite3_finalize(stmt);
+	log_debug(wallet->log, "Restored %d incoming and %d outgoing HTLCS", incount, outcount);
+
+	return ok;
+}
+
+bool wallet_htlcs_reconnect(struct wallet *wallet,
+			    struct htlc_in_map *htlcs_in,
+			    struct htlc_out_map *htlcs_out)
+{
+	struct htlc_in_map_iter ini;
+	struct htlc_out_map_iter outi;
+	struct htlc_in *hin;
+	struct htlc_out *hout;
+
+	for (hout = htlc_out_map_first(htlcs_out, &outi); hout;
+	     hout = htlc_out_map_next(htlcs_out, &outi)) {
+
+		if (hout->origin_htlc_id == 0) {
+			continue;
+		}
+
+		for (hin = htlc_in_map_first(htlcs_in, &ini); hin;
+		     hin = htlc_in_map_next(htlcs_in, &ini)) {
+			if (hout->origin_htlc_id == hin->dbid) {
+				log_debug(wallet->log,
+					  "Found corresponding htlc_in %" PRIu64
+					  " for htlc_out %" PRIu64,
+					  hin->dbid, hout->dbid);
+				hout->in = hin;
+				break;
+			}
+		}
+
+		if (!hout->in) {
+			log_broken(
+			    wallet->log,
+			    "Unable to find corresponding htlc_in %"PRIu64" for htlc_out %"PRIu64,
+			    hout->origin_htlc_id, hout->dbid);
+		}
+
+	}
+	return true;
+}
+
+bool wallet_invoice_save(struct wallet *wallet, struct invoice *inv)
+{
+	/* Need to use the lower level API of sqlite3 to bind
+	 * label. Otherwise we'd need to implement sanitization of
+	 * that string for sql injections... */
+	sqlite3_stmt *stmt;
+	if (!inv->id) {
+		stmt = db_prepare(wallet->db,
+			"INSERT INTO invoices (payment_hash, payment_key, state, msatoshi, label) VALUES (?, ?, ?, ?, ?);");
+		if (!stmt) {
+			log_broken(wallet->log, "Could not prepare statement: %s", wallet->db->err);
+			return false;
+		}
+
+		sqlite3_bind_blob(stmt, 1, &inv->rhash, sizeof(inv->rhash), SQLITE_TRANSIENT);
+		sqlite3_bind_blob(stmt, 2, &inv->r, sizeof(inv->r), SQLITE_TRANSIENT);
+		sqlite3_bind_int(stmt, 3, inv->state);
+		sqlite3_bind_int64(stmt, 4, inv->msatoshi);
+		sqlite3_bind_text(stmt, 5, inv->label, strlen(inv->label), SQLITE_TRANSIENT);
+
+		if (!db_exec_prepared(wallet->db, stmt)) {
+			log_broken(wallet->log, "Could not exec prepared statement: %s", wallet->db->err);
+			return false;
+		}
+
+		inv->id = sqlite3_last_insert_rowid(wallet->db->sql);
+		return true;
+	} else {
+		stmt = db_prepare(wallet->db, "UPDATE invoices SET state=? WHERE id=?;");
+
+		if (!stmt) {
+			log_broken(wallet->log, "Could not prepare statement: %s", wallet->db->err);
+			return false;
+		}
+
+		sqlite3_bind_int(stmt, 1, inv->state);
+		sqlite3_bind_int64(stmt, 2, inv->id);
+
+		if (!db_exec_prepared(wallet->db, stmt)) {
+			log_broken(wallet->log, "Could not exec prepared statement: %s", wallet->db->err);
+			return false;
+		} else {
+			return true;
+		}
+	}
+}
+
+static bool wallet_stmt2invoice(sqlite3_stmt *stmt, struct invoice *inv)
+{
+	inv->id = sqlite3_column_int64(stmt, 0);
+	inv->state = sqlite3_column_int(stmt, 1);
+
+	assert(sqlite3_column_bytes(stmt, 2) == sizeof(struct preimage));
+	memcpy(&inv->r, sqlite3_column_blob(stmt, 2), sqlite3_column_bytes(stmt, 2));
+
+	assert(sqlite3_column_bytes(stmt, 3) == sizeof(struct sha256));
+	memcpy(&inv->rhash, sqlite3_column_blob(stmt, 3), sqlite3_column_bytes(stmt, 3));
+
+	inv->label = tal_strndup(inv, sqlite3_column_blob(stmt, 4), sqlite3_column_bytes(stmt, 4));
+	inv->msatoshi = sqlite3_column_int64(stmt, 5);
+	return true;
+}
+
+bool wallet_invoices_load(struct wallet *wallet, struct invoices *invs)
+{
+	struct invoice *i;
+	int count = 0;
+	sqlite3_stmt *stmt = db_query(__func__, wallet->db,
+				"SELECT id, state, payment_key, payment_hash, "
+				"label, msatoshi FROM invoices;");
+	if (!stmt) {
+		log_broken(wallet->log, "Could not load invoices: %s", wallet->db->err);
+		return false;
+	}
+
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
+		i = tal(invs, struct invoice);
+		if (!wallet_stmt2invoice(stmt, i)) {
+			log_broken(wallet->log, "Error deserializing invoice");
+			return false;
+		}
+		invoice_add(invs, i);
+		count++;
+	}
+
+	log_debug(wallet->log, "Loaded %d invoices from DB", count);
+	return true;
+}
+
+bool wallet_invoice_remove(struct wallet *wallet, struct invoice *inv)
+{
+	sqlite3_stmt *stmt = db_prepare(wallet->db, "DELETE FROM invoices WHERE id=?");
+	sqlite3_bind_int64(stmt, 1, inv->id);
+	return db_exec_prepared(wallet->db, stmt) && sqlite3_changes(wallet->db->sql) == 1;
+}
+
+struct htlc_stub *wallet_htlc_stubs(tal_t *ctx, struct wallet *wallet,
+				    struct wallet_channel *chan)
+{
+	struct htlc_stub *stubs;
+	struct sha256 payment_hash;
+	sqlite3_stmt *stmt = db_prepare(wallet->db,
+		"SELECT channel_id, direction, cltv_expiry, payment_hash "
+		"FROM channel_htlcs WHERE channel_id = ?;");
+
+	if (!stmt) {
+		log_broken(wallet->log, "Error preparing select: %s", wallet->db->err);
+		return NULL;
+	}
+	sqlite3_bind_int64(stmt, 1, chan->id);
+
+	stubs = tal_arr(ctx, struct htlc_stub, 0);
+
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
+		int n = tal_count(stubs);
+		tal_resize(&stubs, n+1);
+
+		assert(sqlite3_column_int64(stmt, 0) == chan->id);
+
+		/* FIXME: merge these two enums */
+		stubs[n].owner = sqlite3_column_int(stmt, 1)==DIRECTION_INCOMING?REMOTE:LOCAL;
+		stubs[n].cltv_expiry = sqlite3_column_int(stmt, 2);
+
+		sqlite3_column_hexval(stmt, 3, &payment_hash, sizeof(payment_hash));
+		ripemd160(&stubs[n].ripemd, payment_hash.u.u8, sizeof(payment_hash.u));
+	}
+	sqlite3_finalize(stmt);
+	return stubs;
+}

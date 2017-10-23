@@ -92,8 +92,77 @@ char *dbmigrations[] = {
     "  max_accepted_htlcs INTEGER,"
     "  PRIMARY KEY (id)"
     ");",
+    "CREATE TABLE channel_htlcs ("
+    "  id INTEGER,"
+    "  channel_id INTEGER REFERENCES channels(id) ON DELETE CASCADE,"
+    "  channel_htlc_id INTEGER,"
+    "  direction INTEGER,"
+    "  origin_htlc INTEGER,"
+    "  msatoshi INTEGER,"
+    "  cltv_expiry INTEGER,"
+    "  payment_hash BLOB,"
+    "  payment_key BLOB,"
+    "  routing_onion BLOB,"
+    "  failuremsg BLOB,"
+    "  malformed_onion INTEGER,"
+    "  hstate INTEGER,"
+    "  shared_secret BLOB,"
+    "  PRIMARY KEY (id),"
+    "  UNIQUE (channel_id, channel_htlc_id, direction)"
+    ");",
+    "CREATE TABLE invoices ("
+    "  id INTEGER,"
+    "  state INTEGER,"
+    "  msatoshi INTEGER,"
+    "  payment_hash BLOB,"
+    "  payment_key BLOB,"
+    "  label TEXT,"
+    "  PRIMARY KEY (id),"
+    "  UNIQUE (label),"
+    "  UNIQUE (payment_hash)"
+    ");",
     NULL,
 };
+
+/**
+ * db_clear_error - Clear any errors from previous queries
+ */
+static void db_clear_error(struct db *db)
+{
+	db->err = tal_free(db->err);
+}
+
+sqlite3_stmt *db_prepare_(const char *caller, struct db *db, const char *query)
+{
+	int err;
+	sqlite3_stmt *stmt;
+	if (db->in_transaction && db->err)
+		return NULL;
+
+	db_clear_error(db);
+	err = sqlite3_prepare_v2(db->sql, query, -1, &stmt, NULL);
+
+	if (err != SQLITE_OK) {
+		db->err = tal_fmt(db, "%s: %s: %s", caller, query,
+				  sqlite3_errmsg(db->sql));
+	}
+	return stmt;
+}
+
+bool db_exec_prepared_(const char *caller, struct db *db, sqlite3_stmt *stmt)
+{
+	if (db->in_transaction && db->err)
+		return false;
+	db_clear_error(db);
+
+	if (sqlite3_step(stmt) !=  SQLITE_DONE) {
+		db->err =
+		    tal_fmt(db, "%s: %s", caller, sqlite3_errmsg(db->sql));
+		return false;
+	} else {
+		return true;
+	}
+}
 
 bool PRINTF_FMT(3, 4)
     db_exec(const char *caller, struct db *db, const char *fmt, ...)
@@ -104,6 +173,8 @@ bool PRINTF_FMT(3, 4)
 
 	if (db->in_transaction && db->err)
 		return false;
+
+	db_clear_error(db);
 
 	va_start(ap, fmt);
 	cmd = tal_vfmt(db, fmt, ap);
@@ -133,6 +204,8 @@ sqlite3_stmt *PRINTF_FMT(3, 4)
 	if (db->in_transaction && db->err)
 		return NULL;
 
+	db_clear_error(db);
+
 	va_start(ap, fmt);
 	query = tal_vfmt(db, fmt, ap);
 	va_end(ap);
@@ -145,15 +218,6 @@ sqlite3_stmt *PRINTF_FMT(3, 4)
 	}
 	return stmt;
 }
-
-/**
- * db_clear_error - Clear any errors from previous queries
- */
-static void db_clear_error(struct db *db)
-{
-	db->err = tal_free(db->err);
-}
-
 
 static void close_db(struct db *db) { sqlite3_close(db->sql); }
 

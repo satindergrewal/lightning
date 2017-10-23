@@ -20,7 +20,9 @@
 #include <common/daemon_conn.h>
 #include <common/debug.h>
 #include <common/derive_basepoints.h>
+#include <common/dev_disconnect.h>
 #include <common/htlc_tx.h>
+#include <common/io_debug.h>
 #include <common/key_derive.h>
 #include <common/msg_queue.h>
 #include <common/peer_failed.h>
@@ -178,7 +180,7 @@ static void send_announcement_signatures(struct peer *peer)
 	/* BOLT #7:
 	 *
 	 * If sent, `announcement_signatures` messages MUST NOT be sent until
-	 * `funding_locked` has been sent, and the funding transaction is has
+	 * `funding_locked` has been sent and the funding transaction has
 	 * at least 6 confirmations.
 	 */
 	if (!(peer->announce_depth_reached && peer->funding_locked[LOCAL]))
@@ -619,6 +621,13 @@ static void send_commit(struct peer *peer)
 	tal_t *tmpctx = tal_tmpctx(peer);
 	u8 *msg;
 	const struct htlc **changed_htlcs;
+
+	/* Hack to suppress all commit sends if dev_disconnect says to */
+	if (dev_suppress_commit) {
+		peer->commit_timer = NULL;
+		tal_free(tmpctx);
+		return;
+	}
 
 	/* FIXME: Document this requirement in BOLT 2! */
 	/* We can't send two commits in a row. */
@@ -1902,6 +1911,15 @@ static void handle_shutdown_cmd(struct peer *peer, const u8 *inmsg)
 	start_commit_timer(peer);
 }
 
+static void handle_dev_reenable_commit(struct peer *peer)
+{
+	dev_suppress_commit = false;
+	start_commit_timer(peer);
+	status_trace("dev_reenable_commit");
+	wire_sync_write(MASTER_FD,
+			take(towire_channel_dev_reenable_commit_reply(peer)));
+}
+
 static void req_in(struct peer *peer, const u8 *msg)
 {
 	enum channel_wire_type t = fromwire_peektype(msg);
@@ -1928,7 +1946,9 @@ static void req_in(struct peer *peer, const u8 *msg)
 	case WIRE_CHANNEL_SEND_SHUTDOWN:
 		handle_shutdown_cmd(peer, msg);
 		goto out;
-
+	case WIRE_CHANNEL_DEV_REENABLE_COMMIT:
+		handle_dev_reenable_commit(peer);
+		goto out;
 	case WIRE_CHANNEL_NORMAL_OPERATION:
 	case WIRE_CHANNEL_INIT:
 	case WIRE_CHANNEL_OFFER_HTLC_REPLY:
@@ -1943,6 +1963,7 @@ static void req_in(struct peer *peer, const u8 *msg)
 	case WIRE_CHANNEL_GOT_FUNDING_LOCKED:
 	case WIRE_CHANNEL_GOT_SHUTDOWN:
 	case WIRE_CHANNEL_SHUTDOWN_COMPLETE:
+	case WIRE_CHANNEL_DEV_REENABLE_COMMIT_REPLY:
 		break;
 	}
 	master_badmsg(-1, msg);
@@ -2147,7 +2168,7 @@ static int poll_with_masterfd(struct pollfd *fds, nfds_t nfds, int timeout)
 	fds_plus[nfds].events = POLLIN;
 	fds_plus[nfds].revents = 0;
 
-	r = poll(fds_plus, nfds+1, timeout);
+	r = debug_poll(fds_plus, nfds+1, timeout);
 	if (r > 0) {
 		if (fds_plus[nfds].revents & POLLIN) {
 			u8 *msg = wire_sync_read(peer, MASTER_FD);

@@ -1,16 +1,21 @@
 #include "wallet.c"
 
-#include <ccan/mem/mem.h>
 #include "db.c"
-#include "wallet/test_utils.h"
 
+#include <ccan/mem/mem.h>
+#include <lightningd/log.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <wallet/test_utils.h>
+
+void invoice_add(struct invoices *invs,
+		 struct invoice *inv){}
 
 static struct wallet *create_test_wallet(const tal_t *ctx)
 {
 	char filename[] = "/tmp/ldb-XXXXXX";
 	int fd = mkstemp(filename);
+	struct log_book *log_book;
 	struct wallet *w = tal(ctx, struct wallet);
 	CHECK_MSG(fd != -1, "Unable to generate temp filename");
 	close(fd);
@@ -19,6 +24,10 @@ static struct wallet *create_test_wallet(const tal_t *ctx)
 
 	CHECK_MSG(w->db, "Failed opening the db");
 	CHECK_MSG(db_migrate(w->db), "DB migration failed");
+
+	ltmp = tal_tmpctx(ctx);
+	log_book = new_log_book(w, 20*1024*1024, LOG_DBG);
+	w->log = new_log(w, log_book, "wallet_tests(%u):", (int)getpid());
 
 	return w;
 }
@@ -294,6 +303,82 @@ static bool test_channel_config_crud(const tal_t *ctx)
        	return true;
 }
 
+static bool test_htlc_crud(const tal_t *ctx)
+{
+	struct htlc_in in, *hin;
+	struct htlc_out out, *hout;
+	struct preimage payment_key;
+	struct wallet_channel *chan = tal(ctx, struct wallet_channel);
+	struct peer *peer = talz(ctx, struct peer);
+	struct wallet *w = create_test_wallet(ctx);
+	struct htlc_in_map *htlcs_in = tal(ctx, struct htlc_in_map);
+	struct htlc_out_map *htlcs_out = tal(ctx, struct htlc_out_map);
+
+	/* Make sure we have our references correct */
+	db_exec(__func__, w->db, "INSERT INTO channels (id) VALUES (1);");
+	chan->id = 1;
+	chan->peer = peer;
+
+	memset(&in, 0, sizeof(in));
+	memset(&out, 0, sizeof(out));
+	memset(&in.payment_hash, 'A', sizeof(struct sha256));
+	memset(&out.payment_hash, 'A', sizeof(struct sha256));
+	memset(&payment_key, 'B', sizeof(payment_key));
+	in.key.id = 42;
+	in.key.peer = peer;
+	in.msatoshi = 42;
+
+	out.in = &in;
+	out.key.id = 1337;
+	out.key.peer = peer;
+	out.msatoshi = 41;
+
+	/* Store the htlc_in */
+	CHECK_MSG(wallet_htlc_save_in(w, chan, &in),
+		  tal_fmt(ctx, "Save htlc_in failed: %s", w->db->err));
+	CHECK_MSG(in.dbid != 0, "HTLC DB ID was not set.");
+	/* Saving again should get us a collision */
+	CHECK_MSG(!wallet_htlc_save_in(w, chan, &in),
+		  "Saving two HTLCs with the same data must not succeed.");
+	/* Update */
+	CHECK_MSG(wallet_htlc_update(w, in.dbid, RCVD_ADD_HTLC, NULL),
+		  "Update HTLC with null payment_key failed");
+	CHECK_MSG(
+	    wallet_htlc_update(w, in.dbid, SENT_REMOVE_HTLC, &payment_key),
+	    "Update HTLC with payment_key failed");
+
+	CHECK_MSG(wallet_htlc_save_out(w, chan, &out),
+		  tal_fmt(ctx, "Save htlc_out failed: %s", w->db->err));
+	CHECK_MSG(out.dbid != 0, "HTLC DB ID was not set.");
+	CHECK_MSG(!wallet_htlc_save_out(w, chan, &out),
+		  "Saving two HTLCs with the same data must not succeed.");
+
+	/* Attempt to load them from the DB again */
+	htlc_in_map_init(htlcs_in);
+	htlc_out_map_init(htlcs_out);
+
+	CHECK_MSG(wallet_htlcs_load_for_channel(w, chan, htlcs_in, htlcs_out),
+		  "Failed loading HTLCs");
+
+	CHECK_MSG(wallet_htlcs_reconnect(w, htlcs_in, htlcs_out),
+		  "Unable to reconnect htlcs.");
+
+	hin = htlc_in_map_get(htlcs_in, &in.key);
+	hout = htlc_out_map_get(htlcs_out, &out.key);
+
+	CHECK(hin != NULL);
+	CHECK(hout != NULL);
+
+	/* Have to free manually, otherwise we get our dependencies
+	 * twisted */
+	tal_free(hin);
+	tal_free(hout);
+	htlc_in_map_clear(htlcs_in);
+	htlc_out_map_clear(htlcs_out);
+
+	return true;
+}
+
 int main(void)
 {
 	bool ok = true;
@@ -303,6 +388,7 @@ int main(void)
 	ok &= test_shachain_crud();
 	ok &= test_channel_crud(tmpctx);
 	ok &= test_channel_config_crud(tmpctx);
+	ok &= test_htlc_crud(tmpctx);
 
 	tal_free(tmpctx);
 	return !ok;

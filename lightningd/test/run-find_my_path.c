@@ -7,6 +7,9 @@ int unused_main(int argc, char *argv[]);
 /* Generated stub for crashlog_activate */
 void crashlog_activate(const char *argv0 UNNEEDED, struct log *log UNNEEDED)
 { fprintf(stderr, "crashlog_activate called!\n"); abort(); }
+/* Generated stub for debug_poll */
+int debug_poll(struct pollfd *fds UNNEEDED, nfds_t nfds UNNEEDED, int timeout UNNEEDED)
+{ fprintf(stderr, "debug_poll called!\n"); abort(); }
 /* Generated stub for gossip_init */
 void gossip_init(struct lightningd *ld UNNEEDED)
 { fprintf(stderr, "gossip_init called!\n"); abort(); }
@@ -52,9 +55,6 @@ void register_opts(struct lightningd *ld UNNEEDED)
 /* Generated stub for setup_jsonrpc */
 void setup_jsonrpc(struct lightningd *ld UNNEEDED, const char *rpc_filename UNNEEDED)
 { fprintf(stderr, "setup_jsonrpc called!\n"); abort(); }
-/* Generated stub for setup_listeners */
-void setup_listeners(struct lightningd *ld UNNEEDED)
-{ fprintf(stderr, "setup_listeners called!\n"); abort(); }
 /* Generated stub for setup_topology */
 void setup_topology(struct chain_topology *topology UNNEEDED,
 		    struct timers *timers UNNEEDED,
@@ -72,6 +72,20 @@ const char *version(void)
 /* Generated stub for wallet_channels_load_active */
 bool wallet_channels_load_active(struct wallet *w UNNEEDED, struct list_head *peers UNNEEDED)
 { fprintf(stderr, "wallet_channels_load_active called!\n"); abort(); }
+/* Generated stub for wallet_htlcs_load_for_channel */
+bool wallet_htlcs_load_for_channel(struct wallet *wallet UNNEEDED,
+				   struct wallet_channel *chan UNNEEDED,
+				   struct htlc_in_map *htlcs_in UNNEEDED,
+				   struct htlc_out_map *htlcs_out UNNEEDED)
+{ fprintf(stderr, "wallet_htlcs_load_for_channel called!\n"); abort(); }
+/* Generated stub for wallet_htlcs_reconnect */
+bool wallet_htlcs_reconnect(struct wallet *wallet UNNEEDED,
+			    struct htlc_in_map *htlcs_in UNNEEDED,
+			    struct htlc_out_map *htlcs_out UNNEEDED)
+{ fprintf(stderr, "wallet_htlcs_reconnect called!\n"); abort(); }
+/* Generated stub for wallet_invoices_load */
+bool wallet_invoices_load(struct wallet *wallet UNNEEDED, struct invoices *invs UNNEEDED)
+{ fprintf(stderr, "wallet_invoices_load called!\n"); abort(); }
 /* Generated stub for wallet_new */
 struct wallet *wallet_new(const tal_t *ctx UNNEEDED, struct log *log UNNEEDED)
 { fprintf(stderr, "wallet_new called!\n"); abort(); }
@@ -114,6 +128,8 @@ int main(int argc, char *argv[])
 	setenv("PATH", tal_strjoin(tmpctx, pathelems, ":", STR_NO_TRAIL), 1);
 	assert(streq(find_my_path(tmpctx, argv0), answer));
 
+	assert(!taken_any());
+	take_cleanup();
 	tal_free(tmpctx);
 	return 0;
 }

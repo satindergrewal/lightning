@@ -13,7 +13,7 @@ BOLTVERSION := master
 
 ifneq ($(NO_VALGRIND),1)
 VALGRIND=valgrind -q --error-exitcode=7
-VALGRIND_TEST_ARGS = --track-origins=yes --leak-check=full --show-reachable=yes
+VALGRIND_TEST_ARGS = --track-origins=yes --leak-check=full --show-reachable=yes --errors-for-leak-kinds=all
 endif
 
 ifeq ($(COVERAGE),1)
@@ -145,7 +145,6 @@ include common/Makefile
 include wire/Makefile
 include wallet/Makefile
 include hsmd/Makefile
-include handshaked/Makefile
 include gossipd/Makefile
 include openingd/Makefile
 include channeld/Makefile

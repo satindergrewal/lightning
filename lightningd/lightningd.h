@@ -15,7 +15,7 @@
  * The default TCP port is 9735. This corresponds to hexadecimal
  * `0x2607`, the Unicode code point for LIGHTNING.
  */
-#define DEFAULT_PORT 0x2607
+#define DEFAULT_PORT 9735
 
 /* Various adjustable things. */
 struct config {
@@ -64,6 +64,9 @@ struct config {
 
 	/* IPv4 or IPv6 address to announce to the network */
 	struct ipaddr ipaddr;
+
+	/* Disable automatic reconnects */
+	bool no_reconnect;
 };
 
 struct lightningd {
@@ -100,8 +103,9 @@ struct lightningd {
 	struct list_head peers;
 	/* FIXME: This should stay in HSM */
 	struct secret peer_seed;
-	/* Used to give a unique seed to every peer. */
-	u64 peer_counter;
+
+	/* Outstanding connect commands. */
+	struct list_head connects;
 
 	/* Our chain topology. */
 	struct chain_topology *topology;
@@ -146,8 +150,6 @@ struct lightningd {
  */
 void derive_peer_seed(struct lightningd *ld, struct privkey *peer_seed,
 		      const struct pubkey *peer_id, const u64 channel_id);
-
-struct peer *find_peer_by_unique_id(struct lightningd *ld, u64 unique_id);
 
 struct chainparams *get_chainparams(const struct lightningd *ld);
 #endif /* LIGHTNING_LIGHTNINGD_LIGHTNINGD_H */

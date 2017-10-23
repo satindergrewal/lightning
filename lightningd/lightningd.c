@@ -15,6 +15,7 @@
 #include <ccan/tal/grab_file/grab_file.h>
 #include <ccan/tal/path/path.h>
 #include <ccan/tal/str/str.h>
+#include <common/io_debug.h>
 #include <common/timeout.h>
 #include <common/utils.h>
 #include <common/version.h>
@@ -30,16 +31,6 @@
 
 char *bitcoin_datadir;
 
-struct peer *find_peer_by_unique_id(struct lightningd *ld, u64 unique_id)
-{
-	struct peer *peer;
-	list_for_each(&ld->peers, peer, list) {
-		if (peer->unique_id == unique_id)
-			return peer;
-	}
-	return NULL;
-}
-
 void notify_new_block(struct chain_topology *topo, u32 height);
 void notify_new_block(struct chain_topology *topo, u32 height)
 {
@@ -47,9 +38,9 @@ void notify_new_block(struct chain_topology *topo, u32 height)
 }
 
 void db_resolve_invoice(struct lightningd *ld,
-			const char *label, u64 paid_num);
+			const char *label);
 void db_resolve_invoice(struct lightningd *ld,
-			const char *label, u64 paid_num)
+			const char *label)
 {
 	/* FIXME */
 }
@@ -74,20 +65,21 @@ bool db_remove_invoice(struct lightningd *ld, const char *label)
 	return true;
 }
 
-static struct lightningd *new_lightningd(const tal_t *ctx)
+static struct lightningd *new_lightningd(const tal_t *ctx,
+					 struct log_book *log_book)
 {
 	struct lightningd *ld = tal(ctx, struct lightningd);
 
 	list_head_init(&ld->peers);
-	ld->peer_counter = 0;
 	ld->dev_debug_subdaemon = NULL;
 	htlc_in_map_init(&ld->htlcs_in);
 	htlc_out_map_init(&ld->htlcs_out);
 	ld->dev_disconnect_fd = -1;
-	ld->log_book = new_log_book(ld, 20*1024*1024, LOG_INFORM);
-	ld->log = new_log(ld, ld->log_book, "lightningd(%u):", (int)getpid());
+	ld->log_book = log_book;
+	ld->log = new_log(log_book, log_book, "lightningd(%u):", (int)getpid());
 
 	list_head_init(&ld->pay_commands);
+	list_head_init(&ld->connects);
 	ld->portnum = DEFAULT_PORT;
 	timers_init(&ld->timers, time_mono());
 	ld->topology = new_topology(ld, ld->log);
@@ -102,7 +94,6 @@ static const char *daemons[] = {
 	"lightning_channeld",
 	"lightning_closingd",
 	"lightning_gossipd",
-	"lightning_handshaked",
 	"lightning_hsmd",
 	"lightning_onchaind",
 	"lightning_openingd"
@@ -203,10 +194,8 @@ static void shutdown_subdaemons(struct lightningd *ld)
 	close(ld->hsm_fd);
 	subd_shutdown(ld->gossip, 10);
 
-	/* Duplicates are OK: no need to check here. */
-	list_for_each(&ld->peers, p, list)
-		if (p->owner)
-			subd_shutdown(p->owner, 0);
+	while ((p = list_top(&ld->peers, struct peer, list)) != NULL)
+		tal_free(p);
 }
 
 struct chainparams *get_chainparams(const struct lightningd *ld)
@@ -217,27 +206,25 @@ struct chainparams *get_chainparams(const struct lightningd *ld)
 
 int main(int argc, char *argv[])
 {
-	struct lightningd *ld = new_lightningd(NULL);
+	struct log_book *log_book;
+	struct lightningd *ld;
 	bool newdir;
 
 	err_set_progname(argv[0]);
 
+	/* Things log on shutdown, so we need this to outlive lightningd */
+	log_book = new_log_book(NULL, 20*1024*1024, LOG_INFORM);
+	ld = new_lightningd(NULL, log_book);
+
 	secp256k1_ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY
 						 | SECP256K1_CONTEXT_SIGN);
+
+	io_poll_override(debug_poll);
 
 	/* Figure out where we are first. */
 	ld->daemon_dir = find_my_path(ld, argv[0]);
 
 	register_opts(ld);
-	opt_register_arg("--dev-debugger=<subdaemon>", opt_subd_debug, NULL,
-			 ld, "Wait for gdb attach at start of <subdaemon>");
-
-	opt_register_arg("--dev-broadcast-interval=<ms>", opt_set_uintval,
-			 opt_show_uintval, &ld->broadcast_interval,
-			 "Time between gossip broadcasts in milliseconds (default: 30000)");
-
-	opt_register_arg("--dev-disconnect=<filename>", opt_subd_dev_disconnect,
-			 NULL, ld, "File containing disconnection points");
 
 	/* FIXME: move to option initialization once we drop the
 	 * legacy daemon */
@@ -258,14 +245,8 @@ int main(int argc, char *argv[])
 	/* Initialize wallet, now that we are in the correct directory */
 	ld->wallet = wallet_new(ld, ld->log);
 
-	/* Mark ourselves live. */
-	log_info(ld->log, "Hello world from %s!", version());
-
 	/* Set up HSM. */
 	hsm_init(ld, newdir);
-
-	/* Set up gossip daemon. */
-	gossip_init(ld);
 
 	/* Initialize block topology. */
 	setup_topology(ld->topology,
@@ -273,6 +254,14 @@ int main(int argc, char *argv[])
 		       ld->config.poll_time,
 		       /* FIXME: Load from peers. */
 		       0);
+
+	/* Load invoices from the database */
+	if (!wallet_invoices_load(ld->wallet, ld->invoices)) {
+		err(1, "Could not load invoices from the database");
+	}
+
+	/* Set up gossip daemon. */
+	gossip_init(ld);
 
 	/* Load peers from database */
 	wallet_channels_load_active(ld->wallet, &ld->peers);
@@ -283,15 +272,20 @@ int main(int argc, char *argv[])
 		populate_peer(ld, peer);
 		peer->seed = tal(peer, struct privkey);
 		derive_peer_seed(ld, peer->seed, &peer->id, peer->channel->id);
-		peer->htlcs = tal_arr(peer, struct htlc_stub, 0);
 		peer->owner = NULL;
+		if (!wallet_htlcs_load_for_channel(ld->wallet, peer->channel,
+						   &ld->htlcs_in, &ld->htlcs_out)) {
+			err(1, "could not load htlcs for channel: %s", ld->wallet->db->err);
+		}
 	}
-
+	if (!wallet_htlcs_reconnect(ld->wallet, &ld->htlcs_in, &ld->htlcs_out)) {
+		errx(1, "could not reconnect htlcs loaded from wallet, wallet may be inconsistent.");
+	}
 	/* Create RPC socket (if any) */
 	setup_jsonrpc(ld, ld->rpc_filename);
 
-	/* Ready for connections from peers. */
-	setup_listeners(ld);
+	/* Mark ourselves live. */
+	log_info(ld->log, "Hello world from %s!", version());
 
 #if 0
 	/* Load peers from database. */
@@ -314,6 +308,6 @@ int main(int argc, char *argv[])
 
 	tal_free(ld);
 	opt_free_table();
+	tal_free(log_book);
 	return 0;
 }
-

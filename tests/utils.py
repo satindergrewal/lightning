@@ -47,7 +47,7 @@ class TailableProc(object):
         self.proc = None
         self.outputDir = outputDir
         self.logsearch_start = 0
-        
+
     def start(self):
         """Start the underlying process and start monitoring it.
         """
@@ -58,16 +58,30 @@ class TailableProc(object):
         self.thread.start()
         self.running = True
 
-    def stop(self):
+    def save_log(self):
         if self.outputDir:
             logpath = os.path.join(self.outputDir, 'log')
             with open(logpath, 'w') as f:
                 for l in self.logs:
                     f.write(l + '\n')
+
+    def stop(self, timeout=10):
+        self.save_log()
         self.proc.terminate()
-        self.proc.kill()
+
+        # Now give it some time to react to the signal
+        rc = self.proc.wait(timeout)
+
+        if rc is None:
+            self.proc.kill()
+
         self.proc.wait()
         self.thread.join()
+
+        if failed:
+            raise(ValueError("Process '{}' did not cleanly shutdown".format(self.proc.pid)))
+
+        return self.proc.returncode
 
     def tail(self):
         """Tail the stdout of the process and remember it.
@@ -107,7 +121,7 @@ class TailableProc(object):
 
         """
         logging.debug("Waiting for {} in the logs".format(regexs))
-        exs = {re.compile(r) for r in regexs}
+        exs = [re.compile(r) for r in regexs]
         start_time = time.time()
         pos = self.logsearch_start
         initial_pos = len(self.logs)
@@ -130,10 +144,11 @@ class TailableProc(object):
                     continue
 
                 for r in exs.copy():
+                    self.logsearch_start = pos+1
                     if r.search(self.logs[pos]):
                         logging.debug("Found '%s' in logs", r)
                         exs.remove(r)
-                    self.logsearch_start = pos+1
+                        break
                 if len(exs) == 0:
                     return self.logs[pos]
                 pos += 1
@@ -174,7 +189,7 @@ class BitcoinD(TailableProc):
 
     def __init__(self, bitcoin_dir="/root/.chips", rpcport=57776):
         TailableProc.__init__(self, bitcoin_dir)
-        
+
         self.bitcoin_dir = bitcoin_dir
         self.rpcport = rpcport
         self.prefix = 'chipsd'
@@ -216,7 +231,7 @@ class LightningD(TailableProc):
         ]
 
         self.cmd_line += ["--{}={}".format(k, v) for k, v in LIGHTNINGD_CONFIG.items()]
-        self.prefix = 'lightningd'
+        self.prefix = 'lightningd(%d)' % (port)
 
         if not os.path.exists(lightning_dir):
             os.makedirs(lightning_dir)
@@ -226,19 +241,22 @@ class LightningD(TailableProc):
         self.wait_for_log("Creating IPv6 listener on port")
         logging.info("LightningD started")
 
-    def stop(self):
-        # If it's already crashing, wait a bit for log dump.
-        if os.path.isfile(os.path.join(self.lightning_dir, 'crash.log')):
-            time.sleep(2)
-        TailableProc.stop(self)
-        logging.info("LightningD stopped")
+    def wait(self, timeout=10):
+        """Wait for the daemon to stop for up to timeout seconds
+
+        Returns the returncode of the process, None if the process did
+        not return before the timeout triggers.
+        """
+        self.proc.wait(timeout)
+        return self.proc.returncode
 
 class LightningNode(object):
-    def __init__(self, daemon, rpc, btc, executor):
+    def __init__(self, daemon, rpc, btc, executor, may_fail=False):
         self.rpc = rpc
         self.daemon = daemon
         self.bitcoin = btc
         self.executor = executor
+        self.may_fail = may_fail
 
     # Use batch if you're doing more than one async.
     def connect(self, remote_node, capacity, async=False):
@@ -256,7 +274,7 @@ class LightningNode(object):
         t = threading.Thread(target=call_connect)
         t.daemon = True
         t.start()
-        
+
         def wait_connected():
             # Up to 10 seconds to get tx into mempool.
             start_time = time.time()
@@ -303,3 +321,27 @@ class LightningNode(object):
         c.close()
         db.close()
         return result
+
+    def stop(self, timeout=10):
+        """ Attempt to do a clean shutdown, but kill if it hangs
+        """
+
+        # Tell the daemon to stop
+        try:
+            # May fail if the process already died
+            self.rpc.stop()
+        except:
+            pass
+
+        rc = self.daemon.wait(timeout)
+
+        # If it did not stop be more insistent
+        if rc is None:
+            rc = self.daemon.stop()
+
+        self.daemon.save_log()
+
+        if rc != 0 and not self.may_fail:
+            raise ValueError("Node did not exit cleanly, rc={}".format(rc))
+        else:
+            return rc
