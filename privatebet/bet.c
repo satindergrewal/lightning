@@ -34,7 +34,7 @@
 
 // redo unpaid deletes
 
-#include "bet.h"
+#include "bet.h"  
 char *LN_idstr,Host_ipaddr[64],Host_peerid[67],BET_ORACLEURL[64] = "127.0.0.1:7797";
 uint16_t LN_port;
 int32_t Gamestart,Gamestarted,Lastturni,Maxrounds = 3,Maxplayers = 10;
@@ -46,6 +46,12 @@ int32_t LP_canbind,IAMLP,IAMHOST,IAMORACLE;
 struct LP_peerinfo  *LP_peerinfos,*LP_mypeer;
 bits256 Mypubkey,Myprivkey,Clientrhash,Hostrhashes[CARDS777_MAXPLAYERS+1];
 char Host_channel[64];
+
+int32_t LP_numpeers()
+{
+    printf("this needs to be fixed\n");
+    return(9);
+}
 
 #include "../../SuperNET/iguana/exchanges/LP_network.c"
 #include "../../SuperNET/iguana/exchanges/LP_secp.c"
