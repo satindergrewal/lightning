@@ -26,11 +26,14 @@
 //considering the case where the dealer uniquely generates the blinding value for each card and generates the M of N shard of it and distributes it among the players...
 
 
-[9:09]
-to get to know the card at any given time the player must know atleast M shards from it's peers..
+//[9:09]
+//to get to know the card at any given time the player must know atleast M shards from it's peers..
 
-[11:08]
-Ie, it's the responsibility of each player to notarise that state after each move is made
+//[11:08]
+//Ie, it's the responsibility of each player to notarise that state after each move is made
+
+// redo unpaid deletes
+
 #include "bet.h"
 char *LN_idstr,Host_ipaddr[64],Host_peerid[67],BET_ORACLEURL[64] = "127.0.0.1:7797";
 uint16_t LN_port;
