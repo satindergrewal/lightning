@@ -33,6 +33,7 @@
 //Ie, it's the responsibility of each player to notarise that state after each move is made
 
 // redo unpaid deletes
+//  from external: git submodule add https://github.com/ianlancetaylor/libbacktrace.git
 
 #include "bet.h"  
 char *LN_idstr,Host_ipaddr[64],Host_peerid[67],BET_ORACLEURL[64] = "127.0.0.1:7797";
