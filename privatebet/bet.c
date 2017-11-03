@@ -409,6 +409,7 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 
 int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
+    static int32_t decodebad,decodegood;
     int32_t i,j,playerid,errs,playererrs,good,bad; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
     for (playererrs=playerid=0; playerid<numplayers; playerid++)
     {
@@ -417,6 +418,8 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
             printf("playerid.%d got errors %d for deckid.%s\n",playerid,errs,bits256_str(str,deckid));
             playererrs++;
         }
+        decodebad += errs;
+        decodegood += (numcards - errs);
     }
     for (good=bad=i=0; i<numplayers-1; i++)
     {
@@ -429,6 +432,6 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
             } good++;
         }
     }
-    printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad);
+    printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
     return(playererrs);
 }
