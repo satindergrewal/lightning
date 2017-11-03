@@ -81,6 +81,8 @@ void randombytes_buf(void * const buf, const size_t size)
 // privatebet host -> publish to BET chain
 // tableid management -> leave, select game, start game
 
+int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
+
 int main(int argc,const char *argv[])
 {
     uint16_t tmp,rpcport = 7797,port = 7797+1;
@@ -230,6 +232,8 @@ int main(int argc,const char *argv[])
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
             range = (range % CARDS777_MAXCARDS) + 1;
             numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
+            players_init(numplayers,numplayers,rand(0));
+            continue;
             for (i=0; i<numplayers; i++)
                 privkeys[i] = curve25519_keypair(&pubkeys[i]);
             //Debug_privkeys = privkeys;
