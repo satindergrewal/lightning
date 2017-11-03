@@ -296,7 +296,7 @@ struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
     return(key);
 }
 
-struct keypair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t numcards)
+struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t numcards)
 {
     int32_t i,permis[256]; struct pair256 key,randcards[256];
     key = deckgen_common(randcards,numcards);
@@ -332,7 +332,7 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
 void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
     static uint8_t *allshares;
-    int32_t i,j,M,permi,permis[256]; uint8_t sharenrs[256],space[8192],*cardshares;
+    int32_t i,j,M,permi,permis[256]; uint8_t sharenrs[256],space[8192]; bits256 *cardshares;
     BET_permutation(permis,numcards);
     for (i=0; i<numcards; i++)
     {
