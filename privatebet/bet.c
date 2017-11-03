@@ -97,17 +97,17 @@ int main(int argc,const char *argv[])
     portable_mutex_init(&LP_messagemutex);
     portable_mutex_init(&BET_shardmutex);
     sleep(1);
-    if ( (infojson= chipsln_getinfo()) != 0 )
-    {
-        if ( (LN_idstr= clonestr(jstr(infojson,"id"))) == 0 || strlen(LN_idstr) != 66 )
-            printf("need 33 byte secp pubkey\n"), exit(-1);
-        LN_port = juint(infojson,"port");
-        printf("getinfo.(%s)\n",jprint(infojson,1));
-    } else printf("need to have CHIPS and lightning running\n"), exit(-1);
-    printf("help.(%s)\n",jprint(chipsln_help(),1));
-    printf("LN_idstr.(%s)\n",LN_idstr);
     if ( argc > 1 )
     {
+        if ( (infojson= chipsln_getinfo()) != 0 )
+        {
+            if ( (LN_idstr= clonestr(jstr(infojson,"id"))) == 0 || strlen(LN_idstr) != 66 )
+                printf("need 33 byte secp pubkey\n"), exit(-1);
+            LN_port = juint(infojson,"port");
+            printf("getinfo.(%s)\n",jprint(infojson,1));
+        } else printf("need to have CHIPS and lightning running\n"), exit(-1);
+        printf("help.(%s)\n",jprint(chipsln_help(),1));
+        printf("LN_idstr.(%s)\n",LN_idstr);
         if ( (argjson= cJSON_Parse(argv[1])) != 0 )
         {
             hostip = jstr(argjson,"hostip");
