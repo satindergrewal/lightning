@@ -390,32 +390,45 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
     return(tmp);
 }
 
-int32_t player_init(bits256 *playerprivs,bits256 *playercards,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
+int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    int32_t i,errs; struct pair256 key; bits256 cardprods[256],finalcards[256],blindingvals[256],blindedcards[256],decoded[256];
+    int32_t i,errs; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
     key = deckgen_player(playerprivs,playercards,numcards);
     deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
     blinding_vendor(blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
+    memset(decoded,0xff,numcards);
     for (errs=i=0; i<numcards; i++)
     {
-        decoded[i] = player_decode(key,blindingvals[i],blindedcards[i],cardprods,playerprivs,numcards);
-        if ( bits256_nonz(decoded[i]) == 0 )
+        decoded256 = player_decode(key,blindingvals[i],blindedcards[i],cardprods,playerprivs,numcards);
+        if ( bits256_nonz(decoded256) == 0 )
             errs++;
+        else decoded[i] = decoded256.bytes[30];
     }
     return(errs);
 }
 
 int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    int32_t playerid,errs,playererrs; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
+    int32_t playerid,errs,playererrs,good,bad; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
     for (playererrs=playerid=0; playerid<numplayers; playerid++)
     {
-        if ( (errs= player_init(playerprivs[playerid],playercards[playerid],playerid,numplayers,numcards,deckid)) != 0 )
+        if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],playerid,numplayers,numcards,deckid)) != 0 )
         {
             printf("playerid.%d got errors %d for deckid.%s\n",playerid,errs,bits256_str(str,deckid));
             playererrs++;
         }
     }
-    printf("numplayers.%d numcards.%d deck %s -> playererrs.%d\n",numplayers,numcards,bits256_str(str,deckid),playererrs);
+    for (good=bad=i=0; i<numplayers-1; i++)
+    {
+        for (j=i+1; j<numplayers; j++)
+        {
+            if ( memcmp(decoded[i],decoded[j],numcards) != 0 )
+            {
+                printf("decoded cards mismatch between player %d and %d\n",i,j);
+                bad++;
+            } good++;
+        }
+    }
+    printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad);
     return(playererrs);
 }
