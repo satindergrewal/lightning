@@ -331,7 +331,7 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
 
 void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
-    static uint8_t *allshares;
+    static bits256 *allshares;
     int32_t i,j,M,permi,permis[256]; uint8_t sharenrs[256],space[8192]; bits256 *cardshares;
     BET_permutation(permis,numcards);
     for (i=0; i<numcards; i++)
@@ -358,14 +358,14 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     }
 }
 
-bits256 player_decode(struct keypair256 key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t numcards)
+bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t numcards)
 {
     bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint; int32_t i,j;
     basepoint = curve25519_basepoint9();
     refval = fmul_donna(blindedcard,crecip_donna(blindingval));
-    for (i=0; i<range; i++)
+    for (i=0; i<numcards; i++)
     {
-        for (j=0; j<range; j++)
+        for (j=0; j<numcards; j++)
         {
             tmp = fmul_donna(playerprivs[i],cardprods[j]);
             tmp = fmul_donna(tmp,key.priv);
