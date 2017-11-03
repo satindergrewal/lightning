@@ -370,7 +370,14 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
     refval = fmul_donna(blindedcard,crecip_donna(blindingval));
     for (i=0; i<numcards; i++)
     {
-        unpermi = permis[i];
+        //unpermi = permis[i];
+        for (j=0; j<numcards; j++)
+            if ( permis[j] == i )
+            {
+                unpermi = j;
+                break;
+            }
+        //printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
         for (j=0; j<numcards; j++)
         {
             tmp = fmul_donna(playerprivs[unpermi],cardprods[j]);
