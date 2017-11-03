@@ -370,12 +370,19 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
     refval = fmul_donna(blindedcard,crecip_donna(blindingval));
     for (i=0; i<numcards; i++)
     {
+        unpermi = -1;
         for (j=0; j<numcards; j++)
             if ( permis[j] == i )
             {
                 unpermi = j;
                 break;
             }
+        if ( unpermi < 0 )
+        {
+            printf("couldnt find unpermi for %d\n",i);
+            memset(tmp.bytes,0,sizeof(tmp));
+            return(tmp);
+        }
         //printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
         for (j=0; j<numcards; j++)
         {
