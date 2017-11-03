@@ -282,7 +282,7 @@ bits256 card_rand256(int32_t privkeyflag,int8_t index)
     return(randval);
 }
 
-struct keypair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
+struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
 {
     int32_t i; struct pair256 key,tmp; bits256 basepoint;
     basepoint = curve25519_basepoint9();
@@ -332,7 +332,7 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
 void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
     static uint8_t *allshares;
-    int32_t i,j,permi,M = (numplayers/2) + 1; uint8_t sharenrs[256],space[8192],*cardshares;
+    int32_t i,j,M,permi,permis[256]; uint8_t sharenrs[256],space[8192],*cardshares;
     BET_permutation(permis,numcards);
     for (i=0; i<numcards; i++)
     {
@@ -342,6 +342,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     }
     if ( 0 ) // for later
     {
+        M = (numplayers/2) + 1;
         gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
         cardshares = calloc(numplayers,sizeof(bits256));
         if ( allshares == 0 )
