@@ -416,6 +416,6 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
             playererrs++;
         }
     }
-    printf("deck %s -> playererrs.%d\n",bits256_str(str,deckid),playererrs);
+    printf("numplayers.%d numcards.%d deck %s -> playererrs.%d\n",numplayers,numcards,bits256_str(str,deckid),playererrs);
     return(playererrs);
 }
