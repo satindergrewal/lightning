@@ -360,7 +360,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 
 bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t numcards)
 {
-    bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint; int32_t i,j;
+    bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint; int32_t i,j; char str[65];
     basepoint = curve25519_basepoint9();
     refval = fmul_donna(blindedcard,crecip_donna(blindingval));
     for (i=0; i<numcards; i++)
@@ -385,3 +385,17 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
     return(tmp);
 }
 
+int32_t player_init(bits256 *playerprivs,bits256 *playercards,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
+{
+    int32_t i,errs; struct pair256 key; bits256 cardprods[256],finalcards[256],blindings[256],blinedcards[256],decoded[256];
+    key = deckgen_player(playerprivs,playercards,numcards);
+    deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
+    blinding_vendor(blindings,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
+    for (errs=i=0; i<numcards; i++)
+    {
+        decoded[i] = player_decode(key,blindingvals[i],blindedcard[i],cardprods,playerprivs,numcards);
+        if ( bits256_nonz(decoded[i]) == 0 )
+            errs++;
+    }
+    return(errs);
+}
