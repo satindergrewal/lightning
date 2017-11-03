@@ -264,3 +264,103 @@ int main(int argc,const char *argv[])
     return 0;
 }
 
+struct pair256 { bits256 priv,prod; };
+
+bits256 curve25519_fieldelement(bits256 hash)
+{
+    hash.bytes[0] &= 0xf8, hash.bytes[31] &= 0x7f, hash.bytes[31] |= 0x40;
+    return(hash);
+}
+
+bits256 card_rand256(int32_t privkeyflag,int8_t index)
+{
+    bits256 randval;
+    OS_randombytes(randval.bytes,sizeof(randval));
+    if ( privkeyflag != 0 )
+        randval.bytes[0] &= 0xf8, randval.bytes[31] &= 0x7f, randval.bytes[31] |= 0x40;
+    randval.bytes[30] = index;
+    return(randval);
+}
+
+struct keypair256 deckgen_common(struct pair256 *randcards,int32_t range)
+{
+    int32_t i; struct pair256 key,tmp; bits256 basepoint;
+    basepoint = curve25519_basepoint9();
+    key.priv = rand256(1), key.prod = fmul_donna(key.priv,basepoint);
+    for (i=0; i<range; i++)
+    {
+        tmp.priv = card_rand256(1,i);
+        tmp.prod = fmul_donna(tmp.priv,basepoint);
+        randcards[i] = tmp;
+    }
+    return(key);
+}
+
+struct keypair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t range)
+{
+    int32_t i,permis[256]; struct pair256 key,randcards[256];
+    key = deckgen_common(randcards,range);
+    BET_permutation(permis,range);
+    for (i=0; i<range; i++)
+    {
+        playerprivs[i] = randcards[permis[i]].priv;
+        playercards[i] = fmul_donna(playerprivs[i],key.prod);
+    }
+    return(key);
+}
+
+void deckgen_vendor(bits256 *finalcards,int32_t range,bits256 *playercards)
+{
+    int32_t i,permis[256]; bits256 hash,xoverz,tmp[256]; struct pair256 key,randcards[256];
+    key = deckgen_common(randcards,range);
+    for (i=0; i<range; i++)
+    {
+        xoverz = xoverz_donna(fmul_donna(playercards[i],randcards[i].priv));
+        vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+        tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
+    }
+    BET_permutation(permis,range);
+    for (i=0; i<range; i++)
+        finalcards[i] = tmp[permis[i]];
+    return(key);
+}
+
+#ifdef notyet
+// At Blindig Value Vendor
+
+privkey_b=rand256(1);
+pubkey_b=fmul_donna(privkey_b,curve25519_basepoint9());
+
+memset(perm_b,0,sizeof(perm_b));
+BET_permutation(perm_b,range);
+
+for(j=0;j<range;j++){
+    blinding_values[j]=rand256(1);
+}
+
+/* Encoding Shamir Secret Shards */
+libgfshare_init();
+memset(sharenrs,0,255);
+gfshare_init_sharenrs(sharenrs,0,numplayers,numplayers);
+
+for(i=0;i<range;i++){
+    G=gfshare_initenc(sharenrs,numplayers,numplayers,32,NULL,0);
+    gfshare_enc_setsecret(G,blinding_values[i].bytes);
+    for(j=0;j<G->sharecount;j++){
+        gfshare_encgetshare(NULL,NULL,G,j,shamir_shards[i][j].bytes);
+    }
+}
+for(j=0;j<range;j++){
+    pos=perm_b[j];
+    temp_swap[j]=final_enccards_d[pos];
+}
+
+for(j=0;j<range;j++){
+    final_enccards_d[j]=temp_swap[j];
+}
+
+
+for(i=0;i<range;i++){
+    final_enccards_b[i]=fmul_donna(final_enccards_d[i],blinding_values[i]);
+}
+#endif
