@@ -309,10 +309,12 @@ struct keypair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32
     return(key);
 }
 
-void deckgen_vendor(bits256 *finalcards,int32_t numcards,bits256 *playercards)
+void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid) // given playercards[], returns cardprods[] and finalcards[]
 {
-    int32_t i,permis[256]; bits256 hash,xoverz,tmp[256]; struct pair256 key,randcards[256];
-    key = deckgen_common(randcards,numcards);
+    static struct pair256 randcards[256]; static bits256 active_deckid;
+    int32_t i,permis[256]; bits256 hash,xoverz,tmp[256];
+    if ( bits256_cmp(deckid,active_deckid) != 0 )
+        deckgen_common(randcards,numcards);
     for (i=0; i<numcards; i++)
     {
         xoverz = xoverz_donna(fmul_donna(playercards[i],randcards[i].priv));
@@ -321,8 +323,10 @@ void deckgen_vendor(bits256 *finalcards,int32_t numcards,bits256 *playercards)
     }
     BET_permutation(permis,numcards);
     for (i=0; i<numcards; i++)
+    {
         finalcards[i] = tmp[permis[i]];
-    return(key);
+        cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
+    }
 }
 
 void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
@@ -352,3 +356,31 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
         // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
     }
 }
+
+bits256 player_decode(struct keypair256 key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t numcards)
+{
+    bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint; int32_t i,j;
+    basepoint = curve25519_basepoint9();
+    refval = fmul_donna(blindedcard,crecip_donna(blindingval));
+    for (i=0; i<range; i++)
+    {
+        for (j=0; j<range; j++)
+        {
+            tmp = fmul_donna(playerprivs[i],cardprods[j]);
+            tmp = fmul_donna(tmp,key.priv);
+            xoverz = xoverz_donna(tmp);
+            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+            fe = crecip_donna(curve25519_fieldelement(hash));
+            decoded = fmul_donna(fmul_donna(refval,fe),basepoint);
+            if ( bits256_cmp(decoded,cardprods[j]) == 0 )
+            {
+                printf("decoded card %s value %d\n",bits256_str(str,decoded),playerprivs[i].bytes[30]);
+                return(playerprivs[i]);
+            }
+        }
+    }
+    printf("couldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
+    memset(tmp.bytes,0,sizeof(tmp));
+    return(tmp);
+}
+
