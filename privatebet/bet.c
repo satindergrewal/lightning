@@ -399,3 +399,17 @@ int32_t player_init(bits256 *playerprivs,bits256 *playercards,int32_t playerid,i
     }
     return(errs);
 }
+
+int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
+{
+    int32_t playerid,errs,playererrs; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
+    for (playererrs=playerid=0; playerid<numplayers; playerid++)
+    {
+        if ( (errs= player_init(playerprivs[i],playercards[i],playerid,numplayers,numcards,deckid)) != 0 )
+        {
+            printf("playerid.%d got errors %d for deckid.%s\n",playerid,errs,bits256_str(str,deckid));
+            playererrs++;
+        }
+    }
+    return(playererrs);
+}
