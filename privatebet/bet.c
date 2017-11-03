@@ -371,7 +371,7 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
     for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
-            if ( permis[i] == i )
+            if ( permis[j] == i )
             {
                 unpermi = j;
                 break;
