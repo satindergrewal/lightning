@@ -387,13 +387,13 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
 
 int32_t player_init(bits256 *playerprivs,bits256 *playercards,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    int32_t i,errs; struct pair256 key; bits256 cardprods[256],finalcards[256],blindings[256],blinedcards[256],decoded[256];
+    int32_t i,errs; struct pair256 key; bits256 cardprods[256],finalcards[256],blindingvals[256],blindedcards[256],decoded[256];
     key = deckgen_player(playerprivs,playercards,numcards);
     deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
     blinding_vendor(blindings,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
     for (errs=i=0; i<numcards; i++)
     {
-        decoded[i] = player_decode(key,blindingvals[i],blindedcard[i],cardprods,playerprivs,numcards);
+        decoded[i] = player_decode(key,blindingvals[i],blindedcards[i],cardprods,playerprivs,numcards);
         if ( bits256_nonz(decoded[i]) == 0 )
             errs++;
     }
