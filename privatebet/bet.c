@@ -318,7 +318,7 @@ struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t 
 void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid) // given playercards[], returns cardprods[] and finalcards[]
 {
     static struct pair256 randcards[256]; static bits256 active_deckid;
-    int32_t i,permis[256]; bits256 hash,xoverz,tmp[256];
+    int32_t i,j,permis[256]; bits256 hash,xoverz,tmp[256];
     if ( bits256_cmp(deckid,active_deckid) != 0 )
         deckgen_common(randcards,numcards);
     for (i=0; i<numcards; i++)
@@ -333,6 +333,13 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
         finalcards[i] = tmp[permis[i]];
         cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
     }
+	printf("\nFinal Encrypted cards at DCV:\n");
+	for(i=0;i<numcards;i++){
+		printf("\n");
+		for(j=0;j<32;j++){
+			printf("%d ",finalcards[i].bytes[j]);
+		}
+	}
 }
 
 void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
@@ -340,6 +347,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     static bits256 *allshares;
     int32_t i,j,M,permi,permis[256]; uint8_t sharenrs[256],space[8192]; bits256 *cardshares;
     BET_permutation(permis,numcards);
+	
     for (i=0; i<numcards; i++)
     {
         permi = permis[i];
@@ -369,6 +377,14 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
     bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint; int32_t i,j,unpermi; char str[65];
     basepoint = curve25519_basepoint9();
     refval = fmul_donna(blindedcard,crecip_donna(blindingval));
+
+	printf("\nThe card after removing the blinding vector:\n");
+	for(i=0;i<32;i++){
+		printf("%d ",refval[i]);
+	}
+
+	
+	
     for (i=0; i<numcards; i++)
     {
         unpermi = -1;
@@ -384,7 +400,7 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
             memset(tmp.bytes,0,sizeof(tmp));
             return(tmp);
         }
-        //printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
+        printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
         for (j=0; j<numcards; j++)
         {
             tmp = fmul_donna(playerprivs[unpermi],cardprods[j]);
@@ -409,7 +425,8 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 {
     int32_t i,j,errs; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
     key = deckgen_player(playerprivs,playercards,permis,numcards);
-    deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
+
+	deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
     blinding_vendor(blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
     memset(decoded,0xff,numcards);
     for (errs=i=0; i<numcards; i++)
@@ -442,7 +459,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
     static int32_t decodebad,decodegood;
     int32_t i,j,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][256]; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
-	numplayers=1; //for testing purpose
+	numplayers=1; numcards=2;//for testing purpose
 	for (playererrs=playerid=0; playerid<numplayers; playerid++)
     {
         if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid)) != 0 )
