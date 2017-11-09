@@ -454,7 +454,7 @@ bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bi
             decoded = fmul_donna(fmul_donna(refval,fe),basepoint);
             if ( bits256_cmp(decoded,cardprods[j]) == 0 )
             {
-                printf("player.%d decoded card %s value %d\n",playeri,bits256_str(str,decoded),playerprivs[unpermi].bytes[30]);
+                printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[unpermi].bytes[30]);
                 return(playerprivs[unpermi]);
             }
         }
