@@ -431,11 +431,9 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 	printf("\nDecoded cards are:\n");
 	for(i=0;i<numcards;i++)
 	{
-		for(j=0;j<32;j++)
-		{
-			printf("%d ",decoded[i].bytes[j]);	
-		}
-		printf("\n");
+		
+			printf("%d ",decoded[i]);	
+		
 	}
     return(errs);
 }
