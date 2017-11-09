@@ -42,16 +42,74 @@ int32_t Gamestart,Gamestarted,Lastturni,Maxrounds = 3,Maxplayers = 10;
 uint8_t BET_logs[256],BET_exps[510];
 bits256 *Debug_privkeys;
 struct BET_shardsinfo *BET_shardsinfos;
-portable_mutex_t LP_peermutex,LP_commandmutex,LP_networkmutex,LP_psockmutex,LP_messagemutex,BET_shardmutex;
+portable_mutex_t LP_gcmutex,LP_peermutex,LP_commandmutex,LP_networkmutex,LP_psockmutex,LP_messagemutex,BET_shardmutex;
 int32_t LP_canbind,IAMLP,IAMHOST,IAMORACLE;
 struct LP_peerinfo  *LP_peerinfos,*LP_mypeer;
 bits256 Mypubkey,Myprivkey,Clientrhash,Hostrhashes[CARDS777_MAXPLAYERS+1];
 char Host_channel[64];
+struct rpcrequest_info *LP_garbage_collector;
 
+char *issue_LP_psock(char *destip,uint16_t destport,int32_t ispaired)
+{
+    char url[512],*retstr;
+    sprintf(url,"http://%s:%u/api/stats/psock?ispaired=%d",destip,destport-1,ispaired);
+    //return(LP_issue_curl("psock",destip,destport,url));
+    retstr = issue_curlt(url,LP_HTTP_TIMEOUT*3);
+    printf("issue_LP_psock got (%s) from %s\n",retstr,destip);
+    return(retstr);
+}
 int32_t LP_numpeers()
 {
     printf("this needs to be fixed\n");
     return(9);
+}
+struct LP_millistats
+{
+    double lastmilli,millisum,threshold;
+    uint32_t count;
+    char name[64];
+} LP_psockloop_stats,LP_reserved_msgs_stats,utxosQ_loop_stats,command_rpcloop_stats,queue_loop_stats,prices_loop_stats,LP_coinsloop_stats,LP_coinsloopBTC_stats,LP_coinsloopKMD_stats,LP_pubkeysloop_stats,LP_privkeysloop_stats,LP_swapsloop_stats,LP_gcloop_stats;
+
+void LP_millistats_update(struct LP_millistats *mp)
+{
+    double elapsed,millis;
+    if ( mp == 0 )
+    {
+        if ( IAMLP != 0 )
+        {
+            mp = &LP_psockloop_stats, printf("%32s lag %10.2f millis, threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,OS_milliseconds() - mp->lastmilli,mp->threshold,mp->millisum/(mp->count > 0 ? mp->count: 1),mp->count);
+        }
+        mp = &LP_reserved_msgs_stats, printf("%32s lag %10.2f millis, threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,OS_milliseconds() - mp->lastmilli,mp->threshold,mp->millisum/(mp->count > 0 ? mp->count: 1),mp->count);
+        mp = &utxosQ_loop_stats, printf("%32s lag %10.2f millis, threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,OS_milliseconds() - mp->lastmilli,mp->threshold,mp->millisum/(mp->count > 0 ? mp->count: 1),mp->count);
+        mp = &command_rpcloop_stats, printf("%32s lag %10.2f millis, threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,OS_milliseconds() - mp->lastmilli,mp->threshold,mp->millisum/(mp->count > 0 ? mp->count: 1),mp->count);
+        mp = &queue_loop_stats, printf("%32s lag %10.2f millis, threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,OS_milliseconds() - mp->lastmilli,mp->threshold,mp->millisum/(mp->count > 0 ? mp->count: 1),mp->count);
+        mp = &prices_loop_stats, printf("%32s lag %10.2f millis, threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,OS_milliseconds() - mp->lastmilli,mp->threshold,mp->millisum/(mp->count > 0 ? mp->count: 1),mp->count);
+        mp = &LP_coinsloop_stats, printf("%32s lag %10.2f millis, threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,OS_milliseconds() - mp->lastmilli,mp->threshold,mp->millisum/(mp->count > 0 ? mp->count: 1),mp->count);
+        mp = &LP_coinsloopBTC_stats, printf("%32s lag %10.2f millis, threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,OS_milliseconds() - mp->lastmilli,mp->threshold,mp->millisum/(mp->count > 0 ? mp->count: 1),mp->count);
+        mp = &LP_coinsloopKMD_stats, printf("%32s lag %10.2f millis, threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,OS_milliseconds() - mp->lastmilli,mp->threshold,mp->millisum/(mp->count > 0 ? mp->count: 1),mp->count);
+        mp = &LP_pubkeysloop_stats, printf("%32s lag %10.2f millis, threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,OS_milliseconds() - mp->lastmilli,mp->threshold,mp->millisum/(mp->count > 0 ? mp->count: 1),mp->count);
+        mp = &LP_privkeysloop_stats, printf("%32s lag %10.2f millis, threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,OS_milliseconds() - mp->lastmilli,mp->threshold,mp->millisum/(mp->count > 0 ? mp->count: 1),mp->count);
+        mp = &LP_swapsloop_stats, printf("%32s lag %10.2f millis, threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,OS_milliseconds() - mp->lastmilli,mp->threshold,mp->millisum/(mp->count > 0 ? mp->count: 1),mp->count);
+        mp = &LP_gcloop_stats, printf("%32s lag %10.2f millis, threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,OS_milliseconds() - mp->lastmilli,mp->threshold,mp->millisum/(mp->count > 0 ? mp->count: 1),mp->count);
+    }
+    else
+    {
+        if ( mp->lastmilli == 0. )
+            mp->lastmilli = OS_milliseconds();
+        else
+        {
+            mp->count++;
+            millis = OS_milliseconds();
+            elapsed = (millis - mp->lastmilli);
+            mp->millisum += elapsed;
+            if ( mp->threshold != 0. && elapsed > mp->threshold )
+            {
+                //if ( IAMLP == 0 )
+                printf("%32s elapsed %10.2f millis > threshold %10.2f, ave %10.2f millis, count.%u\n",mp->name,elapsed,mp->threshold,mp->millisum/mp->count,mp->count);
+            }
+            mp->lastmilli = millis;
+        }
+    }
 }
 
 #include "../../SuperNET/iguana/exchanges/LP_network.c"
@@ -347,8 +405,13 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
         permi = permis[i];
         //blindings[permi] = rand256(1);
         //blindedcards[i] = fmul_donna(finalcards[permi],blindings[permi]);
+<<<<<<< HEAD
 		blindings[i] = rand256(1);
 		blindedcards[i] = fmul_donna(finalcards[permi],blindings[i]);
+=======
+        blindings[i] = rand256(1);
+        blindedcards[i] = fmul_donna(finalcards[permi],blindings[i]);
+>>>>>>> 35ef450526ac085a762305287ee12d6bebbf6d2a
     }
 
 	
@@ -370,7 +433,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     }
 }
 
-bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
+bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
     bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint; int32_t i,j,unpermi; char str[65];
     basepoint = curve25519_basepoint9();
@@ -402,7 +465,7 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
             decoded = fmul_donna(fmul_donna(refval,fe),basepoint);
             if ( bits256_cmp(decoded,cardprods[j]) == 0 )
             {
-                printf("decoded card %s value %d\n",bits256_str(str,decoded),playerprivs[unpermi].bytes[30]);
+                printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[unpermi].bytes[30]);
                 return(playerprivs[unpermi]);
             }
         }
@@ -422,7 +485,7 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
     memset(decoded,0xff,numcards);
     for (errs=i=0; i<numcards; i++)
     {
-        decoded256 = player_decode(key,blindingvals[i],blindedcards[i],cardprods,playerprivs,permis,numcards);
+        decoded256 = player_decode(i,key,blindingvals[i],blindedcards[i],cardprods,playerprivs,permis,numcards);
         if ( bits256_nonz(decoded256) == 0 )
             errs++;
         else decoded[i] = decoded256.bytes[30];
