@@ -333,13 +333,7 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
         finalcards[i] = tmp[permis[i]];
         cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
     }
-	printf("\nFinal Encrypted cards at DCV:\n");
-	for(i=0;i<numcards;i++){
-		printf("\n");
-		for(j=0;j<32;j++){
-			printf("%d ",finalcards[i].bytes[j]);
-		}
-	}
+	
 }
 
 void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
@@ -381,18 +375,6 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
     bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint; int32_t i,j,unpermi; char str[65];
     basepoint = curve25519_basepoint9();
     refval = fmul_donna(blindedcard,crecip_donna(blindingval));
-
-	printf("\nThe Blinded card :\n");
-	for(i=0;i<32;i++){
-		printf("%d ",blindedcard.bytes[i]);
-	}
-	
-	printf("\nThe card after removing the blinding vector:\n");
-	for(i=0;i<32;i++){
-		printf("%d ",refval.bytes[i]);
-	}
-
-	
 	
     for (i=0; i<numcards; i++)
     {
@@ -445,22 +427,7 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
             errs++;
         else decoded[i] = decoded256.bytes[30];
     }
-	printf("\nInitial set of cards are:\n");
-	for(i=0;i<numcards;i++)
-	{
-		for(j=0;j<32;j++)
-		{
-			printf("%d ",playerprivs[i].bytes[j]);	
-		}
-		printf("\n");
-	}
-	printf("\nDecoded cards are:\n");
-	for(i=0;i<numcards;i++)
-	{
-		
-			printf("%d ",decoded[i]);	
-		
-	}
+	
     return(errs);
 }
 
