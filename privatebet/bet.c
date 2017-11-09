@@ -342,8 +342,10 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     for (i=0; i<numcards; i++)
     {
         permi = permis[i];
-        blindings[permi] = rand256(1);
-        blindedcards[i] = fmul_donna(finalcards[permi],blindings[permi]);
+        //blindings[permi] = rand256(1);
+        //blindedcards[i] = fmul_donna(finalcards[permi],blindings[permi]);
+        blindings[i] = rand256(1);
+        blindedcards[i] = fmul_donna(finalcards[permi],blindings[i]);
     }
     if ( 0 ) // for later
     {
