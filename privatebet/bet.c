@@ -423,7 +423,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     }
 }
 
-bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
+bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
     bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint; int32_t i,j,unpermi; char str[65];
     basepoint = curve25519_basepoint9();
@@ -454,7 +454,7 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
             decoded = fmul_donna(fmul_donna(refval,fe),basepoint);
             if ( bits256_cmp(decoded,cardprods[j]) == 0 )
             {
-                printf("decoded card %s value %d\n",bits256_str(str,decoded),playerprivs[unpermi].bytes[30]);
+                printf("player.%d decoded card %s value %d\n",playeri,bits256_str(str,decoded),playerprivs[unpermi].bytes[30]);
                 return(playerprivs[unpermi]);
             }
         }
@@ -473,7 +473,7 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
     memset(decoded,0xff,numcards);
     for (errs=i=0; i<numcards; i++)
     {
-        decoded256 = player_decode(key,blindingvals[i],blindedcards[i],cardprods,playerprivs,permis,numcards);
+        decoded256 = player_decode(i,key,blindingvals[i],blindedcards[i],cardprods,playerprivs,permis,numcards);
         if ( bits256_nonz(decoded256) == 0 )
             errs++;
         else decoded[i] = decoded256.bytes[30];
