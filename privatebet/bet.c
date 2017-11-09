@@ -380,7 +380,7 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
 
 	printf("\nThe card after removing the blinding vector:\n");
 	for(i=0;i<32;i++){
-		printf("%d ",refval[i]);
+		printf("%d ",refval.bytes[i]);
 	}
 
 	
