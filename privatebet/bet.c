@@ -49,6 +49,15 @@ bits256 Mypubkey,Myprivkey,Clientrhash,Hostrhashes[CARDS777_MAXPLAYERS+1];
 char Host_channel[64];
 struct rpcrequest_info *LP_garbage_collector;
 
+char *issue_LP_psock(char *destip,uint16_t destport,int32_t ispaired)
+{
+    char url[512],*retstr;
+    sprintf(url,"http://%s:%u/api/stats/psock?ispaired=%d",destip,destport-1,ispaired);
+    //return(LP_issue_curl("psock",destip,destport,url));
+    retstr = issue_curlt(url,LP_HTTP_TIMEOUT*3);
+    printf("issue_LP_psock got (%s) from %s\n",retstr,destip);
+    return(retstr);
+}
 int32_t LP_numpeers()
 {
     printf("this needs to be fixed\n");
