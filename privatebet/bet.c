@@ -400,7 +400,7 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
             memset(tmp.bytes,0,sizeof(tmp));
             return(tmp);
         }
-        printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
+        //printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
         for (j=0; j<numcards; j++)
         {
             tmp = fmul_donna(playerprivs[unpermi],cardprods[j]);
@@ -459,7 +459,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
     static int32_t decodebad,decodegood;
     int32_t i,j,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][256]; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
-	numplayers=1; numcards=2;//for testing purpose
+	numplayers=1; numcards=5;//for testing purpose
 	for (playererrs=playerid=0; playerid<numplayers; playerid++)
     {
         if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid)) != 0 )
