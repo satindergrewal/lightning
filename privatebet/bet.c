@@ -53,6 +53,12 @@ int32_t LP_numpeers()
     printf("this needs to be fixed\n");
     return(9);
 }
+struct LP_millistats
+{
+    double lastmilli,millisum,threshold;
+    uint32_t count;
+    char name[64];
+} LP_psockloop_stats,LP_reserved_msgs_stats,utxosQ_loop_stats,command_rpcloop_stats,queue_loop_stats,prices_loop_stats,LP_coinsloop_stats,LP_coinsloopBTC_stats,LP_coinsloopKMD_stats,LP_pubkeysloop_stats,LP_privkeysloop_stats,LP_swapsloop_stats,LP_gcloop_stats;
 
 #include "../../SuperNET/iguana/exchanges/LP_network.c"
 #include "../../SuperNET/iguana/exchanges/LP_secp.c"
