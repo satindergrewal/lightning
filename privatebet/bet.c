@@ -348,16 +348,13 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     int32_t i,j,M,permi,permis[256]; uint8_t sharenrs[256],space[8192]; bits256 *cardshares;
     BET_permutation(permis,numcards);
 
-	for(i=0;i<numcards;i++){
-		blindings[permi] = rand256(1);
-	}
-	
     for (i=0; i<numcards; i++)
     {
         permi = permis[i];
         //blindings[permi] = rand256(1);
         //blindedcards[i] = fmul_donna(finalcards[permi],blindings[permi]);
-        blindedcards[i] = fmul_donna(finalcards[permi],blindings[i]);
+		blindings[i] = rand256(1);
+		blindedcards[i] = fmul_donna(finalcards[permi],blindings[i]);
     }
 
 	
