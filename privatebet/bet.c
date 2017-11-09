@@ -42,11 +42,12 @@ int32_t Gamestart,Gamestarted,Lastturni,Maxrounds = 3,Maxplayers = 10;
 uint8_t BET_logs[256],BET_exps[510];
 bits256 *Debug_privkeys;
 struct BET_shardsinfo *BET_shardsinfos;
-portable_mutex_t LP_peermutex,LP_commandmutex,LP_networkmutex,LP_psockmutex,LP_messagemutex,BET_shardmutex;
+portable_mutex_t LP_gcmutex,LP_peermutex,LP_commandmutex,LP_networkmutex,LP_psockmutex,LP_messagemutex,BET_shardmutex;
 int32_t LP_canbind,IAMLP,IAMHOST,IAMORACLE;
 struct LP_peerinfo  *LP_peerinfos,*LP_mypeer;
 bits256 Mypubkey,Myprivkey,Clientrhash,Hostrhashes[CARDS777_MAXPLAYERS+1];
 char Host_channel[64];
+struct rpcrequest_info *LP_garbage_collector;
 
 int32_t LP_numpeers()
 {
