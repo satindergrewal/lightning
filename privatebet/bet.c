@@ -347,13 +347,20 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     static bits256 *allshares;
     int32_t i,j,M,permi,permis[256]; uint8_t sharenrs[256],space[8192]; bits256 *cardshares;
     BET_permutation(permis,numcards);
+
+	for(i=0;i<numcards;i++){
+		blindings[permi] = rand256(1);
+	}
 	
     for (i=0; i<numcards; i++)
     {
         permi = permis[i];
-        blindings[permi] = rand256(1);
-        blindedcards[i] = fmul_donna(finalcards[permi],blindings[permi]);
+        //blindings[permi] = rand256(1);
+        //blindedcards[i] = fmul_donna(finalcards[permi],blindings[permi]);
+        blindedcards[i] = fmul_donna(finalcards[permi],blindings[i]);
     }
+
+	
     if ( 0 ) // for later
     {
         M = (numplayers/2) + 1;
@@ -378,6 +385,11 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
     basepoint = curve25519_basepoint9();
     refval = fmul_donna(blindedcard,crecip_donna(blindingval));
 
+	printf("\nThe Blinded card :\n");
+	for(i=0;i<32;i++){
+		printf("%d ",blindedcard.bytes[i]);
+	}
+	
 	printf("\nThe card after removing the blinding vector:\n");
 	for(i=0;i<32;i++){
 		printf("%d ",refval.bytes[i]);
