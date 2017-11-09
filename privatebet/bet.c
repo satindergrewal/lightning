@@ -229,6 +229,7 @@ int main(int argc,const char *argv[])
         testmode = 1;
         while ( testmode != 0 )
         {
+        	testmode=0;
             OS_randombytes((uint8_t *)&range,sizeof(range));
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
             range = (range % CARDS777_MAXCARDS) + 1;
@@ -296,7 +297,7 @@ struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
     {
         tmp.priv = card_rand256(1,i);
         tmp.prod = fmul_donna(tmp.priv,basepoint);
-        randcards[i] = tmp;
+        randcards[i] = tmp; 
     }
     return(key);
 }
@@ -406,7 +407,7 @@ bits256 player_decode(struct pair256 key,bits256 blindingval,bits256 blindedcard
 
 int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    int32_t i,errs; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
+    int32_t i,j,errs; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
     key = deckgen_player(playerprivs,playercards,permis,numcards);
     deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
     blinding_vendor(blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
@@ -418,6 +419,24 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
             errs++;
         else decoded[i] = decoded256.bytes[30];
     }
+	printf("\nInitial set of cards are:\n");
+	for(i=0;i<numcards;i++)
+	{
+		for(j=0;j<32;j++)
+		{
+			printf("%d ",playerprivs[i].bytes[j]);	
+		}
+		printf("\n");
+	}
+	printf("\nDecoded cards are:\n");
+	for(i=0;i<numcards;i++)
+	{
+		for(j=0;j<32;j++)
+		{
+			printf("%d ",decoded[i].bytes[j]);	
+		}
+		printf("\n");
+	}
     return(errs);
 }
 
@@ -425,7 +444,8 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
     static int32_t decodebad,decodegood;
     int32_t i,j,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][256]; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
-    for (playererrs=playerid=0; playerid<numplayers; playerid++)
+	numplayers=1; //for testing purpose
+	for (playererrs=playerid=0; playerid<numplayers; playerid++)
     {
         if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid)) != 0 )
         {
