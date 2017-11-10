@@ -486,6 +486,10 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
     int32_t i,j,k,errs,unpermi; struct pair256 key; bits256 *allshares=NULL,temp,decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
 	key = deckgen_player(playerprivs,playercards,permis,numcards);
 	deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
+
+	allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
+	if(NULL==allshares)
+			printf("\nMemory allocation failed");
     blinding_vendor(allshares,blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
 	playerid=0;
 	temp=allshares[0];
