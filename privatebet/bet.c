@@ -509,8 +509,9 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 
 int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    static int32_t decodebad,decodegood,good,bad;
+    static int32_t decodebad,decodegood,good,bad,numgames;
     int32_t i,j,playerid,errs,playererrs,permis[CARDS777_MAXPLAYERS][256]; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
+    numgames++;
 	dekgen_vendor_perm(numcards);
 	blinding_vendor_perm(numcards);
 	for (playererrs=playerid=0; playerid<numplayers; playerid++)
@@ -534,6 +535,6 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
             } good++;
         }
     }
-    printf("numplayers.%d numcards.%d deck %s -> playererrs.%d ordering.(good.%d bad.%d) decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
+    printf("numplayers.%d numcards.%d deck %s -> numgames.%d playererrs.%d ordering.(good.%d bad.%d) decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),numgames,playererrs,good,bad,decodegood,decodebad);
 	return(playererrs);
 }
