@@ -288,7 +288,7 @@ int main(int argc,const char *argv[])
         testmode = 1;
         while ( testmode != 0 )
         {
-        	testmode=0;
+        	//testmode=0;
             OS_randombytes((uint8_t *)&range,sizeof(range));
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
             range = (range % CARDS777_MAXCARDS) + 1;
