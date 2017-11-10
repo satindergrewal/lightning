@@ -490,7 +490,7 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 		for(j=0;j<numcards;j++){
 		printf("\n%dth player:%dth card shard\n",i,j);	
 			for(k=0;k<32;k++){
-				printf("%d ",allshares[0].bytes[i*numcards*32+j*32+k]);
+				printf("%d ",i*numcards*32+j*32+k);
 				
 			}
 		}
