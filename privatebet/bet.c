@@ -527,7 +527,7 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 					break;
 				}
 			}
-       		decoded[j] = decoded256.bytes[30];    	
+       		decoded[i] = j;    	
 	   	}
 			
     }
