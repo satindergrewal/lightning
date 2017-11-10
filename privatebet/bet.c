@@ -474,13 +474,13 @@ bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bi
         printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
         for (j=0; j<numcards; j++)
         {
-            tmp = fmul_donna(playerprivs[unpermi],cardprods[permis[j]]);
+            tmp = fmul_donna(playerprivs[unpermi],cardprods[j]);
             tmp = fmul_donna(tmp,key.priv);
             xoverz = xoverz_donna(tmp);
             vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
             fe = crecip_donna(curve25519_fieldelement(hash));
             decoded = fmul_donna(fmul_donna(refval,fe),basepoint);
-            if ( bits256_cmp(decoded,cardprods[permis[j]]) == 0 )
+            if ( bits256_cmp(decoded,cardprods[j]) == 0 )
             {
                 printf("player.%d decoded card %s value %d unpermi %d\n",playerid,bits256_str(str,decoded),playerprivs[unpermi].bytes[30],unpermi);
                 return(playerprivs[unpermi]);
