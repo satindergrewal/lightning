@@ -450,9 +450,8 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
     basepoint = curve25519_basepoint9();
 
 	cardshares = calloc(numplayers,sizeof(bits256));
-		printf("\nPlayer:%d",playerid);
-			printf("\ncard:%d",cardID);
-            for (j=0; j<numplayers; j++) 
+		printf("\nPlayer:%d:card:%d",playerid,cardID);
+			for (j=0; j<numplayers; j++) 
 			{
         		printf("\nshare:%d\n",j);
 				for(k=0;k<32;k++)
