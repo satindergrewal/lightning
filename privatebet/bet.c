@@ -520,7 +520,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         decodebad += errs;
         decodegood += (numcards - errs);
     }
-	for (good=bad=i=0; i<numplayers-1; i++)
+	for (i=0; i<numplayers-1; i++)
     {
         for (j=i+1; j<numplayers; j++)
         {
@@ -531,6 +531,6 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
             } good++;
         }
     }
-    printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
+    printf("numplayers.%d numcards.%d deck %s -> playererrs.%d ordering.(good.%d bad.%d) decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
 	return(playererrs);
 }
