@@ -49,7 +49,7 @@ bits256 Mypubkey,Myprivkey,Clientrhash,Hostrhashes[CARDS777_MAXPLAYERS+1];
 char Host_channel[64];
 struct rpcrequest_info *LP_garbage_collector;
 int32_t permis_d[CARDS777_MAXCARDS],permis_b[CARDS777_MAXCARDS];
-
+bits256 *allshares=NULL;
 char *issue_LP_psock(char *destip,uint16_t destport,int32_t ispaired)
 {
     char url[512],*retstr;
@@ -406,7 +406,7 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
     }
 }
 
-void blinding_vendor(bits256 *allshares,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
+void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
     //static bits256 *allshares;
     int32_t i,j,k,M,permi,permis[256]; uint8_t sharenrs[256],space[8192]; bits256 *cardshares;
@@ -428,10 +428,8 @@ void blinding_vendor(bits256 *allshares,bits256 *blindings,bits256 *blindedcards
         {
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
-            //printf("\nGetting the locations:\n");
             for (j=0; j<numplayers; j++) {
                 allshares[j*numplayers*numcards + (i*numplayers + playerid)] = cardshares[j];
-				//printf("%d ",j*numplayers*numcards + (i*numplayers + playerid));
 				printf("\n");
 				for(k=0;k<32;k++)
 				{
@@ -488,29 +486,12 @@ bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bi
 
 int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    int32_t i,j,k,errs,unpermi; struct pair256 key; bits256 *allshares=NULL,decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
+    int32_t i,j,k,errs,unpermi; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
 	key = deckgen_player(playerprivs,playercards,permis,numcards);
 	deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
 
-	allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
-	if(NULL==allshares)
-			printf("\nMemory allocation failed");
-    blinding_vendor(allshares,blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
+	blinding_vendor(blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
 	
-
-	for (i=0; i<numcards; i++)
-    {
-    	//printf("\n");
-        for (j=0; j<numplayers; j++) 
-		 {
-          	printf("\n");  
-			//printf("%d ",playerid*numplayers*numcards + (i*numcards+ j));
-			for(k=0;k<32;k++)
-			{
-				printf("%d ",allshares[playerid*numplayers*numcards + (i*numcards+ j)].bytes[k]);
-			}
-		}
-	}
 	
 	#if 0
 	memset(decoded,0xff,numcards);
@@ -539,11 +520,12 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
     static int32_t decodebad,decodegood;
-    int32_t i,j,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][256]; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
+    int32_t i,j,k,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][256]; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
 	dekgen_vendor_perm(numcards);
 	blinding_vendor_perm(numcards);
 	numplayers=2;numcards=2;
 	printf("\nNumber of players:%d, Number of cards:%d",numplayers,numcards);
+	allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
 	
 	for (playererrs=playerid=0; playerid<numplayers; playerid++)
     {
@@ -555,6 +537,21 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         decodebad += errs;
         decodegood += (numcards - errs);
     }
+
+	
+
+	for (i=0; i<numcards; i++)
+    {
+       for (j=0; j<numplayers; j++) 
+		 {
+          	printf("\n");  
+			for(k=0;k<32;k++)
+			{
+				printf("%d ",allshares[playerid*numplayers*numcards + (i*numcards+ j)].bytes[k]);
+			}
+		}
+	}
+	
 	#if 0
 	for (good=bad=i=0; i<numplayers-1; i++)
     {
