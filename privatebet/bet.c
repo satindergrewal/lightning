@@ -363,11 +363,15 @@ struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
 
 void dekgen_vendor_perm(int numcards)
 {
-	/*int i;
-	 for(i=0;i<numcards;i++){
+	int i;
+	/* for(i=0;i<numcards;i++){
 		permis_d[i]=i;
 	 }*/
 	 BET_permutation(permis_d,numcards);
+	printf("\nDeck Permutaiton:\n");
+	for(i=0;i<numcards;i++){
+		printf("%d ",permis_d[i]);
+	}
 	
 }
 void blinding_vendor_perm(int numcards)
