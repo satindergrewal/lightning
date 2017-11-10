@@ -491,7 +491,7 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 	if(NULL==allshares)
 			printf("\nMemory allocation failed");
     blinding_vendor(allshares,blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
-	playerid=0;
+	
 
 	for (i=0; i<numcards; i++)
     {
@@ -500,7 +500,7 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
             printf("\n");
 			for(k=0;k<32;k++)
 			{
-				printf("%d ",allshares[j*numplayers*numcards + (i*numplayers + playerid)].bytes[k]);
+				printf("%d ",allshares[playerid*numplayers*numcards + (i*numcards+ j)].bytes[k]);
 			}
 		}
 	}
@@ -538,7 +538,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 
 	printf("\nNumber of players:%d, Number of cards:%d",numplayers,numcards);
 	
-	for (playererrs=playerid=0; playerid<1/*numplayers*/; playerid++)
+	for (playererrs=playerid=0; playerid<numplayers; playerid++)
     {
         if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid)) != 0 )
         {
