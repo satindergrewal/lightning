@@ -424,19 +424,19 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
         cardshares = calloc(numplayers,sizeof(bits256));
         if ( allshares == 0 )
             allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
-		printf("\nplayer:%d",playerid);
+		//printf("\nplayer:%d",playerid);
         for (i=0; i<numcards; i++)
         {
-        	printf("\ncard:%d",i);
+        	//printf("\ncard:%d",i);
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
                 allshares[j*numplayers*numcards + (i*numplayers + playerid)] = cardshares[j];
-				printf("\nshare:%d\n",j);
+				/*printf("\nshare:%d\n",j);
 				for(k=0;k<32;k++)
 				{
 					printf("%d ",allshares[j*numplayers*numcards + (i*numplayers + playerid)].bytes[k]);
-				}
+				}*/
 			}
 			
         }
