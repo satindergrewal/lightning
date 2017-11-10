@@ -432,6 +432,13 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
                 allshares[j*numplayers*numcards + (i*numplayers + playerid)] = cardshares[j];
 			*/
         }
+		printf("\nThe shares computed are:\n");
+		for(i=0;i<numplayers;i++){
+			printf("\nShare:%d\n",i);
+			for(j=0;j<32;j++){
+				printf("%d ",cardshares[i].bytes[j]);
+			}
+		}
         // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
     }
 }
