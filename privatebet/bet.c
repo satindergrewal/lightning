@@ -462,6 +462,7 @@ bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bi
             if ( permis[j] == i )
             {
                 unpermi = j;
+				
                 break;
             }
         if ( unpermi < 0 )
@@ -470,7 +471,7 @@ bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bi
             memset(tmp.bytes,0,sizeof(tmp));
             return(tmp);
         }
-        //printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
+        printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
         for (j=0; j<numcards; j++)
         {
             tmp = fmul_donna(playerprivs[unpermi],cardprods[j]);
