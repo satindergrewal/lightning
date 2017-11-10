@@ -376,14 +376,7 @@ struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t 
     int32_t i; struct pair256 key,randcards[256];
     key = deckgen_common(randcards,numcards);
     BET_permutation(permis,numcards);
-    printf("\nPermutaion:\n");
-	for (i=0; i<numcards; i++)
-    {
-    	printf("%d ",permis[i]);
-    }
-	printf("\n");
-
-	for (i=0; i<numcards; i++)
+    for (i=0; i<numcards; i++)
     {
         playerprivs[i] = randcards[permis[i]].priv;
         playercards[i] = fmul_donna(playerprivs[i],key.prod);
@@ -487,14 +480,6 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 {
     int32_t i,j,errs,unpermi; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
     key = deckgen_player(playerprivs,playercards,permis,numcards);
-	printf("\nThe cards are:\n");
-	for(i=0;i<numcards;i++){
-		for(j=0;j<32;j++){
-			printf("%d ",playerprivs[i].bytes[j]);	
-		}
-		printf("\n");
-	}
-	
 	deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
     blinding_vendor(blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
     memset(decoded,0xff,numcards);
@@ -535,15 +520,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         decodebad += errs;
         decodegood += (numcards - errs);
     }
-	printf("\nThe card sequece for the players:\n");
-	for(i=0;i<numplayers;i++){
-		printf("\n");
-		for(j=0;j<numcards;j++){
-			printf("%d ",decoded[i][j]);
-			}
-	}
-	#if 0
-    for (good=bad=i=0; i<numplayers-1; i++)
+	for (good=bad=i=0; i<numplayers-1; i++)
     {
         for (j=i+1; j<numplayers; j++)
         {
@@ -555,6 +532,5 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         }
     }
     printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
-	#endif
 	return(playererrs);
 }
