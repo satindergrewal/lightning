@@ -455,12 +455,6 @@ bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bi
     bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint; int32_t i,j,unpermi; char str[65];
     basepoint = curve25519_basepoint9();
     refval = fmul_donna(blindedcard,crecip_donna(blindingval));
-	printf("\nPermutaion in Decode:\n");
-	for (i=0; i<numcards; i++)
-    {
-    	printf("%d ",permis[i]);
-	}
-	printf("\n");
 	for (i=0; i<numcards; i++)
     {
         unpermi = -1;
