@@ -287,8 +287,7 @@ int main(int argc,const char *argv[])
     else
     {
         printf("no argjson, default to testmode\n");
-        testmode = 1;
-		while ( testmode != 1 )
+        while ( testmode != 1 )
         {
         	testmode=0;
             OS_randombytes((uint8_t *)&range,sizeof(range));
