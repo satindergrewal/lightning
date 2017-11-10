@@ -143,22 +143,6 @@ void randombytes_buf(void * const buf, const size_t size)
 
 int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
 
-void test()
-{
-	int i;bits256 G,G_inverse;
-	G=curve25519_basepoint9();
-	G_inverse=crecip_donna(G);
-	printf("\nBase Point");
-	for(i=0;i<32;i++)
-		printf("%d ",G.bytes[i]);
-	printf("\nInverse of Base Point");
-	for(i=0;i<32;i++)
-		printf("%d ",G_inverse.bytes[i]);
-	G=fmul_donna(G,G_inverse);
-	printf("\nBase Point * It's Inverse");
-	for(i=0;i<32;i++)
-		printf("%d ",G.bytes[i]);
-}
 
 int main(int argc,const char *argv[])
 {
@@ -304,8 +288,7 @@ int main(int argc,const char *argv[])
     {
         printf("no argjson, default to testmode\n");
         testmode = 1;
-		test();
-        while ( testmode != 1 )
+		while ( testmode != 1 )
         {
         	testmode=0;
             OS_randombytes((uint8_t *)&range,sizeof(range));
@@ -435,14 +418,14 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
         blindings[i] = rand256(1);
         blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
     }
-    if ( 0 ) // for later
+    if ( 1 ) // for later
     {
         M = (numplayers/2) + 1;
         gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
         cardshares = calloc(numplayers,sizeof(bits256));
         if ( allshares == 0 )
             allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
-        for (i=0; i<numcards; i++)
+        for (i=0; i<1/*numcards*/; i++)
         {
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
@@ -501,7 +484,8 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
     key = deckgen_player(playerprivs,playercards,permis,numcards);
 	deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
     blinding_vendor(blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
-    memset(decoded,0xff,numcards);
+	#if 0
+	memset(decoded,0xff,numcards);
     for (errs=i=0; i<numcards; i++)
     {
         decoded256 = player_decode(i,key,blindingvals[i],blindedcards[i],cardprods,playerprivs,permis,numcards);
@@ -520,6 +504,7 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 	   	}
 			
     }
+	#endif
     return(errs);
 }
 
@@ -539,6 +524,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         decodebad += errs;
         decodegood += (numcards - errs);
     }
+	#if 0
 	for (good=bad=i=0; i<numplayers-1; i++)
     {
         for (j=i+1; j<numplayers; j++)
@@ -551,5 +537,6 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         }
     }
     printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
+	#endif
 	return(playererrs);
 }
