@@ -363,24 +363,12 @@ struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
 
 void dekgen_vendor_perm(int numcards)
 {
-	int i;
-	/* for(i=0;i<numcards;i++){
-		permis_d[i]=i;
-	 }*/
 	 BET_permutation(permis_d,numcards);
-	printf("\nDeck Permutaiton:\n");
-	for(i=0;i<numcards;i++){
-		printf("%d ",permis_d[i]);
-	}
-	
+		
 }
 void blinding_vendor_perm(int numcards)
 {
-	int i;
-	for(i=0;i<numcards;i++){
-		permis_b[i]=i;
-	 }
-	//BET_permutation(permis_b,numcards);
+	BET_permutation(permis_b,numcards);
 	 
 }
 struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards)
@@ -432,9 +420,6 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     
     for (i=0; i<numcards; i++)
     {
-        //permi = permis_b[i];
-        //blindings[permi] = rand256(1);
-        //blindedcards[i] = fmul_donna(finalcards[permi],blindings[permi]);
         blindings[i] = rand256(1);
         blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
     }
@@ -540,7 +525,6 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     int32_t i,j,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][256]; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
 	dekgen_vendor_perm(numcards);
 	blinding_vendor_perm(numcards);
-	numplayers=2;
 	for (playererrs=playerid=0; playerid<numplayers; playerid++)
     {
         if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid)) != 0 )
