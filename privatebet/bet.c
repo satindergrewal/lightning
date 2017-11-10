@@ -409,7 +409,7 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
 void blinding_vendor(bits256 *allshares,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
     //static bits256 *allshares;
-    int32_t i,j,M,permi,permis[256]; uint8_t sharenrs[256],space[8192]; bits256 *cardshares;
+    int32_t i,j,k,M,permi,permis[256]; uint8_t sharenrs[256],space[8192]; bits256 *cardshares;
     //BET_permutation(permis,numcards);
     
     for (i=0; i<numcards; i++)
@@ -428,10 +428,15 @@ void blinding_vendor(bits256 *allshares,bits256 *blindings,bits256 *blindedcards
         {
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
-            printf("\nGetting the locations:\n");
+            //printf("\nGetting the locations:\n");
             for (j=0; j<numplayers; j++) {
                 allshares[j*numplayers*numcards + (i*numplayers + playerid)] = cardshares[j];
-				printf("%d ",j*numplayers*numcards + (i*numplayers + playerid));
+				//printf("%d ",j*numplayers*numcards + (i*numplayers + playerid));
+				printf("\n");
+				for(k=0;k<32;k++)
+				{
+					printf("%d ",allshares[j*numplayers*numcards + (i*numplayers + playerid)].bytes[k]);
+				}
 			}
 			
         }
@@ -537,7 +542,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     int32_t i,j,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][256]; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
 	dekgen_vendor_perm(numcards);
 	blinding_vendor_perm(numcards);
-
+	numplayers=2;numcards=2;
 	printf("\nNumber of players:%d, Number of cards:%d",numplayers,numcards);
 	
 	for (playererrs=playerid=0; playerid<numplayers; playerid++)
