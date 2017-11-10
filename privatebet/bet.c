@@ -363,19 +363,19 @@ struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
 
 void dekgen_vendor_perm(int numcards)
 {
-	int i;
-	 //BET_permutation(permis_d,numcards);
-	 for(i=0;i<numcards;i++){
+	//int i;
+	 BET_permutation(permis_d,numcards);
+	 /*for(i=0;i<numcards;i++){
 		permis_d[i]=i;
-	 }
+	 }*/
 }
 void blinding_vendor_perm(int numcards)
 {
-	int i;
-	 //BET_permutation(permis_b,numcards);
-	 for(i=0;i<numcards;i++){
+	//int i;
+	 BET_permutation(permis_b,numcards);
+	 /*for(i=0;i<numcards;i++){
 		permis_b[i]=i;
-	 }
+	 }*/
 }
 struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards)
 {
@@ -527,7 +527,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     int32_t i,j,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][256]; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
 	dekgen_vendor_perm(numcards);
 	blinding_vendor_perm(numcards);
-	for (playererrs=playerid=0; playerid<1/*numplayers*/; playerid++)
+	for (playererrs=playerid=0; playerid<numplayers; playerid++)
     {
         if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid)) != 0 )
         {
@@ -538,7 +538,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         decodegood += (numcards - errs);
     }
 	printf("\nThe card sequece for the players:\n");
-	for(i=0;i<1;i++){
+	for(i=0;i<numplayers;i++){
 		printf("\n");
 		for(j=0;j<numcards;j++){
 			printf("%d ",decoded[i][j]);
