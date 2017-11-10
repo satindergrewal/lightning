@@ -50,6 +50,8 @@ char Host_channel[64];
 struct rpcrequest_info *LP_garbage_collector;
 int32_t permis_d[CARDS777_MAXCARDS],permis_b[CARDS777_MAXCARDS];
 bits256 *allshares=NULL;
+uint8_t sharenrs[256];
+
 char *issue_LP_psock(char *destip,uint16_t destport,int32_t ispaired)
 {
     char url[512],*retstr;
@@ -409,7 +411,7 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
 void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
     //static bits256 *allshares;
-    int32_t i,j,k,M,permi,permis[256]; uint8_t sharenrs[256],space[8192]; bits256 *cardshares;
+    int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares;
     //BET_permutation(permis,numcards);
     
     for (i=0; i<numcards; i++)
@@ -446,9 +448,12 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 
 bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
-    bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint,*cardshares; int32_t i,j,k,unpermi; char str[65];
-    basepoint = curve25519_basepoint9();
+    bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint,*cardshares; int32_t i,j,k,unpermi; char str[65];uint8_t space[8192];
+	struct gfshare_ctx *G;
+	uint8_t *recover=NULL;
+	basepoint = curve25519_basepoint9();
 
+	
 	cardshares = calloc(numplayers,sizeof(bits256));
 		printf("\nPlayer:%d:card:%d",playerid,cardID);
 			for (j=0; j<numplayers; j++) 
@@ -460,8 +465,20 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 					printf("%d ",cardshares[j].bytes[k]);
 				}
 			}
-		
+	
+	recover =cards777_recover(cardshares,sharenrs,numplayers,numcards,numplayers);
+	printf("\nsize of recover:%d",sizeof(recover));
 
+	/*	
+	 G = gfshare_initdec(sharenrs,numplayers,sizeof(bits256),space,sizeof(space));
+    for (i=0; i<numplayers; i++)
+        if ( cardshares[i] != 0 )
+            gfshare_dec_giveshare(G,i,cardshares[i].bytes);
+    //gfshare_dec_newshares(G,recovernrs);
+    gfshare_decextract(0,0,G,recover);
+    gfshare_free(G);
+	*/
+   
 	refval = fmul_donna(blindedcard,crecip_donna(blindingval));
 	#if 0  
 	for (i=0; i<numcards; i++)
