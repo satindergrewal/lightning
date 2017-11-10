@@ -363,11 +363,19 @@ struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
 
 void dekgen_vendor_perm(int numcards)
 {
-	 BET_permutation(permis_d,numcards);
+	int i;
+	 //BET_permutation(permis_d,numcards);
+	 for(i=0;i<numcards;i++){
+		permis_d[i]=i;
+	 }
 }
 void blinding_vendor_perm(int numcards)
 {
-	 BET_permutation(permis_b,numcards);
+	int i;
+	 //BET_permutation(permis_b,numcards);
+	 for(i=0;i<numcards;i++){
+		permis_b[i]=i;
+	 }
 }
 struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards)
 {
@@ -468,7 +476,7 @@ bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bi
             memset(tmp.bytes,0,sizeof(tmp));
             return(tmp);
         }
-        printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
+        //printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
         for (j=0; j<numcards; j++)
         {
             tmp = fmul_donna(playerprivs[unpermi],cardprods[j]);
