@@ -494,7 +494,7 @@ bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bi
 
 int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    int32_t i,j,errs; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
+    int32_t i,j,errs,unpermi; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
     key = deckgen_player(playerprivs,playercards,permis,numcards);
 	printf("\nThe cards are:\n");
 	for(i=0;i<numcards;i++){
@@ -512,7 +512,19 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
         decoded256 = player_decode(i,key,blindingvals[i],blindedcards[i],cardprods,playerprivs,permis,numcards);
         if ( bits256_nonz(decoded256) == 0 )
             errs++;
-        else decoded[i] = decoded256.bytes[30];
+        else
+       	{
+       		unpermi = -1;
+       		for (j=0; j<numcards; j++)
+            if ( permis[j] == i )
+            {
+                unpermi = j;
+			    break;
+            }
+        	
+    		decoded[unpermi] = decoded256.bytes[30];    	
+	   	}
+			
     }
     return(errs);
 }
@@ -533,6 +545,13 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         decodebad += errs;
         decodegood += (numcards - errs);
     }
+	printf("\nThe card sequece for the players:\n");
+	for(i=0;i<1;i++){
+		printf("\n");
+		for(j=0;j<numcards;j++){
+			printf("%d ",decoded[i][j]);
+			}
+	}
 	#if 0
     for (good=bad=i=0; i<numplayers-1; i++)
     {
