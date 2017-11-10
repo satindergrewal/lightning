@@ -428,8 +428,11 @@ void blinding_vendor(bits256 *allshares,bits256 *blindings,bits256 *blindedcards
         {
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
-            for (j=0; j<numplayers; j++)
+            printf("\nGetting the locations:\n");
+            for (j=0; j<numplayers && playerid<1; j++) {
                 allshares[j*numplayers*numcards + (i*numplayers + playerid)] = cardshares[j];
+				printf("%d ",j*numplayers*numcards + (i*numplayers + playerid));
+			}
 			
         }
 		// when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
@@ -484,17 +487,7 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 	key = deckgen_player(playerprivs,playercards,permis,numcards);
 	deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
     blinding_vendor(allshares,blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
-    printf("\nDisplaying shares for player:0");
-	for(i=0;i<numplayers;i++){
-		printf("\nShamir shards of player %d given to player 0",i);
-		for(j=0;j<numcards;j++){
-		printf("\n%dth player:%dth card shard\n",i,j);	
-			for(k=0;k<32;k++){
-				printf("%d ",allshares[0*numplayers*numcards + i*numcards+j].bytes[k]); //0*numplayers*numcards + (j*numplayers + 0)
-				
-			}
-		}
-	}
+    
 	#if 0
 	memset(decoded,0xff,numcards);
     for (errs=i=0; i<numcards; i++)
