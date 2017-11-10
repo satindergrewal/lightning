@@ -363,19 +363,21 @@ struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
 
 void dekgen_vendor_perm(int numcards)
 {
-	//int i;
-	 BET_permutation(permis_d,numcards);
-	 /*for(i=0;i<numcards;i++){
+	int i;
+	 for(i=0;i<numcards;i++){
 		permis_d[i]=i;
-	 }*/
+	 }
+	 // BET_permutation(permis_d,numcards);
+	
 }
 void blinding_vendor_perm(int numcards)
 {
-	//int i;
-	 BET_permutation(permis_b,numcards);
-	 /*for(i=0;i<numcards;i++){
+	int i;
+	for(i=0;i<numcards;i++){
 		permis_b[i]=i;
-	 }*/
+	 }
+	//BET_permutation(permis_b,numcards);
+	 
 }
 struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards)
 {
