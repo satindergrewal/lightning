@@ -471,7 +471,7 @@ bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bi
             memset(tmp.bytes,0,sizeof(tmp));
             return(tmp);
         }
-        printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
+        //printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
         for (j=0; j<numcards; j++)
         {
             tmp = fmul_donna(playerprivs[unpermi],cardprods[j]);
@@ -494,9 +494,17 @@ bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bi
 
 int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    int32_t i,errs; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
+    int32_t i,j,errs; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
     key = deckgen_player(playerprivs,playercards,permis,numcards);
-    deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
+	printf("\nThe cards are:\n");
+	for(i=0;i<numcards;i++){
+		for(j=0;j<32;j++){
+			printf("%d ",playerprivs[i].bytes[j]);	
+		}
+		printf("\n");
+	}
+	
+	deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
     blinding_vendor(blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
     memset(decoded,0xff,numcards);
     for (errs=i=0; i<numcards; i++)
