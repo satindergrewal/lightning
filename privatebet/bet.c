@@ -423,7 +423,7 @@ void blinding_vendor(bits256 *allshares,bits256 *blindings,bits256 *blindedcards
         gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
         cardshares = calloc(numplayers,sizeof(bits256));
         if ( allshares == 0 )
-            allshares = calloc(numplayers * numplayers * numcards,sizeof(bits256));
+            allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
         for (i=0; i<numcards; i++)
         {
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
@@ -484,17 +484,17 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 	key = deckgen_player(playerprivs,playercards,permis,numcards);
 	deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
     blinding_vendor(allshares,blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
-    printf("\nDisplaying shares for player:0");
+    /*printf("\nDisplaying shares for player:0");
 	for(i=0;i<numplayers;i++){
 		printf("\nShamir shards of player %d given to player 0",i);
 		for(j=0;j<numcards;j++){
 		printf("\n%dth player:%dth card shard\n",i,j);	
 			for(k=0;k<32;k++){
-				printf("%d ",allshares[0*numplayers*numcards+numcards*i+j].bytes[k]); //0*numplayers*numcards + (j*numplayers + 0)
+				printf("%d ",allshares[0]); //0*numplayers*numcards + (j*numplayers + 0)
 				
 			}
 		}
-	}
+	}*/
 	#if 0
 	memset(decoded,0xff,numcards);
     for (errs=i=0; i<numcards; i++)
@@ -526,7 +526,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	dekgen_vendor_perm(numcards);
 	blinding_vendor_perm(numcards);
 	
-	for (playererrs=playerid=0; playerid<1/*numplayers*/; playerid++)
+	for (playererrs=playerid=0; playerid<numplayers; playerid++)
     {
         if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid)) != 0 )
         {
