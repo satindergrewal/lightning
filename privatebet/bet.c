@@ -516,7 +516,7 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
        	{
        		unpermi = -1;
        		for (j=0; j<numcards; j++)
-            if ( permis[j] == i )
+            if ( permis[j] == decoded256.bytes[30] )
             {
                 unpermi = j;
 			    break;
