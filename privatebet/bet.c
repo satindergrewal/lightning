@@ -483,11 +483,24 @@ bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bi
 
 int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    int32_t i,j,k,errs,unpermi; struct pair256 key; bits256 *allshares=NULL,decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
+    int32_t i,j,k,errs,unpermi; struct pair256 key; bits256 *allshares=NULL,temp,decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
 	key = deckgen_player(playerprivs,playercards,permis,numcards);
 	deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
     blinding_vendor(allshares,blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
-    
+	playerid=0;
+	for (i=0; i<numcards; i++)
+        {
+            for (j=0; j<numplayers; j++) {
+                temp=allshares[j*numplayers*numcards + (i*numplayers + playerid)];
+			printf("\n");
+			for(k=0;k<32;k++){
+				printf("%d ",temp.bytes[k]);
+			}
+		
+			}
+			
+        }
+	
 	#if 0
 	memset(decoded,0xff,numcards);
     for (errs=i=0; i<numcards; i++)
