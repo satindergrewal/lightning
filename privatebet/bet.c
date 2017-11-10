@@ -389,11 +389,11 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
         vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
         tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
     }
-	for (i=0; i<numcards; i++)
+	/*for (i=0; i<numcards; i++)
     {
     	permis[i]=i;
-    }
-    //BET_permutation(permis,numcards);
+    }*/
+    BET_permutation(permis,numcards);
     for (i=0; i<numcards; i++)
     {
         finalcards[i] = tmp[permis[i]];
