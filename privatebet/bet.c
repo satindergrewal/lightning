@@ -444,11 +444,26 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     }
 }
 
-bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
+bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
     bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint; int32_t i,j,unpermi; char str[65];
     basepoint = curve25519_basepoint9();
-    refval = fmul_donna(blindedcard,crecip_donna(blindingval));
+
+		printf("\nPlayer:%d",playerid);
+		for (i=0; i<numcards; i++)
+	    {
+	       for (j=0; j<numplayers; j++) 
+			 {
+	          	printf("\n");  
+				for(k=0;k<32;k++)
+				{
+					printf("%d ",allshares[playerid*numplayers*numcards + (i*numcards+ j)].bytes[k]);
+				}
+			}
+		}
+	
+
+	refval = fmul_donna(blindedcard,crecip_donna(blindingval));
 	for (i=0; i<numcards; i++)
     {
         /*unpermi = -1;
@@ -495,11 +510,11 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 	blinding_vendor(blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
 	
 	
-	#if 0
+	#if 1
 	memset(decoded,0xff,numcards);
     for (errs=i=0; i<numcards; i++)
     {
-        decoded256 = player_decode(i,key,blindingvals[i],blindedcards[i],cardprods,playerprivs,permis,numcards);
+        decoded256 = player_decode(playerid,i,numplayers,key,blindingvals[i],blindedcards[i],cardprods,playerprivs,permis,numcards);
         if ( bits256_nonz(decoded256) == 0 )
             errs++;
         else
@@ -542,21 +557,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     }
 
 	
-	for(playerid=0;playerid<numplayers;playerid++)
-	{	
-		printf("\nPlayer:%d",playerid);
-		for (i=0; i<numcards; i++)
-	    {
-	       for (j=0; j<numplayers; j++) 
-			 {
-	          	printf("\n");  
-				for(k=0;k<32;k++)
-				{
-					printf("%d ",allshares[playerid*numplayers*numcards + (i*numcards+ j)].bytes[k]);
-				}
-			}
-		}
-	}
+	
 	
 	#if 0
 	for (good=bad=i=0; i<numplayers-1; i++)
