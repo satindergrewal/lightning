@@ -373,8 +373,11 @@ struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t 
 {
     int32_t i; struct pair256 key,randcards[256];
     key = deckgen_common(randcards,numcards);
-    BET_permutation(permis,numcards);
-    
+    //BET_permutation(permis,numcards);
+    for (i=0; i<numcards; i++)
+    {
+    	permis[i]=i;
+    }
 	for (i=0; i<numcards; i++)
     {
         playerprivs[i] = randcards[permis[i]].priv;
@@ -441,12 +444,6 @@ bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bi
     bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint; int32_t i,j,unpermi; char str[65];
     basepoint = curve25519_basepoint9();
     refval = fmul_donna(blindedcard,crecip_donna(blindingval));
-	printf("\nThe %d player permutaion is:\n",playerid);
-	for (i=0; i<numcards; i++)
-    {
-    	printf("%d ",permis[i]);
-	}
-	printf("\n");
     for (i=0; i<numcards; i++)
     {
         unpermi = -1;
