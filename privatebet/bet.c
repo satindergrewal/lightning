@@ -428,8 +428,9 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
         {
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
-            for (j=0; j<numplayers; j++)
+            /*for (j=0; j<numplayers; j++)
                 allshares[j*numplayers*numcards + (i*numplayers + playerid)] = cardshares[j];
+			*/
         }
         // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
     }
@@ -513,7 +514,8 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     int32_t i,j,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][256]; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
 	dekgen_vendor_perm(numcards);
 	blinding_vendor_perm(numcards);
-	for (playererrs=playerid=0; playerid<numplayers; playerid++)
+	
+	for (playererrs=playerid=0; playerid<1/*numplayers*/; playerid++)
     {
         if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid)) != 0 )
         {
