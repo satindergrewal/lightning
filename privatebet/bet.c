@@ -389,7 +389,11 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
         vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
         tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
     }
-    BET_permutation(permis,numcards);
+	for (i=0; i<numcards; i++)
+    {
+    	permis[i]=i;
+    }
+    //BET_permutation(permis,numcards);
     for (i=0; i<numcards; i++)
     {
         finalcards[i] = tmp[permis[i]];
@@ -401,7 +405,11 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 {
     static bits256 *allshares;
     int32_t i,j,M,permi,permis[256]; uint8_t sharenrs[256],space[8192]; bits256 *cardshares;
-    BET_permutation(permis,numcards);
+    //BET_permutation(permis,numcards);
+    for (i=0; i<numcards; i++)
+    {
+    	permis[i]=i;
+    }
     for (i=0; i<numcards; i++)
     {
         permi = permis[i];
