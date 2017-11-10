@@ -373,11 +373,11 @@ struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t 
 {
     int32_t i; struct pair256 key,randcards[256];
     key = deckgen_common(randcards,numcards);
-    //BET_permutation(permis,numcards);
+    BET_permutation(permis,numcards);
     
 	for (i=0; i<numcards; i++)
     {
-        playerprivs[i] = randcards[permis_d[i]].priv;
+        playerprivs[i] = randcards[permis[i]].priv;
         playercards[i] = fmul_donna(playerprivs[i],key.prod);
     }
     return(key);
@@ -399,7 +399,7 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
    // BET_permutation(permis,numcards);
     for (i=0; i<numcards; i++)
     {
-        finalcards[i] = tmp[permis_b[i]];
+        finalcards[i] = tmp[permis_d[i]];
         cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
     }
 }
@@ -408,7 +408,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 {
     static bits256 *allshares;
     int32_t i,j,M,permi,permis[256]; uint8_t sharenrs[256],space[8192]; bits256 *cardshares;
-    BET_permutation(permis,numcards);
+    //BET_permutation(permis,numcards);
     
     for (i=0; i<numcards; i++)
     {
@@ -416,7 +416,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
         //blindings[permi] = rand256(1);
         //blindedcards[i] = fmul_donna(finalcards[permi],blindings[permi]);
         blindings[i] = rand256(1);
-        blindedcards[i] = fmul_donna(finalcards[permi],blindings[i]);
+        blindedcards[i] = fmul_donna(finalcards[permis_b],blindings[i]);
     }
     if ( 0 ) // for later
     {
