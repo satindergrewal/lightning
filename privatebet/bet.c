@@ -289,7 +289,7 @@ int main(int argc,const char *argv[])
         printf("no argjson, default to testmode\n");
         while ( testmode != 1 )
         {
-        	testmode=0;
+        	testmode=1;
             OS_randombytes((uint8_t *)&range,sizeof(range));
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
             range = (range % CARDS777_MAXCARDS) + 1;
