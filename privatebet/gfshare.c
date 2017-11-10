@@ -341,7 +341,7 @@ void gfshare_calc_shares(uint8_t *shares,uint8_t *secret,int32_t size,int32_t wi
 {
     int32_t i; uint8_t *buffer;
 	//M threshold
-	printf("\n size: %d, width: %d, threshold:%d, num of players: %d",size,width,M,N);
+	//printf("\n size: %d, width: %d, threshold:%d, num of players: %d",size,width,M,N);
     if ( M*width > spacesize )
     {
         buffer = calloc(M,width);
