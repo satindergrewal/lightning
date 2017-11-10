@@ -488,13 +488,17 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 	deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
     blinding_vendor(allshares,blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
 	playerid=0;
+	temp=allshares[0];
+	for(i=0;i<32;i++){
+		printf("%d ",temp.bytes[i]);
+	}
 	for (i=0; i<numcards; i++)
         {
             for (j=0; j<numplayers; j++) {
-                temp=allshares[j*numplayers*numcards + (i*numplayers + playerid)];
+                //temp=allshares[j*numplayers*numcards + (i*numplayers + playerid)];
 			printf("\n");
 			for(k=0;k<32;k++){
-				printf("%d ",temp.bytes[k]);
+				printf("%d ",j*numplayers*numcards + (i*numplayers + playerid));
 			}
 		
 			}
