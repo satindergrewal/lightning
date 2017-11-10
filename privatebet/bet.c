@@ -502,8 +502,8 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
        		decoded[i] = j;
             printf("{%d} ",j);
 	   	}
-        printf("ordering by playerid.%d\n",playerid);
     }
+    printf("ordering by playerid.%d\n",playerid);
     return(errs);
 }
 
