@@ -406,9 +406,9 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
     }
 }
 
-void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
+void blinding_vendor(bits256 *allshares,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
-    static bits256 *allshares;
+    //static bits256 *allshares;
     int32_t i,j,M,permi,permis[256]; uint8_t sharenrs[256],space[8192]; bits256 *cardshares;
     //BET_permutation(permis,numcards);
     
@@ -424,22 +424,15 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
         cardshares = calloc(numplayers,sizeof(bits256));
         if ( allshares == 0 )
             allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
-        for (i=0; i<1/*numcards*/; i++)
+        for (i=0; i<numcards; i++)
         {
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
-            /*for (j=0; j<numplayers; j++)
+            for (j=0; j<numplayers; j++)
                 allshares[j*numplayers*numcards + (i*numplayers + playerid)] = cardshares[j];
-			*/
+			
         }
-		printf("\nThe shares computed are:\n");
-		for(i=0;i<numplayers;i++){
-			printf("\nShare:%d\n",i);
-			for(j=0;j<32;j++){
-				printf("%d ",cardshares[i].bytes[j]);
-			}
-		}
-        // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
+		// when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
     }
 }
 
@@ -487,10 +480,21 @@ bits256 player_decode(int32_t playerid,struct pair256 key,bits256 blindingval,bi
 
 int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    int32_t i,j,errs,unpermi; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
-    key = deckgen_player(playerprivs,playercards,permis,numcards);
+    int32_t i,j,k,errs,unpermi; struct pair256 key; bits256 *allshares=NULL,decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
+	key = deckgen_player(playerprivs,playercards,permis,numcards);
 	deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
-    blinding_vendor(blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
+    blinding_vendor(allshares,blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
+    printf("\nDisplaying shares for player:0");
+	for(i=0;i<numplayers;i++){
+		printf("\nShamir shards of player %d given to player 0",i);
+		for(j=0;j<numcards;j++){
+		printf("\n%dth player:%dth card shard\n",i,j);	
+			for(k=0;k<32;k++){
+				printf("%d ",allshares[0].bytes[i*numcards*32+j*32+k]);
+				
+			}
+		}
+	}
 	#if 0
 	memset(decoded,0xff,numcards);
     for (errs=i=0; i<numcards; i++)
