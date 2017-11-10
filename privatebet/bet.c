@@ -408,7 +408,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 {
     static bits256 *allshares;
     int32_t i,j,M,permi,permis[256]; uint8_t sharenrs[256],space[8192]; bits256 *cardshares;
-    BET_permutation(permis,numcards);
+    //BET_permutation(permis,numcards);
     
     for (i=0; i<numcards; i++)
     {
