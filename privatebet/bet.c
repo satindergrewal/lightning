@@ -449,20 +449,18 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
     bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint; int32_t i,j,k,unpermi; char str[65];
     basepoint = curve25519_basepoint9();
 
+	cardshares = calloc(numplayers,sizeof(bits256));
 		printf("\nPlayer:%d",playerid);
-		for (i=0; i<numcards; i++)
-        {
-        	printf("\ncard:%d",i);
+			printf("\ncard:%d",cardID);
             for (j=0; j<numplayers; j++) 
 			{
         		printf("\nshare:%d\n",j);
 				for(k=0;k<32;k++)
 				{
-					printf("%d ",allshares[j*numplayers*numcards + (i*numplayers + playerid)].bytes[k]);
+					printf("%d ",allshares[j*numplayers*numcards + (cardID*numplayers + playerid)].bytes[k]);
 				}
 			}
-			
-        }
+		
 
 	refval = fmul_donna(blindedcard,crecip_donna(blindingval));
 	#if 0  
