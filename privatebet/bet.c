@@ -499,10 +499,10 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 	for (i=0; i<numcards; i++)
         {
             for (j=0; j<numplayers; j++) {
-                //temp=allshares[j*numplayers*numcards + (i*numplayers + playerid)];
+                temp=allshares[j*numplayers*numcards + (i*numplayers + playerid)];
 			printf("\n");
 			for(k=0;k<32;k++){
-				printf("%d ",j*numplayers*numcards + (i*numplayers + playerid));
+				printf("%d ",temp.bytes[k]);
 			}
 		
 			}
