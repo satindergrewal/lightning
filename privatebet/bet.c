@@ -500,7 +500,7 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
             printf("\n");
 			for(k=0;k<32;k++)
 			{
-				printf("%d ",allshares[playerid*numplayers*numcards + (i*numcards+ j)].bytes[k]);
+				printf("%d ",playerid*numplayers*numcards + (i*numcards+ j));
 			}
 		}
 	}
@@ -538,7 +538,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 
 	printf("\nNumber of players:%d, Number of cards:%d",numplayers,numcards);
 	
-	for (playererrs=playerid=0; playerid<numplayers; playerid++)
+	for (playererrs=playerid=0; playerid<1; playerid++)
     {
         if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid)) != 0 )
         {
