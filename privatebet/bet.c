@@ -423,7 +423,7 @@ void blinding_vendor(bits256 *allshares,bits256 *blindings,bits256 *blindedcards
         gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
         cardshares = calloc(numplayers,sizeof(bits256));
         if ( allshares == 0 )
-            allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
+            allshares = calloc(numplayers * numplayers * numcards,sizeof(bits256));
         for (i=0; i<numcards; i++)
         {
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
