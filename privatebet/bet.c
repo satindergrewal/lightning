@@ -424,13 +424,15 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
         cardshares = calloc(numplayers,sizeof(bits256));
         if ( allshares == 0 )
             allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
+		printf("\nplayer:%d",playerid);
         for (i=0; i<numcards; i++)
         {
+        	printf("\ncard:%d",i);
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
                 allshares[j*numplayers*numcards + (i*numplayers + playerid)] = cardshares[j];
-				printf("\n");
+				printf("\nshare:%d\n",j);
 				for(k=0;k<32;k++)
 				{
 					printf("%d ",allshares[j*numplayers*numcards + (i*numplayers + playerid)].bytes[k]);
@@ -539,15 +541,18 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     }
 
 	
-
-	for (i=0; i<numcards; i++)
-    {
-       for (j=0; j<numplayers; j++) 
-		 {
-          	printf("\n");  
-			for(k=0;k<32;k++)
-			{
-				printf("%d ",allshares[playerid*numplayers*numcards + (i*numcards+ j)].bytes[k]);
+	for(playerid=0;playerid<numplayers;playerid++)
+	{	
+		printf("\nPlayer:%d",playerid);
+		for (i=0; i<numcards; i++)
+	    {
+	       for (j=0; j<numplayers; j++) 
+			 {
+	          	printf("\n");  
+				for(k=0;k<32;k++)
+				{
+					printf("%d ",allshares[playerid*numplayers*numcards + (i*numcards+ j)].bytes[k]);
+				}
 			}
 		}
 	}
