@@ -464,6 +464,7 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 	
 
 	refval = fmul_donna(blindedcard,crecip_donna(blindingval));
+	#if 0  
 	for (i=0; i<numcards; i++)
     {
         /*unpermi = -1;
@@ -481,6 +482,7 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
             return(tmp);
         }*/
         //printf("i.%d unpermi.%d vs %d\n",i,unpermi,permis[i]);
+      
         for (j=0; j<numcards; j++)
         {
             tmp = fmul_donna(playerprivs[i],cardprods[j]);
@@ -498,6 +500,7 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
     }
     printf("couldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
     memset(tmp.bytes,0,sizeof(tmp));
+	#endif
     return(tmp);
 }
 
@@ -549,7 +552,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     {
         if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid)) != 0 )
         {
-            printf("playerid.%d got errors %d for deckid.%s\n",playerid,errs,bits256_str(str,deckid));
+            //printf("playerid.%d got errors %d for deckid.%s\n",playerid,errs,bits256_str(str,deckid));
             playererrs++;
         }
         decodebad += errs;
