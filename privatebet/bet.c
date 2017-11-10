@@ -451,17 +451,18 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 
 		printf("\nPlayer:%d",playerid);
 		for (i=0; i<numcards; i++)
-	    {
-	       for (j=0; j<numplayers; j++) 
-			 {
-	          	printf("\n");  
+        {
+        	printf("\ncard:%d",i);
+            for (j=0; j<numplayers; j++) 
+			{
+        		printf("\nshare:%d\n",j);
 				for(k=0;k<32;k++)
 				{
-					printf("%d ",allshares[playerid*numplayers*numcards + (i*numcards+ j)].bytes[k]);
+					printf("%d ",allshares[j*numplayers*numcards + (i*numplayers + playerid)].bytes[k]);
 				}
 			}
-		}
-	
+			
+        }
 
 	refval = fmul_donna(blindedcard,crecip_donna(blindingval));
 	#if 0  
