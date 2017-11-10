@@ -140,7 +140,25 @@ void randombytes_buf(void * const buf, const size_t size)
 // privatebet host -> publish to BET chain
 // tableid management -> leave, select game, start game
 
+
 int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
+
+void test()
+{
+	int i;bits256 G,G_inverse;
+	G=curve25519_basepoint9();
+	G_inverse=crecip_donna(G);
+	printf("\nBase Point");
+	for(i=0;i<32;i++)
+		printf("%d ",G.bytes[i]);
+	printf("\nInverse of Base Point");
+	for(i=0;i<32;i++)
+		printf("%d ",G_inverse.bytes[i]);
+	G=fmul_donna(G,G_inverse);
+	printf("\nBase Point * It's Inverse");
+	for(i=0;i<32;i++)
+		printf("%d ",G.bytes[i]);
+}
 
 int main(int argc,const char *argv[])
 {
@@ -286,7 +304,8 @@ int main(int argc,const char *argv[])
     {
         printf("no argjson, default to testmode\n");
         testmode = 1;
-        while ( testmode != 0 )
+		test();
+        while ( testmode != 1 )
         {
         	testmode=0;
             OS_randombytes((uint8_t *)&range,sizeof(range));
