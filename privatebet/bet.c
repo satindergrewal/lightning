@@ -431,19 +431,19 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 		cardshares = calloc(numplayers,sizeof(bits256));
         if ( allshares == 0 )
             allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
-		//printf("\nplayer:%d",playerid);
+		printf("\nplayer:%d",playerid);
         for (i=0; i<numcards; i++)
         {
-        	//printf("\ncard:%d",i);
+        	printf("\ncard:%d",i);
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
                 allshares[j*numplayers*numcards + (i*numplayers + playerid)] = cardshares[j];
-				/*printf("\nshare:%d\n",j);
+				printf("\nshare:%d\n",j);
 				for(k=0;k<32;k++)
 				{
 					printf("%d ",allshares[j*numplayers*numcards + (i*numplayers + playerid)].bytes[k]);
-				}*/
+				}
 			}
 			
         }
@@ -469,15 +469,15 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 
 	recover=calloc(1,sizeof(bits256));
 	cardshares = calloc(numplayers,sizeof(bits256));
-		//printf("\nPlayer:%d:card:%d",playerid,cardID);
+		printf("\nPlayer:%d:card:%d",playerid,cardID);
 			for (j=0; j<numplayers; j++) 
 			{
 				cardshares[j]=allshares[j*numplayers*numcards + (cardID*numplayers + playerid)];
-        	/*	printf("\nshare:%d\n",j);
+        		printf("\nshare:%d\n",j);
 				for(k=0;k<32;k++)
 				{
 					printf("%d ",cardshares[j].bytes[k]);
-				}*/
+				}
 			}
 	
 	M=(numplayers/2)+1;
@@ -582,11 +582,11 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	
 	dekgen_vendor_perm(numcards);
 	blinding_vendor_perm(numcards);
-	//numplayers=2;numcards=2;
+	numplayers=2;numcards=2;
 	printf("\nNumber of players:%d, Number of cards:%d",numplayers,numcards);
 	allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
 	
-	for (playererrs=playerid=0; playerid<1; playerid++)
+	for (playererrs=playerid=0; playerid<numplayers; playerid++)
     {
         if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid)) != 0 )
         {
