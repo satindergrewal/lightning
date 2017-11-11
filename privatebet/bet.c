@@ -483,7 +483,7 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 	M=(numplayers/2)+1;
 
 	for(i=0;i<M;i++){
-		memcpy(shares[i],cardshares[j].bytes,sizeof(bits256));
+		memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
 	}
 
 	
