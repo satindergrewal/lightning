@@ -472,7 +472,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 				gfshare_decextract(0,0,G1,recover->bytes);
 		*/
 		
-		gfshare_recoverdata(shares,sharenrs,M,recover,sizeof(bits256),numplayers);
+		gfshare_recoverdata(shares,sharenrs,M,recover->bytes,sizeof(bits256),numplayers);
 		
 				printf("\nThe deck id is:\n");
 				for(i=0;i<sizeof(bits256);i++)
