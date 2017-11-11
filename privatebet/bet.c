@@ -471,8 +471,10 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
     for (i=0; i<numplayers; i++)
             gfshare_dec_giveshare(G,i,cardshares[i].bytes);
     //gfshare_dec_newshares(G,recovernrs);
-    gfshare_decextract(0,0,G,recover);
-    gfshare_free(G);
+	printf("\nsharecount:%d,size:%d",G->sharecount,G->size);
+
+	//gfshare_decextract(0,0,G,recover);
+    //gfshare_free(G);
 	
    
 	refval = fmul_donna(blindedcard,crecip_donna(blindingval));
