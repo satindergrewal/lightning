@@ -442,10 +442,9 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 	
 	uint8_t **shares;
 	shares=calloc(numplayers,sizeof(uint8_t*));
-	for(i=0;i<numplayers;i++){
-		//shares[i]=(uint8_t *)malloc(sizeof(bits256));
+	for(i=0;i<numplayers;i++)
 		shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
-	}
+
 	basepoint = curve25519_basepoint9();
 	recover=calloc(1,sizeof(bits256));
 	cardshares = calloc(numplayers,sizeof(bits256));
