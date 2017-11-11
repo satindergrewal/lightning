@@ -439,7 +439,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 			memcpy(all_shares[i].bytes,share->bytes,sizeof(bits256));
 		}
 		gfshare_free(G);
-
+		#if 0
 		G = gfshare_initdec(sharenrs,numplayers,sizeof(bits256),space,sizeof(space));
     for (i=0; i<(numplayers/2)+1; i++)
             gfshare_dec_giveshare(G,i,all_shares[i].bytes);
@@ -477,6 +477,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 			}
 			
         }
+		#endif
 		// when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
     }
 }
