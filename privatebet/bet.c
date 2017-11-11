@@ -457,13 +457,15 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 			}
 		}
         
-		
+		/*
 		G1 = gfshare_sg777_initdec(sharenrs,numplayers,M,sizeof(bits256),space,sizeof(space));
 				for (i=0; i<M+1; i++)
 							gfshare_dec_giveshare(G1,i,cardshares[i].bytes);
 					
 				gfshare_decextract(0,0,G1,recover->bytes);
-				
+		*/
+		
+		gfshare_recoverdata(cardshares.bytes,sharenrs,M,recover,sizeof(bits256),numplayers);
 		
 				printf("\nThe deck id is:\n");
 				for(i=0;i<sizeof(bits256);i++)
