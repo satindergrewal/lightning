@@ -466,10 +466,7 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 				}
 			}
 	
-	recover =cards777_recover(cardshares,sharenrs,numplayers,numcards,numplayers);
-	printf("\nsize of recover:%d",sizeof(recover));
-
-	/*	
+		
 	 G = gfshare_initdec(sharenrs,numplayers,sizeof(bits256),space,sizeof(space));
     for (i=0; i<numplayers; i++)
         if ( cardshares[i] != 0 )
@@ -477,7 +474,7 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
     //gfshare_dec_newshares(G,recovernrs);
     gfshare_decextract(0,0,G,recover);
     gfshare_free(G);
-	*/
+	
    
 	refval = fmul_donna(blindedcard,crecip_donna(blindingval));
 	#if 0  
