@@ -488,7 +488,7 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 
 	
 	gfshare_recoverdata(shares,sharenrs, M,recover->bytes,sizeof(bits256),M);
-	 
+	/* 
 	printf("\nBlinding value is:\n");
 	for(i=0;i<sizeof(bits256);i++)
 	{
@@ -499,10 +499,10 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 	{
 		printf("%d ",recover->bytes[i]);		
 	}
-    
+    */
    
 	refval = fmul_donna(blindedcard,crecip_donna(*recover));
-	#if 0  
+	#if 1
 	for (i=0; i<numcards; i++)
     {
         /*unpermi = -1;
@@ -582,7 +582,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	
 	dekgen_vendor_perm(numcards);
 	blinding_vendor_perm(numcards);
-	numplayers=2;numcards=2;
+	//numplayers=2;numcards=2;
 	printf("\nNumber of players:%d, Number of cards:%d",numplayers,numcards);
 	allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
 	
@@ -590,7 +590,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     {
         if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid)) != 0 )
         {
-            //printf("playerid.%d got errors %d for deckid.%s\n",playerid,errs,bits256_str(str,deckid));
+            printf("playerid.%d got errors %d for deckid.%s\n",playerid,errs,bits256_str(str,deckid));
             playererrs++;
         }
         decodebad += errs;
@@ -600,7 +600,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	
 	
 	
-	#if 0
+	#if 1
 	for (good=bad=i=0; i<numplayers-1; i++)
     {
         for (j=i+1; j<numplayers; j++)
