@@ -413,7 +413,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     //static bits256 *allshares;
     int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares, *share,*all_shares,*recover;
     //BET_permutation(permis,numcards);
-    struct gfshare_ctx * G=NULL;
+    struct gfshare_ctx * G=NULL,*G1=NULL;
 	share=calloc(1,sizeof(bits256));
 	all_shares=calloc(numplayers,sizeof(bits256));
 	recover=calloc(1,sizeof(bits256));
@@ -431,22 +431,47 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 		
 		G=gfshare_initenc(sharenrs,numplayers,numplayers,sizeof(bits256),space,sizeof(space));
 		gfshare_enc_setsecret(G,deckid.bytes);
-
+		
 		for(i=0;i<numplayers;i++)
 		{
 			gfshare_encgetshare(0,0,G,i,share->bytes);
 			memcpy(all_shares+(i*sizeof(256)),share,sizeof(bits256));
 			
 		}
+		printf("\nshares:\n");
+		for(i=0;i<G->sharecount;i++){
+			printf("\n");
+			for(j=0;j<sizeof(bits256);j++){
+				printf("%d ",all_shares[i].bytes[j]);
+			}
+		}
+
+		cardshares = calloc(numplayers,sizeof(bits256));
+        if ( allshares == 0 )
+            allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
+
+			gfshare_calc_shares(cardshares[0].bytes,deckid.bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
+            // create combined allshares
+            i=0;
+            for (j=0; j<numplayers; j++) {
+                allshares[j*numplayers*numcards + (i*numplayers + playerid)] = cardshares[j];
+				printf("\nshare:%d\n",j);
+				for(k=0;k<32;k++)
+				{
+					printf("%d ",allshares[j*numplayers*numcards + (i*numplayers + playerid)].bytes[k]);
+				}
+			}
+			
+        
 		gfshare_free(G);
-		
-		G = gfshare_sg777_initdec(sharenrs,numplayers,numplayers,sizeof(bits256),space,sizeof(space));
+		#if 0
+		G1 = gfshare_sg777_initdec(sharenrs,numplayers,numplayers,sizeof(bits256),space,sizeof(space));
   		for (i=0; i<numplayers; i++)
-            		gfshare_dec_giveshare(G,i,all_shares[i].bytes);
+            		gfshare_dec_giveshare(G1,i,all_shares[i].bytes);
     		
 		//gfshare_dec_newshares(G,recovernrs);
 
-		gfshare_decextract(0,0,G,recover->bytes);
+		gfshare_decextract(0,0,G1,recover->bytes);
 		//gfshare_free(G);
 
 		printf("\nThe deck id is:\n");
@@ -462,7 +487,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 		}
 
 		
-		#if 0
+		
 		cardshares = calloc(numplayers,sizeof(bits256));
         if ( allshares == 0 )
             allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
@@ -612,7 +637,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	printf("\nNumber of players:%d, Number of cards:%d",numplayers,numcards);
 	allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
 	
-	for (playererrs=playerid=0; playerid<numplayers; playerid++)
+	for (playererrs=playerid=0; playerid<1; playerid++)
     {
         if ( (errs= player_init(decoded[playerid],playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid)) != 0 )
         {
