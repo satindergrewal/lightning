@@ -469,7 +469,6 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 		
 	 G = gfshare_initdec(sharenrs,numplayers,sizeof(bits256),space,sizeof(space));
     for (i=0; i<numplayers; i++)
-        if ( cardshares[i] != 0 )
             gfshare_dec_giveshare(G,i,cardshares[i].bytes);
     //gfshare_dec_newshares(G,recovernrs);
     gfshare_decextract(0,0,G,recover);
