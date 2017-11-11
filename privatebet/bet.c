@@ -471,7 +471,7 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
     for (i=0; i<numplayers; i++)
             gfshare_dec_giveshare(G,i,cardshares[i].bytes);
     //gfshare_dec_newshares(G,recovernrs);
-	gfshare_decextract(0,0,G,recover.bytes);
+	gfshare_decextract(0,0,G,recover->bytes);
 	//gfshare_free(G);
 	
 	printf("\nBlinding value is:\n");
@@ -482,7 +482,7 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 	printf("\nRecovered blinding value is:\n");
 	for(i=0;i<sizeof(bits256);i++)
 	{
-		printf("%d ",recover.bytes[i]);		
+		printf("%d ",recover->bytes[i]);		
 	}
     
    
