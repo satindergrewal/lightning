@@ -128,6 +128,12 @@ void gfshare_encgetshare(uint8_t *_logs,uint8_t *_exps,struct gfshare_ctx *ctx,u
 {
     uint32_t pos,coefficient,ilog = _logs[ctx->sharenrs[sharenr]];
     uint8_t *share_ptr,*coefficient_ptr = ctx->buffer;
+
+	if ( _logs == 0 )
+        _logs = BET_logs;
+    if ( _exps == 0 )
+        _exps = BET_exps;
+   
     for (pos=0; pos<ctx->size; pos++)
         share[pos] = *(coefficient_ptr++);
     for (coefficient=1; coefficient<ctx->threshold; coefficient++)
