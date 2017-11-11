@@ -412,17 +412,10 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 {
     //static bits256 *allshares;
     int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares,*recover;
-    //BET_permutation(permis,numcards);
-    uint8_t *shares[20];
-	
+
 	recover=calloc(1,sizeof(bits256));
 
-	for(i=0;i<numplayers;i++){
-		shares[i]=(uint8_t *)malloc(sizeof(bits256));
-		//shares[i]=calloc(1,sizeof(bits256))
-	}
-	
-    for (i=0; i<numcards; i++)
+	for (i=0; i<numcards; i++)
     {
         blindings[i] = rand256(1);
         blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
@@ -460,9 +453,18 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 
 bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
-    bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint,*cardshares; int32_t i,j,k,unpermi; char str[65];uint8_t space[8192];
+    bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];uint8_t space[8192];
 	struct gfshare_ctx *G;
 	bits256 *recover=NULL;
+	
+	uint8_t *shares[20];
+	for(i=0;i<numplayers;i++){
+		shares[i]=(uint8_t *)malloc(sizeof(bits256));
+		//shares[i]=calloc(1,sizeof(bits256))
+	}
+	
+
+	
 	basepoint = curve25519_basepoint9();
 
 	recover=calloc(1,sizeof(bits256));
@@ -478,14 +480,15 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 				}*/
 			}
 	
-		
-	 G = gfshare_initdec(sharenrs,numplayers,sizeof(bits256),space,sizeof(space));
-    for (i=0; i<(numplayers/2)+1; i++)
-            gfshare_dec_giveshare(G,i,cardshares[i].bytes);
-    //gfshare_dec_newshares(G,recovernrs);
-	gfshare_decextract(0,0,G,recover->bytes);
-	//gfshare_free(G);
+	M=(numplayers/2)+1;
+
+	for(i=0;i<M;i++){
+		memcpy(shares[i],cardshares[j].bytes,sizeof(bits256));
+	}
+
 	
+	gfshare_recoverdata(shares,sharenrs, M,recover->bytes,sizeof(bits256),M);
+	 
 	printf("\nBlinding value is:\n");
 	for(i=0;i<sizeof(bits256);i++)
 	{
@@ -548,7 +551,7 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
 	blinding_vendor(blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
 	
 	
-	#if 0
+	#if 1
 	memset(decoded,0xff,numcards);
     for (errs=i=0; i<numcards; i++)
     {
