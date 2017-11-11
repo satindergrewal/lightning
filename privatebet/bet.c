@@ -461,9 +461,11 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 			for(j=0;j<sizeof(bits256);j++){
 				printf("%d ",cardshares[i].bytes[j]);
 			}
+			//memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
+		}
+        for(i=0;i<M;i++){
 			memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
 		}
-        
 		/*
 		G1 = gfshare_sg777_initdec(sharenrs,numplayers,M,sizeof(bits256),space,sizeof(space));
 				for (i=0; i<M+1; i++)
