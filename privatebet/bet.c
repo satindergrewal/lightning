@@ -435,11 +435,10 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 		for(i=0;i<numplayers;i++)
 		{
 			gfshare_encgetshare(0,0,G,i,share->bytes);
-			all_shares[i]=share;
+			memcpy(all_shares+(i*sizeof(256)),share,sizeof(bits256));
 			
 		}
 		gfshare_free(G);
-		#if 0
 		G = gfshare_initdec(sharenrs,numplayers,sizeof(bits256),space,sizeof(space));
     for (i=0; i<(numplayers/2)+1; i++)
             gfshare_dec_giveshare(G,i,all_shares[i].bytes);
@@ -458,6 +457,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 	}
 
 		
+		#if 0
 		cardshares = calloc(numplayers,sizeof(bits256));
         if ( allshares == 0 )
             allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
