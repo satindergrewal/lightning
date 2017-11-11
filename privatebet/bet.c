@@ -414,6 +414,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares, *share,*all_shares,*recover;
     //BET_permutation(permis,numcards);
     struct gfshare_ctx * G=NULL,*G1=NULL;
+	uint8_t shares[20][32];
 	share=calloc(1,sizeof(bits256));
 	all_shares=calloc(numplayers,sizeof(bits256));
 	recover=calloc(1,sizeof(bits256));
@@ -455,6 +456,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 			for(j=0;j<sizeof(bits256);j++){
 				printf("%d ",cardshares[i].bytes[j]);
 			}
+			shares[i]=cardshares[i].bytes;
 		}
         
 		/*
@@ -465,7 +467,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 				gfshare_decextract(0,0,G1,recover->bytes);
 		*/
 		
-		gfshare_recoverdata(cardshares.bytes,sharenrs,M,recover,sizeof(bits256),numplayers);
+		gfshare_recoverdata(shares,sharenrs,M,recover,sizeof(bits256),numplayers);
 		
 				printf("\nThe deck id is:\n");
 				for(i=0;i<sizeof(bits256);i++)
