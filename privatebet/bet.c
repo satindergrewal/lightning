@@ -429,7 +429,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 		gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
 		
 		
-		G=gfshare_initenc(sharenrs,numplayers,(numplayers/2)+1,sizeof(bits256),space,sizeof(space));
+		G=gfshare_initenc(sharenrs,numplayers,numplayers,sizeof(bits256),space,sizeof(space));
 		gfshare_enc_setsecret(G,deckid.bytes);
 
 		for(i=0;i<numplayers;i++)
@@ -440,10 +440,11 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 		}
 		gfshare_free(G);
 		
-		G = gfshare_sg777_initdec(sharenrs,numplayers,(numplayers/2)+1,sizeof(bits256),space,sizeof(space));
-  		for (i=0; i<(numplayers/2)+1; i++)
-            gfshare_dec_giveshare(G,i,all_shares[i].bytes);
-    	//gfshare_dec_newshares(G,recovernrs);
+		G = gfshare_sg777_initdec(sharenrs,numplayers,numplayers,sizeof(bits256),space,sizeof(space));
+  		for (i=0; i<numplayers; i++)
+            		gfshare_dec_giveshare(G,i,all_shares[i].bytes);
+    		
+		//gfshare_dec_newshares(G,recovernrs);
 
 		gfshare_decextract(0,0,G,recover->bytes);
 		//gfshare_free(G);
