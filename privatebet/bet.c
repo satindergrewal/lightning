@@ -414,12 +414,11 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares, *share,*all_shares,*recover;
     //BET_permutation(permis,numcards);
     struct gfshare_ctx * G=NULL,*G1=NULL;
-	uint8_t **shares;
+	uint8_t *shares[20];
 	share=calloc(1,sizeof(bits256));
 	all_shares=calloc(numplayers,sizeof(bits256));
 	recover=calloc(1,sizeof(bits256));
 
-	shares =(uint8_t **)malloc(numplayers);
 	for(i=0;i<numplayers;i++){
 		shares[i]=(uint8_t *)malloc(sizeof(bits256));
 	}
