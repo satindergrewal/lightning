@@ -426,8 +426,8 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
     {
         M = (numplayers/2) + 1;
 
-		printf("\nsizeof share:%d, sizeof all shares:%d",sizeof(share),sizeof(all_shares));
-		//gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
+		printf("\nsizeof share:%ld, sizeof all shares:%ld",sizeof(share),sizeof(all_shares));
+		gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
 		
 		
 		G=gfshare_initenc(sharenrs,numplayers,(numplayers/2)+1,sizeof(bits256),space,sizeof(space));
