@@ -150,7 +150,10 @@ int main(int argc,const char *argv[])
 {
     uint16_t tmp,rpcport = 7797,port = 7797+1;
     char connectaddr[128],bindaddr[128],smartaddr[64],randphrase[32],*modestr,*hostip,*passphrase=0,*retstr; cJSON *infojson,*argjson,*reqjson,*deckjson; uint64_t randvals; bits256 privkey,pubkey,pubkeys[64],privkeys[64]; uint8_t pubkey33[33],taddr=0,pubtype=60; uint32_t i,n,range,numplayers; int32_t testmode=0,pubsock=-1,subsock=-1,pullsock=-1,pushsock=-1; long fsize; struct privatebet_info *BET,*BET2;
-    hostip = "127.0.0.1";
+	char msg[32]="hello";
+	char cipher[32];
+	uint16_t msglen,cipherlen;
+	hostip = "127.0.0.1";
     libgfshare_init();
     OS_init();
     portable_mutex_init(&LP_peermutex);
@@ -289,6 +292,12 @@ int main(int argc,const char *argv[])
     else
     {
         printf("no argjson, default to testmode\n");
+
+		
+			privkey = curve25519_keypair(&pubkey);
+			cipherlen=BET_ciphercreate(privkey,pubkey,cipher,msg,sizeof(msglen));
+		
+		testmode=1;
         while ( testmode != 1 )
         {
         	testmode=1;
