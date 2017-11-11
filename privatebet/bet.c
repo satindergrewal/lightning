@@ -455,15 +455,15 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 
 	recover=calloc(1,sizeof(bits256));
 	cardshares = calloc(numplayers,sizeof(bits256));
-		printf("\nPlayer:%d:card:%d",playerid,cardID);
+		//printf("\nPlayer:%d:card:%d",playerid,cardID);
 			for (j=0; j<numplayers; j++) 
 			{
 				cardshares[j]=allshares[j*numplayers*numcards + (cardID*numplayers + playerid)];
-        		printf("\nshare:%d\n",j);
+        	/*	printf("\nshare:%d\n",j);
 				for(k=0;k<32;k++)
 				{
 					printf("%d ",cardshares[j].bytes[k]);
-				}
+				}*/
 			}
 	
 		
@@ -567,7 +567,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	
 	dekgen_vendor_perm(numcards);
 	blinding_vendor_perm(numcards);
-	//numplayers=2;numcards=2;
+	numplayers=2;numcards=2;
 	printf("\nNumber of players:%d, Number of cards:%d",numplayers,numcards);
 	allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
 	
