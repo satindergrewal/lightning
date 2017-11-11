@@ -456,7 +456,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 			for(j=0;j<sizeof(bits256);j++){
 				printf("%d ",cardshares[i].bytes[j]);
 			}
-			shares[i]=cardshares[i].bytes;
+			memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
 		}
         
 		/*
