@@ -450,7 +450,7 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 {
     bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint,*cardshares; int32_t i,j,k,unpermi; char str[65];uint8_t space[8192];
 	struct gfshare_ctx *G;
-	uint8_t *recover=NULL;
+	bits256 *recover=NULL;
 	basepoint = curve25519_basepoint9();
 
 	recover=calloc(1,sizeof(bits256));
@@ -471,7 +471,7 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
     for (i=0; i<numplayers; i++)
             gfshare_dec_giveshare(G,i,cardshares[i].bytes);
     //gfshare_dec_newshares(G,recovernrs);
-	gfshare_decextract(0,0,G,recover);
+	gfshare_decextract(0,0,G,recover.bytes);
 	//gfshare_free(G);
 	
 	printf("\nBlinding value is:\n");
