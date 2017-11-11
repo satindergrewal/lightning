@@ -453,7 +453,7 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 	uint8_t *recover=NULL;
 	basepoint = curve25519_basepoint9();
 
-	
+	recover=calloc(1,sizeof(bits256));
 	cardshares = calloc(numplayers,sizeof(bits256));
 		printf("\nPlayer:%d:card:%d",playerid,cardID);
 			for (j=0; j<numplayers; j++) 
@@ -471,11 +471,20 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
     for (i=0; i<numplayers; i++)
             gfshare_dec_giveshare(G,i,cardshares[i].bytes);
     //gfshare_dec_newshares(G,recovernrs);
-	printf("\nsharecount:%d,size:%d",G->sharecount,G->size);
-
-	//gfshare_decextract(0,0,G,recover);
-    //gfshare_free(G);
+	gfshare_decextract(0,0,G,recover);
+	//gfshare_free(G);
 	
+	printf("\nBlinding value is:\n");
+	for(i=0;i<sizeof(bits256);i++)
+	{
+		printf("%d ",blindingval.bytes[i]);		
+	}
+	printf("\nRecovered blinding value is:\n");
+	for(i=0;i<sizeof(bits256);i++)
+	{
+		printf("%d ",recover.bytes[i]);		
+	}
+    
    
 	refval = fmul_donna(blindedcard,crecip_donna(blindingval));
 	#if 0  
