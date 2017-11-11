@@ -440,7 +440,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 		}
 		gfshare_free(G);
 		
-		G = gfshare_initdec(sharenrs,numplayers,(numplayers/2)+1,sizeof(bits256),space,sizeof(space));
+		G = gfshare_sg777_initdec(sharenrs,numplayers,(numplayers/2)+1,sizeof(bits256),space,sizeof(space));
   		for (i=0; i<(numplayers/2)+1; i++)
             gfshare_dec_giveshare(G,i,all_shares[i].bytes);
     	//gfshare_dec_newshares(G,recovernrs);

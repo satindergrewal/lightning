@@ -94,13 +94,23 @@ struct gfshare_ctx *gfshare_initenc(uint8_t *sharenrs,uint32_t sharecount,uint8_
 }
 
 // Initialise a gfshare context for recombining shares
-struct gfshare_ctx *gfshare_initdec(uint8_t *sharenrs,uint32_t sharecount,uint8_t threshold,uint32_t size,void *space,int32_t spacesize)
+struct gfshare_ctx *gfshare_initdec(uint8_t *sharenrs,uint32_t sharecount,uint32_t size,void *space,int32_t spacesize)
+{
+    struct gfshare_ctx *ctx = _gfshare_init_core(sharenrs,sharecount,sharecount,size,space,spacesize);
+    if ( ctx != NULL )
+        ctx->threshold = 0;
+    return(ctx);
+}
+
+// Initialise a gfshare context for recombining shares
+struct gfshare_ctx *gfshare_sg777_initdec(uint8_t *sharenrs,uint32_t sharecount,uint8_t threshold,uint32_t size,void *space,int32_t spacesize)
 {
     struct gfshare_ctx *ctx = _gfshare_init_core(sharenrs,sharecount,threshold,size,space,spacesize);
     if ( ctx != NULL )
         ctx->threshold = 0;
     return(ctx);
 }
+
 
 // Free a share context's memory
 void gfshare_free(struct gfshare_ctx *ctx)
