@@ -567,7 +567,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	
 	dekgen_vendor_perm(numcards);
 	blinding_vendor_perm(numcards);
-	numplayers=2;numcards=2;
+	//numplayers=2;numcards=2;
 	printf("\nNumber of players:%d, Number of cards:%d",numplayers,numcards);
 	allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
 	
