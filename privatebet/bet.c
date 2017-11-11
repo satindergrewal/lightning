@@ -447,7 +447,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 		}
 
 		cardshares = calloc(numplayers,sizeof(bits256));
-		M=numplayers;
+		printf("\nThreshold value is:%d",M);
         gfshare_calc_shares(cardshares[0].bytes,deckid.bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
 
 		for(i=0;i<numplayers;i++){
@@ -458,8 +458,8 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 		}
         
 		
-		G1 = gfshare_sg777_initdec(sharenrs,numplayers,numplayers,sizeof(bits256),space,sizeof(space));
-				for (i=0; i<numplayers; i++)
+		G1 = gfshare_sg777_initdec(sharenrs,numplayers,M,sizeof(bits256),space,sizeof(space));
+				for (i=0; i<M; i++)
 							gfshare_dec_giveshare(G1,i,cardshares[i].bytes);
 					
 				gfshare_decextract(0,0,G1,recover->bytes);
