@@ -436,7 +436,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 		for(i=0;i<numplayers;i++)
 		{
 			gfshare_encgetshare(0,0,G,i,share);
-			all_shares[i]=share;
+			memcpy(all_shares[i],share,sizeof(share));
 		}
 		gfshare_free(G);
 
