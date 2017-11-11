@@ -411,10 +411,10 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
 void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
     //static bits256 *allshares;
-    int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares, share,*all_shares,*recover;
+    int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares, *share,*all_shares,*recover;
     //BET_permutation(permis,numcards);
     struct gfshare_ctx * G=NULL;
-	
+	share=calloc(1,sizeof(bits256));
 	all_shares=calloc(numplayers,sizeof(bits256));
 	recover=calloc(1,sizeof(bits256));
     for (i=0; i<numcards; i++)
@@ -434,7 +434,7 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
 
 		for(i=0;i<numplayers;i++)
 		{
-			gfshare_encgetshare(0,0,G,i,share.bytes);
+			gfshare_encgetshare(0,0,G,i,share->bytes);
 			
 		}
 		gfshare_free(G);

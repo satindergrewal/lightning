@@ -126,14 +126,15 @@ void gfshare_enc_setsecret(struct gfshare_ctx *ctx,uint8_t *secret)
 // Extract a share from the context. 'share' must be preallocated and at least 'size' bytes long. 'sharenr' is the index into the 'sharenrs' array of the share you want.
 void gfshare_encgetshare(uint8_t *_logs,uint8_t *_exps,struct gfshare_ctx *ctx,uint8_t sharenr,uint8_t *share)
 {
-    uint32_t pos,coefficient,ilog = _logs[ctx->sharenrs[sharenr]];
-    uint8_t *share_ptr,*coefficient_ptr = ctx->buffer;
-
 	if ( _logs == 0 )
         _logs = BET_logs;
     if ( _exps == 0 )
         _exps = BET_exps;
    
+	uint32_t pos,coefficient,ilog = _logs[ctx->sharenrs[sharenr]];
+    uint8_t *share_ptr,*coefficient_ptr = ctx->buffer;
+
+	
     for (pos=0; pos<ctx->size; pos++)
         share[pos] = *(coefficient_ptr++);
     for (coefficient=1; coefficient<ctx->threshold; coefficient++)
