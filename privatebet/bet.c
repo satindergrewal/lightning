@@ -310,9 +310,8 @@ int main(int argc,const char *argv[])
 			printf("%02x ",cipher[i]);
 		}
 		printf("\n");
-		//BET_decrypt(cipher,cipherlen,pubkey_a,privkey_b,r_msg,&msglen);
 		
-		uint8_t decoded[100000],*ptr; int32_t recvlen; char str[65];
+		uint8_t decoded[sizeof(bits256) + 1024],*ptr; int32_t recvlen; char str[65];
 		recvlen = cipherlen;
 		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),pubkey_a,privkey_b,cipher,&recvlen)) == 0 )
 			printf("decrypt error ");
