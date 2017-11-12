@@ -150,7 +150,8 @@ int main(int argc,const char *argv[])
 {
     uint16_t tmp,rpcport = 7797,port = 7797+1;
     char connectaddr[128],bindaddr[128],smartaddr[64],randphrase[32],*modestr,*hostip,*passphrase=0,*retstr; cJSON *infojson,*argjson,*reqjson,*deckjson; uint64_t randvals; bits256 privkey,pubkey,pubkeys[64],privkeys[64]; uint8_t pubkey33[33],taddr=0,pubtype=60; uint32_t i,n,range,numplayers; int32_t testmode=0,pubsock=-1,subsock=-1,pullsock=-1,pushsock=-1; long fsize; struct privatebet_info *BET,*BET2;
-	char msg[32]="hello";
+	bits256 privkey_a,privkey_b,pubkey_a,pubkey_b;
+	char msg[32]="hello",r_msg[32];
 	char cipher[32];
 	uint16_t msglen,cipherlen;
 	hostip = "127.0.0.1";
@@ -294,12 +295,23 @@ int main(int argc,const char *argv[])
         printf("no argjson, default to testmode\n");
 
 		
-			privkey = curve25519_keypair(&pubkey);
-			cipherlen=BET_ciphercreate(privkey,pubkey,cipher,msg,sizeof(msglen));
-			printf("\nCipher is:\n");
-			for(i=0;i<cipherlen;i++){
-				printf("%d ",cipher[i]);
-			}
+		privkey_a = curve25519_keypair(&pubkey_a);
+		privkey_b = curve25519_keypair(&pubkey_b);
+		cipherlen=BET_ciphercreate(privkey_a,pubkey_b,cipher,msg,sizeof(msglen));
+
+		printf("\nCipher is:\n");
+		for(i=0;i<cipherlen;i++){
+			printf("%d ",cipher[i]);
+		}
+		
+		BET_decrypt(cipher,cipherlen,pubkey_a,privkey_b,r_msg,&msglen);
+		
+		uint8_t decoded[100000],*ptr; int32_t recvlen; char str[65];
+		recvlen = cipherlen;
+		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),pubkey_a,privkey_b,cipher,&recvlen)) == 0 )
+			printf("decrypt error ");
+		
+
 		
 		testmode=1;
         while ( testmode != 1 )
