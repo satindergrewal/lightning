@@ -150,10 +150,6 @@ int main(int argc,const char *argv[])
 {
     uint16_t tmp,rpcport = 7797,port = 7797+1;
     char connectaddr[128],bindaddr[128],smartaddr[64],randphrase[32],*modestr,*hostip,*passphrase=0,*retstr; cJSON *infojson,*argjson,*reqjson,*deckjson; uint64_t randvals; bits256 privkey,pubkey,pubkeys[64],privkeys[64]; uint8_t pubkey33[33],taddr=0,pubtype=60; uint32_t i,n,range,numplayers; int32_t testmode=0,pubsock=-1,subsock=-1,pullsock=-1,pushsock=-1; long fsize; struct privatebet_info *BET,*BET2;
-	bits256 privkey_a,privkey_b,pubkey_a,pubkey_b;
-	char msg[32]="hello",r_msg[32];
-	char cipher[32];
-	uint32_t msglen,cipherlen;
 	hostip = "127.0.0.1";
     libgfshare_init();
     OS_init();
@@ -294,7 +290,12 @@ int main(int argc,const char *argv[])
     {
         printf("no argjson, default to testmode\n");
 
-		
+		#if 0
+		bits256 privkey_a,privkey_b,pubkey_a,pubkey_b;
+		char msg[32]="hello",r_msg[32];
+		char cipher[32];
+		uint32_t msglen,cipherlen;
+			
 		privkey_a = curve25519_keypair(&pubkey_a);
 		privkey_b = curve25519_keypair(&pubkey_b);
 		
@@ -319,16 +320,18 @@ int main(int argc,const char *argv[])
 		for(i=0;i<recvlen;i++){
 			printf("%02x ",ptr[i]);
 		}
-		
 		testmode=1;
-        while ( testmode != 1 )
+		#endif
+
+		
+		while ( testmode != 1 )
         {
         	testmode=1;
             OS_randombytes((uint8_t *)&range,sizeof(range));
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
             range = (range % CARDS777_MAXCARDS) + 1;
             numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
-            players_init(numplayers,numplayers,rand256(0));
+            sg777_players_init(numplayers,numplayers,rand256(0));
             continue;
             for (i=0; i<numplayers; i++)
                 privkeys[i] = curve25519_keypair(&pubkeys[i]);
@@ -573,4 +576,44 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     }
     printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
 	return(playererrs);
+}
+
+struct pair256 sg777_player_init(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
+{
+    int32_t i,j,k,errs,unpermi; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
+	return deckgen_player(playerprivs,playercards,permis,numcards);
+
+}
+void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
+{
+	static int32_t decodebad,decodegood;
+    int32_t i,j,k,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; bits256 playerprivs[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; char str[65];
+	struct pair256 keys[CARDS777_MAXPLAYERS];
+	for (playerid=0; playerid<numplayers; playerid++)
+    {
+		keys[playerid]=sg777_player_init(playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid);
+    }
+	for (i=0; i<numplayers; i++)
+    {
+    	printf("\nPlayer:%d\n");
+		printf("\nPrivate Key:\n");
+		for(k=0;k<sizeof(bits256);k++)
+		{
+			printf("%d ",keys[i].priv.bytes[k]);
+		}
+		printf("\nPublic Key:\n");
+		for(k=0;k<sizeof(bits256);k++)
+		{
+			printf("%d ",keys[i].prod.bytes[k]);
+		}
+    	for(j=0;j<numcards;j++)
+    	{
+    		printf("\nCards:\n");
+	    	for(k=0;k<sizeof(bits256);k++)
+			{
+				printf("%d ",playercards[i][j].bytes[k]);
+			}	
+    	}
+	}
+	
 }
