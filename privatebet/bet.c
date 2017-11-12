@@ -144,6 +144,7 @@ void randombytes_buf(void * const buf, const size_t size)
 
 
 int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
+void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
 
 
 int main(int argc,const char *argv[])
@@ -617,3 +618,4 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	}
 	
 }
+
