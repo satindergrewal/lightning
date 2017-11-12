@@ -292,7 +292,7 @@ int main(int argc,const char *argv[])
         printf("no argjson, default to testmode\n");
 
 		#if 1
-		bits256 privkey_a,privkey_b,pubkey_a,pubkey_b,rand,r_msg;
+		bits256 privkey_a,privkey_b,pubkey_a,pubkey_b,rand;
 		char msg[32]="hello",r_msg[320];
 		char cipher[320];
 		uint32_t msglen,cipherlen;
@@ -305,7 +305,7 @@ int main(int argc,const char *argv[])
 			printf("%02x ",rand[i]);
 		}
 		
-		cipherlen=BET_ciphercreate(privkey_a,pubkey_b,cipher,rand,sizeof(rand));
+		cipherlen=BET_ciphercreate(privkey_a,pubkey_b,cipher,rand.bytes,sizeof(rand));
 
 		printf("\nCipher is:%d\n",cipherlen);
 		for(i=0;i<cipherlen;i++){
