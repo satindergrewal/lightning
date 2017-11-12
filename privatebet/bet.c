@@ -52,6 +52,9 @@ int32_t permis_d[CARDS777_MAXCARDS],permis_b[CARDS777_MAXCARDS];
 bits256 *allshares=NULL;
 uint8_t sharenrs[256];
 
+struct enc_share { uint8_t share[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
+struct enc_share *g_shares=NULL;
+
 char *issue_LP_psock(char *destip,uint16_t destport,int32_t ispaired)
 {
     char url[512],*retstr;
@@ -291,7 +294,7 @@ int main(int argc,const char *argv[])
     {
         printf("no argjson, default to testmode\n");
 
-		#if 1
+		#if 0
 		bits256 privkey_a,privkey_b,pubkey_a,pubkey_b,rand;
 		char msg[32]="hello",r_msg[320];
 		char cipher[320];
@@ -321,10 +324,9 @@ int main(int argc,const char *argv[])
 		for(i=0;i<recvlen;i++){
 			printf("%02x ",ptr[i]);
 		}
-		testmode=1;
 		#endif
 		
-		testmode=1;
+		//testmode=1;
 		while ( testmode != 1 )
         {
         	testmode=1;
@@ -580,9 +582,14 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	return(playererrs);
 }
 
-void sg777_blinding_vendor(struct pair256 *keys,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
+struct pair256 sg777_blinding_vendor(struct pair256 *keys,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
-    int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares,*recover;
+    int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares,*recover,basepoint;
+	struct pair256 b_key;
+	struct enc_share temp;
+	basepoint = curve25519_basepoint9();
+		b_key.priv = rand256(1), b_key.prod = fmul_donna(b_key.priv,basepoint);
+
 	recover=calloc(1,sizeof(bits256));
 	for (i=0; i<numcards; i++)
     {
@@ -593,17 +600,19 @@ void sg777_blinding_vendor(struct pair256 *keys,bits256 *blindings,bits256 *blin
 
 		gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
 		cardshares = calloc(numplayers,sizeof(bits256));
-        if ( allshares == 0 )
-            allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
+        if ( g_shares == 0)
+			g_shares= calloc(numplayers,sizeof(struct enc_share) * numplayers * numcards);
         for (i=0; i<numcards; i++)
         {
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-                allshares[j*numplayers*numcards + (i*numplayers + playerid)] = cardshares[j];
+              	BET_ciphercreate(keys[i].prod,b_key.priv,temp.share,cardshares[j].bytes,sizeof(cardshares[j]));
+				  g_shares[j*numplayers*numcards + (i*numplayers + playerid)] = temp;
 			}
         }
 		// when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
+		return b_key;
 }
 
 struct pair256 sg777_player_init(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
