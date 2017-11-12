@@ -153,7 +153,7 @@ int main(int argc,const char *argv[])
 	bits256 privkey_a,privkey_b,pubkey_a,pubkey_b;
 	char msg[32]="hello",r_msg[32];
 	char cipher[32];
-	uint16_t msglen,cipherlen;
+	uint32_t msglen,cipherlen;
 	hostip = "127.0.0.1";
     libgfshare_init();
     OS_init();
