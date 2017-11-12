@@ -291,21 +291,21 @@ int main(int argc,const char *argv[])
     {
         printf("no argjson, default to testmode\n");
 
-		#if 0
-		bits256 privkey_a,privkey_b,pubkey_a,pubkey_b;
-		char msg[32]="hello",r_msg[32];
-		char cipher[32];
+		#if 1
+		bits256 privkey_a,privkey_b,pubkey_a,pubkey_b,rand,r_msg;
+		char msg[32]="hello",r_msg[320];
+		char cipher[320];
 		uint32_t msglen,cipherlen;
-			
+		rand=rand256(1);
 		privkey_a = curve25519_keypair(&pubkey_a);
 		privkey_b = curve25519_keypair(&pubkey_b);
 		
-		printf("\nPlainText is:%ld\n",sizeof(msglen));
-		for(i=0;i<sizeof(msglen);i++){
-			printf("%02x ",msg[i]);
+		printf("\nPlainText is:%ld\n",sizeof(rand));
+		for(i=0;i<sizeof(rand);i++){
+			printf("%02x ",rand[i]);
 		}
 		
-		cipherlen=BET_ciphercreate(privkey_a,pubkey_b,cipher,msg,sizeof(msglen));
+		cipherlen=BET_ciphercreate(privkey_a,pubkey_b,cipher,rand,sizeof(rand));
 
 		printf("\nCipher is:%d\n",cipherlen);
 		for(i=0;i<cipherlen;i++){
@@ -323,8 +323,8 @@ int main(int argc,const char *argv[])
 		}
 		testmode=1;
 		#endif
-
 		
+		testmode=1;
 		while ( testmode != 1 )
         {
         	testmode=1;
@@ -519,7 +519,8 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 
 int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    int32_t i,j,k,errs,unpermi; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
+    int32_t i,j,k,errs,unpermi; struct pair256 key; 
+	bits256 decoded256,cardprods[CARDS777_MAXCARDS],finalcards[CARDS777_MAXCARDS],blindingvals[CARDS777_MAXCARDS],blindedcards[CARDS777_MAXCARDS];
 	key = deckgen_player(playerprivs,playercards,permis,numcards);
 	deckgen_vendor(cardprods,finalcards,numcards,playercards,deckid); // over network
 	blinding_vendor(blindingvals,blindedcards,finalcards,numcards,numplayers,playerid,deckid); // over network
@@ -579,9 +580,35 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	return(playererrs);
 }
 
+void sg777_blinding_vendor(struct pair256 *keys,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
+{
+    int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares,*recover;
+	recover=calloc(1,sizeof(bits256));
+	for (i=0; i<numcards; i++)
+    {
+        blindings[i] = rand256(1);
+        blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
+    }
+    M = (numplayers/2) + 1;
+
+		gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
+		cardshares = calloc(numplayers,sizeof(bits256));
+        if ( allshares == 0 )
+            allshares = calloc(numplayers,sizeof(bits256) * numplayers * numcards);
+        for (i=0; i<numcards; i++)
+        {
+            gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
+            // create combined allshares
+            for (j=0; j<numplayers; j++) {
+                allshares[j*numplayers*numcards + (i*numplayers + playerid)] = cardshares[j];
+			}
+        }
+		// when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
+}
+
 struct pair256 sg777_player_init(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    int32_t i,j,k,errs,unpermi; struct pair256 key; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
+    int32_t i,j,k,errs,unpermi; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
 	return deckgen_player(playerprivs,playercards,permis,numcards);
 
 }
@@ -590,31 +617,20 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	static int32_t decodebad,decodegood;
     int32_t i,j,k,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; bits256 playerprivs[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; char str[65];
 	struct pair256 keys[CARDS777_MAXPLAYERS];
+	bits256 cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindingvals[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 	for (playerid=0; playerid<numplayers; playerid++)
     {
 		keys[playerid]=sg777_player_init(playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid);
     }
-	for (i=0; i<numplayers; i++)
+
+	for (playerid=0; playerid<numplayers; playerid++)
     {
-    	printf("\nPlayer:%d\n",i);
-		printf("\nPrivate Key:\n");
-		for(k=0;k<sizeof(bits256);k++)
-		{
-			printf("%d ",keys[i].priv.bytes[k]);
-		}
-		printf("\nPublic Key:\n");
-		for(k=0;k<sizeof(bits256);k++)
-		{
-			printf("%d ",keys[i].prod.bytes[k]);
-		}
-    	for(j=0;j<numcards;j++)
-    	{
-    		printf("\nCards:%d\n",j);
-	    	for(k=0;k<sizeof(bits256);k++)
-			{
-				printf("%d ",playercards[i][j].bytes[k]);
-			}	
-    	}
+    	deckgen_vendor(cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid); // over network
+	}
+
+	for (playerid=0; playerid<numplayers; playerid++)
+    {
+    	sg777_blinding_vendor(keys,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
 	}
 	
 }
