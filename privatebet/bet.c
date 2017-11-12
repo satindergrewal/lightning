@@ -582,14 +582,68 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	return(playererrs);
 }
 
-struct pair256 sg777_blinding_vendor(struct pair256 *keys,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
+bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *key,struct pair256 b_key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
+{
+    bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];uint8_t space[8192];
+	bits256 *recover=NULL;
+	struct enc_share temp;	
+	uint8_t **shares;
+	shares=calloc(numplayers,sizeof(uint8_t*));
+	for(i=0;i<numplayers;i++)
+		shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
+
+	basepoint = curve25519_basepoint9();
+	recover=calloc(1,sizeof(bits256));
+	cardshares = calloc(numplayers,sizeof(bits256));
+	uint8_t decoded[sizeof(bits256) + 1024],*ptr; int32_t recvlen; char str[65];
+	for (j=0; j<numplayers; j++) 
+	{
+		cardshares[j]=g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)];
+
+		
+		recvlen = cipherlen;
+		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),b_key.prod,key[i].priv,cipher,&recvlen)) == 0 )
+			printf("decrypt error ");
+		printf("\nThe recovered message is:%d\n",recvlen);
+		for(i=0;i<recvlen;i++){
+			printf("%02x ",ptr[i]);
+		}
+	}
+	
+	M=(numplayers/2)+1;
+	for(i=0;i<M;i++) {
+		memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
+	}
+	gfshare_recoverdata(shares,sharenrs, M,recover->bytes,sizeof(bits256),M);
+	refval = fmul_donna(blindedcard,crecip_donna(*recover));
+	for (i=0; i<numcards; i++)
+    {
+        for (j=0; j<numcards; j++)
+        {
+            tmp = fmul_donna(playerprivs[i],cardprods[j]);
+            tmp = fmul_donna(tmp,key.priv);
+            xoverz = xoverz_donna(tmp);
+            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+            fe = crecip_donna(curve25519_fieldelement(hash));
+            decoded = fmul_donna(fmul_donna(refval,fe),basepoint);
+            if ( bits256_cmp(decoded,cardprods[j]) == 0 )
+            {
+                printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
+                return(playerprivs[i]);
+            }
+        }
+    }
+    printf("couldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
+    memset(tmp.bytes,0,sizeof(tmp));
+    return(tmp);
+}
+
+struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
     int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares,*recover,basepoint;
-	struct pair256 b_key;
+	
 	struct enc_share temp;
-	basepoint = curve25519_basepoint9();
-		b_key.priv = rand256(1), b_key.prod = fmul_donna(b_key.priv,basepoint);
-
+	
 	recover=calloc(1,sizeof(bits256));
 	for (i=0; i<numcards; i++)
     {
@@ -625,8 +679,8 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
 	static int32_t decodebad,decodegood;
     int32_t i,j,k,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; bits256 playerprivs[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; char str[65];
-	struct pair256 keys[CARDS777_MAXPLAYERS];
-	bits256 cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindingvals[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	struct pair256 keys[CARDS777_MAXPLAYERS],b_key;
+	bits256 decoded256,basepoint,cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindingvals[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 	for (playerid=0; playerid<numplayers; playerid++)
     {
 		keys[playerid]=sg777_player_init(playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid);
@@ -639,8 +693,15 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 
 	for (playerid=0; playerid<numplayers; playerid++)
     {
-    	sg777_blinding_vendor(keys,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
+    	sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
 	}
+	
+	basepoint = curve25519_basepoint9();
+	b_key.priv = rand256(1), b_key.prod = fmul_donna(b_key.priv,basepoint);
+	playerid=0;
+	i=0;
+	 sg777_player_decode(playerid,i,numplayers,keys,b_key,blindingvals[playerid][i],blindedcards[playerid][i],cardprods[playerid],playerprivs[playerid],permis[playerid],numcards);
+     
 	
 }
 
