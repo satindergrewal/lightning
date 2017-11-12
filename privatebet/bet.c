@@ -301,9 +301,9 @@ int main(int argc,const char *argv[])
 
 		printf("\nCipher is:\n");
 		for(i=0;i<cipherlen;i++){
-			printf("%d ",cipher[i]);
+			printf("%02x ",cipher[i]);
 		}
-		
+		printf("\n");
 		BET_decrypt(cipher,cipherlen,pubkey_a,privkey_b,r_msg,&msglen);
 		
 		uint8_t decoded[100000],*ptr; int32_t recvlen; char str[65];
