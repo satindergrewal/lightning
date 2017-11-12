@@ -595,7 +595,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     }
 	for (i=0; i<numplayers; i++)
     {
-    	printf("\nPlayer:%d\n");
+    	printf("\nPlayer:%d\n",i);
 		printf("\nPrivate Key:\n");
 		for(k=0;k<sizeof(bits256);k++)
 		{
@@ -608,7 +608,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 		}
     	for(j=0;j<numcards;j++)
     	{
-    		printf("\nCards:\n");
+    		printf("\nCards:%d\n",j);
 	    	for(k=0;k<sizeof(bits256);k++)
 			{
 				printf("%d ",playercards[i][j].bytes[k]);
