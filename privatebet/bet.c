@@ -297,6 +297,12 @@ int main(int argc,const char *argv[])
 		
 		privkey_a = curve25519_keypair(&pubkey_a);
 		privkey_b = curve25519_keypair(&pubkey_b);
+		
+		printf("\nPlainText is:%d\n",sizeof(msglen));
+		for(i=0;i<sizeof(msglen);i++){
+			printf("%02x ",msg[i]);
+		}
+		
 		cipherlen=BET_ciphercreate(privkey_a,pubkey_b,cipher,msg,sizeof(msglen));
 
 		printf("\nCipher is:%d\n",cipherlen);
