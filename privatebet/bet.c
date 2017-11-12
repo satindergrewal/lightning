@@ -302,7 +302,7 @@ int main(int argc,const char *argv[])
 		
 		printf("\nPlainText is:%ld\n",sizeof(rand));
 		for(i=0;i<sizeof(rand);i++){
-			printf("%02x ",rand[i]);
+			printf("%02x ",rand.bytes[i]);
 		}
 		
 		cipherlen=BET_ciphercreate(privkey_a,pubkey_b,cipher,rand.bytes,sizeof(rand));
