@@ -299,7 +299,7 @@ int main(int argc,const char *argv[])
 		privkey_b = curve25519_keypair(&pubkey_b);
 		cipherlen=BET_ciphercreate(privkey_a,pubkey_b,cipher,msg,sizeof(msglen));
 
-		printf("\nCipher is:\n");
+		printf("\nCipher is:%d\n",cipherlen);
 		for(i=0;i<cipherlen;i++){
 			printf("%02x ",cipher[i]);
 		}

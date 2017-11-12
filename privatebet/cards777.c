@@ -471,6 +471,9 @@ uint8_t *BET_decrypt(uint8_t *decoded,int32_t maxsize,bits256 senderpub,bits256 
     nonce = ptr;
     cipher = &ptr[crypto_box_NONCEBYTES];
     cipherlen = (recvlen - crypto_box_NONCEBYTES);
+
+	printf("\ncipherlen:%d,recvlen:%d,crypto_box_NONCEBYTES:%d",cipherlen,recvlen,crypto_box_NONCEBYTES);
+	
     if ( (0) )
     {
         int32_t i; char str[65];
