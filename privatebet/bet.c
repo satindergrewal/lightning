@@ -294,21 +294,22 @@ int main(int argc,const char *argv[])
     {
         printf("no argjson, default to testmode\n");
 
-		#if 0
+		#if 1
 		bits256 privkey_a,privkey_b,pubkey_a,pubkey_b,rand;
+		struct pair256 key_a,key_b;
 		char msg[32]="hello",r_msg[320];
 		char cipher[320];
 		uint32_t msglen,cipherlen;
 		rand=rand256(1);
-		privkey_a = curve25519_keypair(&pubkey_a);
-		privkey_b = curve25519_keypair(&pubkey_b);
+		key_a.priv= curve25519_keypair(&key_a.prod);
+		key_b.priv= curve25519_keypair(&key_b.prod);
 		
 		printf("\nPlainText is:%ld\n",sizeof(rand));
 		for(i=0;i<sizeof(rand);i++){
 			printf("%02x ",rand.bytes[i]);
 		}
 		
-		cipherlen=BET_ciphercreate(privkey_a,pubkey_b,cipher,rand.bytes,sizeof(rand));
+		cipherlen=BET_ciphercreate(key_a.priv,key_b.prod,cipher,rand.bytes,sizeof(rand));
 
 		printf("\nCipher is:%d\n",cipherlen);
 		for(i=0;i<cipherlen;i++){
@@ -318,7 +319,7 @@ int main(int argc,const char *argv[])
 		
 		uint8_t decoded[sizeof(bits256) + 1024],*ptr; int32_t recvlen; char str[65];
 		recvlen = cipherlen;
-		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),pubkey_a,privkey_b,cipher,&recvlen)) == 0 )
+		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),key_a.prod,key_b.priv,cipher,&recvlen)) == 0 )
 			printf("decrypt error ");
 		printf("\nThe recovered message is:%d\n",recvlen);
 		for(i=0;i<recvlen;i++){
@@ -326,7 +327,7 @@ int main(int argc,const char *argv[])
 		}
 		#endif
 		
-		//testmode=1;
+		testmode=1;
 		while ( testmode != 1 )
         {
         	testmode=1;
