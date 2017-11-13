@@ -296,7 +296,7 @@ int main(int argc,const char *argv[])
     {
         printf("no argjson, default to testmode\n");
 
-		#if 1
+		#if 0
 		bits256 privkey_a,privkey_b,pubkey_a,pubkey_b,rand,basepoint;
 		struct pair256 key_a,key_b;
 		char msg[32]="hello",r_msg[320];
@@ -402,7 +402,8 @@ struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
 {
     int32_t i; struct pair256 key,tmp; bits256 basepoint;
     basepoint = curve25519_basepoint9();
-    key.priv = rand256(1), key.prod = fmul_donna(key.priv,basepoint);
+	key.priv=curve25519_keypair(&key.prod);
+    //key.priv = rand256(1), key.prod = fmul_donna(key.priv,basepoint);
     for (i=0; i<numcards; i++)
     {
         tmp.priv = card_rand256(1,i);
@@ -728,8 +729,9 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     	deckgen_vendor(cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid); // over network
 	}
 
-	basepoint = curve25519_basepoint9();
-	b_key.priv = rand256(1), b_key.prod = fmul_donna(b_key.priv,basepoint);
+	//basepoint = curve25519_basepoint9();
+	//b_key.priv = rand256(1), b_key.prod = fmul_donna(b_key.priv,basepoint);
+	b_key.priv=curve25519_keypair(&b_key.prod);
 	
 	for (playerid=0; playerid<numplayers; playerid++)
     {
