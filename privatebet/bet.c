@@ -726,7 +726,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 
 	for (playerid=0; playerid<numplayers; playerid++)
     {
-    	deckgen_vendor(cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid); // over network
+    	temp=deckgen_vendor(cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid); // over network
 	}
 
 	//basepoint = curve25519_basepoint9();
@@ -735,7 +735,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	
 	for (playerid=0; playerid<numplayers; playerid++)
     {
-    	temp=sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
+    	sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
 	}
 	
 	playerid=0;
@@ -756,7 +756,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 				 printf("%02x ",rand.bytes[i]);
 			 }
 			 
-			 cipherlen=BET_ciphercreate(playerprivs[0],cardprods[0],cipher,rand.bytes,sizeof(rand));
+			 cipherlen=BET_ciphercreate(*playerprivs[0],*cardprods[0],cipher,rand.bytes,sizeof(rand));
 	 
 			 printf("\nCipher is:%d\n",cipherlen);
 			 for(i=0;i<cipherlen;i++){
@@ -766,7 +766,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 			 
 			 uint8_t decoded[sizeof(bits256) + 1024],*ptr; int32_t recvlen; char str[65];
 			 recvlen = cipherlen;
-			 if ( (ptr= BET_decrypt(decoded,sizeof(decoded),playercards[0],temp,cipher,&recvlen)) == 0 )
+			 if ( (ptr= BET_decrypt(decoded,sizeof(decoded),*playercards[0],temp,cipher,&recvlen)) == 0 )
 				 printf("decrypt error ");
 			 else {
 			 printf("\nThe recovered message is:%d\n",recvlen);
