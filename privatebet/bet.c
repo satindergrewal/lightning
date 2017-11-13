@@ -603,10 +603,14 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 	{
 		temp=g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)];
 
-		/*printf("\nThe decrypted share of card:%d of player:%d\n",cardID, j);
+		printf("\nThe decrypted share of card:%d of player:%d\n",cardID, j);
 		for(i=0;i<sizeof(temp);i++){
 			printf("%02x ",temp.share[i]);
-		}*/
+		}
+		printf("\n");
+		for(i=0;i<sizeof(g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)]);i++){
+			printf("%02x ",g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)].share[i]);
+		}
 		/*printf("\nPrivate key:");
 		for(k=0;k<sizeof(b_key.priv);k++){
 				printf("%02x ",b_key.priv.bytes[k]);
@@ -680,10 +684,6 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 				  printf("\nThe Encrypted share of players: %d card: %d, for player:%d of length:%ld\n",playerid,i,j,sizeof(temp));
 	  				for(k=0;k<sizeof(temp);k++){
 	  					printf("%02x ",temp.share[k]);
-	  				}
-					printf("\n");
-					for(k=0;k<sizeof(g_shares[j*numplayers*numcards + (i*numplayers + playerid)]);k++){
-	  					printf("%02x ",g_shares[j*numplayers*numcards + (i*numplayers + playerid)].share[k]);
 	  				}
 					/*printf("\nPrivate key:");
 					for(k=0;k<sizeof(b_key.priv);k++){
