@@ -296,7 +296,7 @@ int main(int argc,const char *argv[])
     {
         printf("no argjson, default to testmode\n");
 
-		#if 1
+		#if 0
 		bits256 privkey_a,privkey_b,pubkey_a,pubkey_b,rand;
 		struct pair256 key_a,key_b;
 		char msg[32]="hello",r_msg[320];
@@ -327,9 +327,9 @@ int main(int argc,const char *argv[])
 		for(i=0;i<recvlen;i++){
 			printf("%02x ",ptr[i]);
 		}
-		#endif
-		
 		testmode=1;
+		#endif
+
 		while ( testmode != 1 )
         {
         	testmode=1;
