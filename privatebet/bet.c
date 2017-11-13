@@ -662,6 +662,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 		cardshares = calloc(numplayers,sizeof(bits256));
         if ( g_shares == 0)
 			g_shares= calloc(numplayers,sizeof(struct enc_share) * numplayers * numcards);
+
         for (i=0; i<numcards; i++)
         {
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
