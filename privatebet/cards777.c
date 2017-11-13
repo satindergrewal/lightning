@@ -472,11 +472,6 @@ uint8_t *BET_decrypt(uint8_t *decoded,int32_t maxsize,bits256 senderpub,bits256 
     cipher = &ptr[crypto_box_NONCEBYTES];
     cipherlen = (recvlen - crypto_box_NONCEBYTES);
 
-	printf("\ncipherlen:%d,recvlen:%d,crypto_box_NONCEBYTES:%d",cipherlen,recvlen,crypto_box_NONCEBYTES);
-	printf("\nData to decrypt %d:\n",sizeof(ptr));
-	for(i=0;i<recvlen;i++){
-		printf("%02x ",ptr[i]);
-	}
     if ( (0) )
     {
         int32_t i; char str[65];
@@ -489,7 +484,7 @@ uint8_t *BET_decrypt(uint8_t *decoded,int32_t maxsize,bits256 senderpub,bits256 
         if ( (dest= _SuperNET_decipher(nonce,cipher,decoded,cipherlen,senderpub,mypriv)) != 0 )
         {
             recvlen = (cipherlen - crypto_box_ZEROBYTES);
-            if ( (1) )
+            if ( (0) )
             {
                 int32_t i;
                 for (i=0; i<recvlen; i++)
