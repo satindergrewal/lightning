@@ -598,16 +598,17 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 	uint8_t decoded[sizeof(bits256) + 1024],*ptr; int32_t recvlen; char str[65];
 	for (j=0; j<numplayers; j++) 
 	{
-		cardshares[j]=g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)];
+		temp=g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)];
 
 		
-		recvlen = cipherlen;
-		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),b_key.prod,key[i].priv,cipher,&recvlen)) == 0 )
+		recvlen = sizeof(temp);
+		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),b_key.prod,key[j].priv,temp,&recvlen)) == 0 )
 			printf("decrypt error ");
-		printf("\nThe recovered message is:%d\n",recvlen);
+		printf("\nThe decrypted share of card:%d of player:%d\n",cardID, j);
 		for(i=0;i<recvlen;i++){
 			printf("%02x ",ptr[i]);
 		}
+		memcpy(cardshares[j],ptr,recvlen);
 	}
 	
 	M=(numplayers/2)+1;
@@ -615,6 +616,8 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 		memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
 	}
 	gfshare_recoverdata(shares,sharenrs, M,recover->bytes,sizeof(bits256),M);
+
+	#if 0
 	refval = fmul_donna(blindedcard,crecip_donna(*recover));
 	for (i=0; i<numcards; i++)
     {
@@ -635,6 +638,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     }
     printf("couldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
     memset(tmp.bytes,0,sizeof(tmp));
+	#endif
     return(tmp);
 }
 
@@ -661,6 +665,10 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
+				printf("\nThe share of card: %d, for player:%d\n",i,j);
+				for(k=0;k<sizeof(bits256);k++){
+					printf("%02x ",cardshares[j].bytes[k]);
+				}
               	BET_ciphercreate(keys[i].prod,b_key.priv,temp.share,cardshares[j].bytes,sizeof(cardshares[j]));
 				  g_shares[j*numplayers*numcards + (i*numplayers + playerid)] = temp;
 			}
