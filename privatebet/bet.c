@@ -607,10 +607,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 		for(i=0;i<sizeof(temp);i++){
 			printf("%02x ",temp.share[i]);
 		}
-		printf("\n");
-		for(i=0;i<sizeof(g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)]);i++){
-			printf("%02x ",g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)].share[i]);
-		}
+		
 		/*printf("\nPrivate key:");
 		for(k=0;k<sizeof(b_key.priv);k++){
 				printf("%02x ",b_key.priv.bytes[k]);
