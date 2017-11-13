@@ -616,8 +616,6 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 		else
 			memcpy(cardshares[j].bytes,ptr,recvlen);
 	}
-	
-	
 	M=(numplayers/2)+1;
 	for(i=0;i<M;i++) {
 		memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
@@ -625,14 +623,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 	gfshare_recoverdata(shares,sharenrs, M,recover->bytes,sizeof(bits256),M);
 	refval = fmul_donna(blindedcard,crecip_donna(*recover));
 
-	printf("\nBlindig value of player %d for card %d:\n",playerid,cardID);
-	for(k=0;k<sizeof(bits256);k++)
-	{
-		printf("%02x ",recover->bytes[k]);
-	}
-		
-	
-	#if 0
+	#if 1
 	for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
@@ -667,10 +658,6 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
     {
         blindings[i] = rand256(1);
         blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
-		printf("\nBlinding value of player %d for card %d\n",playerid,i);
-		for(k=0;k<sizeof(bits256);k++){
-			printf("%02x ",blindings[i].bytes[k]);
-		}
     }
     M = (numplayers/2) + 1;
 
@@ -684,24 +671,8 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-				 printf("\nShare before encryption:\n");
-				 for(k=0;k<sizeof(bits256);k++){
-					printf("%02x ",cardshares[j].bytes[k]);
-				 }
 				  BET_ciphercreate(b_key.priv,keys[j].prod,temp.share,cardshares[j].bytes,sizeof(cardshares[j]));
 				  memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].share,temp.share,sizeof(temp));
-				  /*printf("\nThe Encrypted share of players: %d card: %d, for player:%d of length:%ld\n",playerid,i,j,sizeof(temp));
-	  				for(k=0;k<sizeof(temp);k++){
-	  					printf("%02x ",temp.share[k]);
-	  				}*/
-					/*printf("\nPrivate key:");
-					for(k=0;k<sizeof(b_key.priv);k++){
-	  					printf("%02x ",b_key.priv.bytes[k]);
-	  				}
-					printf("\nPublic key:");
-					for(k=0;k<sizeof(keys[j].prod);k++){
-	  					printf("%02x ",keys[j].prod.bytes[k]);
-	  				}*/
 			}
         }
 		// when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
