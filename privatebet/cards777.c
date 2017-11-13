@@ -486,7 +486,7 @@ uint8_t *BET_decrypt(uint8_t *decoded,int32_t maxsize,bits256 senderpub,bits256 
         if ( (dest= _SuperNET_decipher(nonce,cipher,decoded,cipherlen,senderpub,mypriv)) != 0 )
         {
             recvlen = (cipherlen - crypto_box_ZEROBYTES);
-            if ( (0) )
+            if ( (1) )
             {
                 int32_t i;
                 for (i=0; i<recvlen; i++)
