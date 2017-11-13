@@ -625,11 +625,10 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 				printf("%02x ",keys[j].prod.bytes[k]);
 		}*/
 		recvlen = sizeof(temp);
-		printf("\nsimply loop:%d", recvlen);
-		/*
+		
 		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),b_key.prod,keys[j].priv,temp.share,&recvlen)) == 0 )
 			printf("decrypt error ");
-		*/
+		
 		//memcpy(cardshares[j].bytes,ptr,recvlen);
 	}
 	
