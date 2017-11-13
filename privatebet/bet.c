@@ -671,7 +671,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 				  memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].share,temp.share,sizeof(temp));
 				  printf("\nThe Encrypted share of players: %d card: %d, for player:%d of length:%d\n",playerid,i,j,sizeof(temp));
 	  				for(k=0;k<sizeof(temp);k++){
-	  					printf("%02x ",temp.bytes[k]);
+	  					printf("%02x ",temp.share[k]);
 	  				}
 			}
         }
