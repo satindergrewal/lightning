@@ -149,6 +149,8 @@ void randombytes_buf(void * const buf, const size_t size)
 int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
 void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
 
+struct pair256 { bits256 priv,prod; };
+
 
 int main(int argc,const char *argv[])
 {
@@ -372,7 +374,6 @@ int main(int argc,const char *argv[])
     return 0;
 }
 
-struct pair256 { bits256 priv,prod; };
 
 bits256 curve25519_fieldelement(bits256 hash)
 {
