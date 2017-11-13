@@ -595,7 +595,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 
 bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *keys,struct pair256 b_key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
-    bits256 tmp,xoverz,hash,fe,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];uint8_t space[8192];
+    bits256 decoded,tmp,xoverz,hash,fe,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];uint8_t space[8192];
 	bits256 *recover=NULL;
 	struct enc_share temp;	
 	uint8_t **shares;
@@ -606,12 +606,12 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 	basepoint = curve25519_basepoint9();
 	recover=calloc(1,sizeof(bits256));
 	cardshares = calloc(numplayers,sizeof(bits256));
-	uint8_t decoded[sizeof(bits256) + 1024],*ptr; int32_t recvlen; 
+	uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen; 
 	for (j=0; j<numplayers; j++) 
 	{
 		temp=g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)];
 		recvlen = sizeof(temp);
-		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),b_key.prod,keys[j].priv,temp.share,&recvlen)) == 0 )
+		if ( (ptr= BET_decrypt(decipher,sizeof(decipher),b_key.prod,keys[j].priv,temp.share,&recvlen)) == 0 )
 			printf("decrypt error ");
 		else
 			memcpy(cardshares[j].bytes,ptr,recvlen);
