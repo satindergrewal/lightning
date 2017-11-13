@@ -474,7 +474,7 @@ uint8_t *BET_decrypt(uint8_t *decoded,int32_t maxsize,bits256 senderpub,bits256 
 
 	printf("\ncipherlen:%d,recvlen:%d,crypto_box_NONCEBYTES:%d",cipherlen,recvlen,crypto_box_NONCEBYTES);
 	printf("\nData to decrypt %d:\n",sizeof(ptr));
-	for(i=0;i<sizeof(ptr);i++){
+	for(i=0;i<recvlen;i++){
 		printf("%d ",ptr[i]);
 	}
     if ( (0) )
