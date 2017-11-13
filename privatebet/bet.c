@@ -764,7 +764,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 			 }
 			 printf("\n");
 			 
-			 uint8_t decoded[sizeof(bits256) + 1024],*ptr; int32_t recvlen; char str[65];
+			 uint8_t decoded[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
 			 recvlen = cipherlen;
 			 if ( (ptr= BET_decrypt(decoded,sizeof(decoded),*playercards[0],temp,cipher,&recvlen)) == 0 )
 				 printf("decrypt error ");
