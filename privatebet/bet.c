@@ -413,6 +413,22 @@ struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
     return(key);
 }
 
+struct pair256 deckgen_common1(struct pair256 *randcards,int32_t numcards)
+{
+    int32_t i; struct pair256 key,tmp; bits256 basepoint;
+    basepoint = curve25519_basepoint9();
+	key.priv=curve25519_keypair(&key.prod);
+    //key.priv = rand256(1), key.prod = fmul_donna(key.priv,basepoint);
+    for (i=0; i<numcards; i++)
+    {
+        tmp.priv = card_rand256(1);
+        tmp.prod = curve25519(tmp.priv,curve25519_basepoint9());//fmul_donna(tmp.priv,basepoint);
+        randcards[i] = tmp;
+    }
+    return(key);
+}
+
+
 void dekgen_vendor_perm(int numcards)
 {
 	 BET_permutation(permis_d,numcards);
@@ -439,14 +455,18 @@ struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t 
 void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid) // given playercards[], returns cardprods[] and finalcards[]
 {
     static struct pair256 randcards[256]; static bits256 active_deckid;
-    int32_t i,permis[256]; bits256 hash,xoverz,tmp[256];
+    int32_t i,k,permis[256]; bits256 hash,xoverz,tmp[256];
     if ( bits256_cmp(deckid,active_deckid) != 0 )
-        deckgen_common(randcards,numcards);
+        deckgen_common1(randcards,numcards);
     for (i=0; i<numcards; i++)
     {
         xoverz = xoverz_donna(fmul_donna(playercards[i],randcards[i].priv));
         vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
         tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
+		printf("\n");
+		for(k=0;k<sizeof(bits256);k++){
+			printf("%d ",hash.bytes[k]);
+		}
     }
 	
    // BET_permutation(permis,numcards);
@@ -624,6 +644,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 	refval = fmul_donna(blindedcard,crecip_donna(*recover));
 
 	#if 1
+	printf("\nHashes are:");
 	for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
@@ -632,6 +653,11 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
             tmp = fmul_donna(tmp,keys[playerid].priv);
             xoverz = xoverz_donna(tmp);
             vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+			printf("\n");
+			for(k=0;k<sizeof(hash);k++){
+				printf("%d ",hash.bytes[k]);
+			}
+			
             fe = crecip_donna(curve25519_fieldelement(hash));
             decoded = fmul_donna(fmul_donna(refval,fe),basepoint);
             if ( bits256_cmp(decoded,cardprods[j]) == 0 )
