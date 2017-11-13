@@ -607,14 +607,14 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 		for(i=0;i<sizeof(temp);i++){
 			printf("%02x ",temp.share[i]);
 		}
-		printf("\nPrivate key:");
+		/*printf("\nPrivate key:");
 		for(k=0;k<sizeof(b_key.priv);k++){
 				printf("%02x ",b_key.priv.bytes[k]);
 		}
 		printf("\nPublic key:");
 		for(k=0;k<sizeof(keys[j].prod);k++){
 				printf("%02x ",keys[j].prod.bytes[k]);
-		}
+		}*/
 		recvlen = sizeof(temp);
 		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),b_key.prod,keys[j].priv,temp.share,&recvlen)) == 0 )
 			printf("decrypt error ");
@@ -681,14 +681,14 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 	  				for(k=0;k<sizeof(temp);k++){
 	  					printf("%02x ",temp.share[k]);
 	  				}
-					printf("\nPrivate key:");
+					/*printf("\nPrivate key:");
 					for(k=0;k<sizeof(b_key.priv);k++){
 	  					printf("%02x ",b_key.priv.bytes[k]);
 	  				}
 					printf("\nPublic key:");
 					for(k=0;k<sizeof(keys[j].prod);k++){
 	  					printf("%02x ",keys[j].prod.bytes[k]);
-	  				}
+	  				}*/
 			}
         }
 		// when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
