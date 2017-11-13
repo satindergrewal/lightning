@@ -407,7 +407,7 @@ struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
     for (i=0; i<numcards; i++)
     {
         tmp.priv = card_rand256(1,i);
-        tmp.prod = fmul_donna(tmp.priv,basepoint);
+        tmp.prod = curve25519(tmp.priv,curve25519_basepoint9());//fmul_donna(tmp.priv,basepoint);
         randcards[i] = tmp;
     }
     return(key);
