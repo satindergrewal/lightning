@@ -296,16 +296,21 @@ int main(int argc,const char *argv[])
     {
         printf("no argjson, default to testmode\n");
 
-		#if 0
-		bits256 privkey_a,privkey_b,pubkey_a,pubkey_b,rand;
+		#if 1
+		bits256 privkey_a,privkey_b,pubkey_a,pubkey_b,rand,basepoint;
 		struct pair256 key_a,key_b;
 		char msg[32]="hello",r_msg[320];
 		char cipher[320];
 		uint32_t msglen,cipherlen;
 		rand=rand256(1);
-		key_a.priv= curve25519_keypair(&key_a.prod);
-		key_b.priv= curve25519_keypair(&key_b.prod);
-		
+		//key_a.priv= curve25519_keypair(&key_a.prod);
+		//key_b.priv= curve25519_keypair(&key_b.prod);
+
+		basepoint = curve25519_basepoint9();
+
+		key_a.priv = rand256(1), key_a.prod = fmul_donna(key_a.priv,basepoint);
+		key_b.priv = rand256(1), key_b.prod = fmul_donna(key_b.priv,basepoint);
+    
 		printf("\nPlainText is:%ld\n",sizeof(rand));
 		for(i=0;i<sizeof(rand);i++){
 			printf("%02x ",rand.bytes[i]);
