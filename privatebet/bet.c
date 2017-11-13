@@ -702,13 +702,14 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     	deckgen_vendor(cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid); // over network
 	}
 
+	basepoint = curve25519_basepoint9();
+	b_key.priv = rand256(1), b_key.prod = fmul_donna(b_key.priv,basepoint);
+	
 	for (playerid=0; playerid<numplayers; playerid++)
     {
     	sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
 	}
 	
-	basepoint = curve25519_basepoint9();
-	b_key.priv = rand256(1), b_key.prod = fmul_donna(b_key.priv,basepoint);
 	playerid=0;
 	i=0;
 	 sg777_player_decode(playerid,i,numplayers,keys,b_key,blindingvals[playerid][i],blindedcards[playerid][i],cardprods[playerid],playerprivs[playerid],permis[playerid],numcards);
