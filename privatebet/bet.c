@@ -757,7 +757,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 				 printf("%02x ",rand.bytes[i]);
 			 }
 
-			 temp=curve25519(temp,curve25519_basepoint9());
+			 temp1=curve25519(temp,curve25519_basepoint9());
 
 			printf("\nThe curve points are:\n");
 			for(i=0;i<sizeof(temp);i++){
