@@ -452,7 +452,7 @@ struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t 
     return(key);
 }
 
-void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid) // given playercards[], returns cardprods[] and finalcards[]
+bits256 deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid) // given playercards[], returns cardprods[] and finalcards[]
 {
     static struct pair256 randcards[256]; static bits256 active_deckid;
     int32_t i,k,permis[256]; bits256 hash,xoverz,tmp[256];
@@ -475,6 +475,7 @@ void deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits
         finalcards[i] = tmp[permis_d[i]];
         cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
     }
+	return randcards[0].priv;
 }
 
 void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
@@ -716,7 +717,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	static int32_t decodebad,decodegood;
     int32_t i,j,k,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; bits256 playerprivs[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; char str[65];
 	struct pair256 keys[CARDS777_MAXPLAYERS],b_key;
-	bits256 decoded256,basepoint,cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindingvals[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	bits256 temp,decoded256,basepoint,cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindingvals[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 	
 	for (playerid=0; playerid<numplayers; playerid++)
     {
@@ -734,7 +735,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	
 	for (playerid=0; playerid<numplayers; playerid++)
     {
-    	sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
+    	temp=sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
 	}
 	
 	playerid=0;
@@ -755,7 +756,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 				 printf("%02x ",rand.bytes[i]);
 			 }
 			 
-			 cipherlen=BET_ciphercreate(playerprivs[0].priv,cardprods[0].prod,cipher,rand.bytes,sizeof(rand));
+			 cipherlen=BET_ciphercreate(playerprivs[0],cardprods[0],cipher,rand.bytes,sizeof(rand));
 	 
 			 printf("\nCipher is:%d\n",cipherlen);
 			 for(i=0;i<cipherlen;i++){
@@ -765,7 +766,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 			 
 			 uint8_t decoded[sizeof(bits256) + 1024],*ptr; int32_t recvlen; char str[65];
 			 recvlen = cipherlen;
-			 if ( (ptr= BET_decrypt(decoded,sizeof(decoded),playerprivs[0].prod,cardprods[0].priv,cipher,&recvlen)) == 0 )
+			 if ( (ptr= BET_decrypt(decoded,sizeof(decoded),playercards[0],temp,cipher,&recvlen)) == 0 )
 				 printf("decrypt error ");
 			 else {
 			 printf("\nThe recovered message is:%d\n",recvlen);
