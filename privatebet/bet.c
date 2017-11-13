@@ -601,25 +601,23 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 	{
 		temp=g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)];
 
+		printf("\nThe decrypted share of card:%d of player:%d\n",cardID, j);
+		for(i=0;i<sizeof(temp);i++){
+			printf("%02x ",temp.share[i]);
+		}
 		
 		recvlen = sizeof(temp);
 		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),b_key.prod,key[j].priv,temp.share,&recvlen)) == 0 )
 			printf("decrypt error ");
-		printf("\nThe decrypted share of card:%d of player:%d\n",cardID, j);
-		for(i=0;i<recvlen;i++){
-			printf("%02x ",ptr[i]);
-		}
-		//cardshares[j]=ptr;
-		memcpy(cardshares[j].bytes,ptr,recvlen);
+		//memcpy(cardshares[j].bytes,ptr,recvlen);
 	}
 	
+	#if 0
 	M=(numplayers/2)+1;
 	for(i=0;i<M;i++) {
 		memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
 	}
 	gfshare_recoverdata(shares,sharenrs, M,recover->bytes,sizeof(bits256),M);
-
-	#if 0
 	refval = fmul_donna(blindedcard,crecip_donna(*recover));
 	for (i=0; i<numcards; i++)
     {
