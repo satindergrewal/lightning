@@ -475,6 +475,16 @@ bits256 deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,b
         finalcards[i] = tmp[permis_d[i]];
         cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
     }
+
+	printf("\nkey pair is:\n");
+	for(i=0;i<sizeof(bits256);i++){
+		printf("%d ",randcards[0].priv.bytes[i]);
+	}
+	printf("\n");
+	for(i=0;i<sizeof(bits256);i++){
+		printf("%d ",randcards[0].prod.bytes[i]);
+	}
+
 	return randcards[0].priv;
 }
 
