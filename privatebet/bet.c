@@ -328,9 +328,11 @@ int main(int argc,const char *argv[])
 		recvlen = cipherlen;
 		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),key_a.prod,key_b.priv,cipher,&recvlen)) == 0 )
 			printf("decrypt error ");
+		else {
 		printf("\nThe recovered message is:%d\n",recvlen);
 		for(i=0;i<recvlen;i++){
 			printf("%02x ",ptr[i]);
+		}
 		}
 		testmode=1;
 		#endif
