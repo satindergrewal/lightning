@@ -629,7 +629,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
         for (j=0; j<numcards; j++)
         {
             tmp = fmul_donna(playerprivs[i],cardprods[j]);
-            tmp = fmul_donna(tmp,key.priv);
+            tmp = fmul_donna(tmp,keys[playerid].priv);
             xoverz = xoverz_donna(tmp);
             vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
             fe = crecip_donna(curve25519_fieldelement(hash));
