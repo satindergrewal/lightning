@@ -585,7 +585,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	return(playererrs);
 }
 
-bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *key,struct pair256 b_key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
+bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *keys,struct pair256 b_key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
     bits256 tmp,xoverz,hash,fe,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];uint8_t space[8192];
 	bits256 *recover=NULL;
@@ -607,9 +607,16 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 		for(i=0;i<sizeof(temp);i++){
 			printf("%02x ",temp.share[i]);
 		}
-		
+		printf("\nPrivate key:");
+		for(k=0;k<sizeof(b_key.priv);k++){
+				printf("%02x ",b_key.priv.bytes[k]);
+		}
+		printf("\nPublic key:");
+		for(k=0;k<sizeof(keys[j].prod);k++){
+				printf("%02x ",keys[j].prod.bytes[k]);
+		}
 		recvlen = sizeof(temp);
-		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),b_key.prod,key[j].priv,temp.share,&recvlen)) == 0 )
+		if ( (ptr= BET_decrypt(decoded,sizeof(decoded),b_key.prod,keys[j].priv,temp.share,&recvlen)) == 0 )
 			printf("decrypt error ");
 		//memcpy(cardshares[j].bytes,ptr,recvlen);
 	}
@@ -670,9 +677,17 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             for (j=0; j<numplayers; j++) {
 				  BET_ciphercreate(b_key.priv,keys[j].prod,temp.share,cardshares[j].bytes,sizeof(cardshares[j]));
 				  memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].share,temp.share,sizeof(temp));
-				  printf("\nThe Encrypted share of players: %d card: %d, for player:%d of length:%d\n",playerid,i,j,sizeof(temp));
+				  printf("\nThe Encrypted share of players: %d card: %d, for player:%d of length:%ld\n",playerid,i,j,sizeof(temp));
 	  				for(k=0;k<sizeof(temp);k++){
 	  					printf("%02x ",temp.share[k]);
+	  				}
+					printf("\nPrivate key:");
+					for(k=0;k<sizeof(b_key.priv);k++){
+	  					printf("%02x ",b_key.priv.bytes[k]);
+	  				}
+					printf("\nPublic key:");
+					for(k=0;k<sizeof(keys[j].prod);k++){
+	  					printf("%02x ",keys[j].prod.bytes[k]);
 	  				}
 			}
         }
