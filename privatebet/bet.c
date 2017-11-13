@@ -717,6 +717,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     int32_t i,j,k,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; bits256 playerprivs[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; char str[65];
 	struct pair256 keys[CARDS777_MAXPLAYERS],b_key;
 	bits256 decoded256,basepoint,cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindingvals[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	
 	for (playerid=0; playerid<numplayers; playerid++)
     {
 		keys[playerid]=sg777_player_init(playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid);
@@ -739,7 +740,41 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	playerid=0;
 	i=0;
 	 sg777_player_decode(playerid,i,numplayers,keys,b_key,blindingvals[playerid][i],blindedcards[playerid][i],cardprods[playerid],playerprivs[playerid],permis[playerid],numcards);
-     
+
+	 printf("\nFun starts from here:\n");
+	 
+		#if 1
+			 bits256 rand;
+			 char msg[32]="hello",r_msg[320];
+			 char cipher[320];
+			 uint32_t msglen,cipherlen;
+			 rand=rand256(1);
+			 
+			 printf("\nPlainText is:%ld\n",sizeof(rand));
+			 for(i=0;i<sizeof(rand);i++){
+				 printf("%02x ",rand.bytes[i]);
+			 }
+			 
+			 cipherlen=BET_ciphercreate(playerprivs[0].priv,cardprods[0].prod,cipher,rand.bytes,sizeof(rand));
+	 
+			 printf("\nCipher is:%d\n",cipherlen);
+			 for(i=0;i<cipherlen;i++){
+				 printf("%02x ",cipher[i]);
+			 }
+			 printf("\n");
+			 
+			 uint8_t decoded[sizeof(bits256) + 1024],*ptr; int32_t recvlen; char str[65];
+			 recvlen = cipherlen;
+			 if ( (ptr= BET_decrypt(decoded,sizeof(decoded),playerprivs[0].prod,cardprods[0].priv,cipher,&recvlen)) == 0 )
+				 printf("decrypt error ");
+			 else {
+			 printf("\nThe recovered message is:%d\n",recvlen);
+			 for(i=0;i<recvlen;i++){
+				 printf("%02x ",ptr[i]);
+			 }
+			 }
+			 
+		#endif
 	
 }
 
