@@ -584,7 +584,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 
 bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *key,struct pair256 b_key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
-    bits256 tmp,xoverz,hash,fe,decoded,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];uint8_t space[8192];
+    bits256 tmp,xoverz,hash,fe,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];uint8_t space[8192];
 	bits256 *recover=NULL;
 	struct enc_share temp;	
 	uint8_t **shares;
@@ -595,7 +595,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 	basepoint = curve25519_basepoint9();
 	recover=calloc(1,sizeof(bits256));
 	cardshares = calloc(numplayers,sizeof(bits256));
-	uint8_t decoded[sizeof(bits256) + 1024],*ptr; int32_t recvlen; char str[65];
+	uint8_t decoded[sizeof(bits256) + 1024],*ptr; int32_t recvlen; 
 	for (j=0; j<numplayers; j++) 
 	{
 		temp=g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)];
@@ -608,7 +608,8 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 		for(i=0;i<recvlen;i++){
 			printf("%02x ",ptr[i]);
 		}
-		memcpy(cardshares[j],ptr,recvlen);
+		cardshares[j]=ptr;
+		//memcpy(cardshares[j],ptr,recvlen);
 	}
 	
 	M=(numplayers/2)+1;
