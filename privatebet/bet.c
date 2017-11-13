@@ -667,12 +667,12 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-				printf("\nThe share of card: %d, for player:%d\n",i,j);
-				for(k=0;k<sizeof(bits256);k++){
-					printf("%02x ",cardshares[j].bytes[k]);
-				}
-              	BET_ciphercreate(keys[i].prod,b_key.priv,temp.share,cardshares[j].bytes,sizeof(cardshares[j]));
-				  g_shares[j*numplayers*numcards + (i*numplayers + playerid)] = temp;
+				  BET_ciphercreate(keys[i].prod,b_key.priv,temp.share,cardshares[j].bytes,sizeof(cardshares[j]));
+				  memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].share,temp.share,sizeof(temp));
+				  printf("\nThe Encrypted share of players: %d card: %d, for player:%d of length:%d\n",playerid,i,j,sizeof(temp));
+	  				for(k=0;k<sizeof(temp);k++){
+	  					printf("%02x ",temp.bytes[k]);
+	  				}
 			}
         }
 		// when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
