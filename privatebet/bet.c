@@ -448,7 +448,7 @@ struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t 
     {
         playerprivs[i] = randcards[permis[i]].priv;
         //playercards[i] = fmul_donna(playerprivs[i],key.prod);
-        playercards[i]=curve25519(playerprivs[i],curve25519_basepoint9());
+        playercards[i]=curve25519(playerprivs[i],key.prod);
     }
     return(key);
 }
@@ -771,14 +771,15 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 				 printf("%02x ",rand.bytes[i]);
 			 }
 
-			temp1=curve25519(temp,curve25519_basepoint9());
-			printf("\nThe card public points are:\n");
+			temp1=curve25519(playerprivs[0][0],keys[0].priv);
+			temp1=curve25519(temp1,curve25519_basepoint9());
+			printf("\nThe player public cards are:\n");
 			for(i=0;i<sizeof(temp1);i++){
 				printf("%d ",temp1.bytes[i]);
 			}
 			printf("\n");
-			for(i=0;i<sizeof(cardprods[0][0]);i++){
-				printf("%d ",cardprods[0][0].bytes[i]);
+			for(i=0;i<sizeof(playercards[0][0]);i++){
+				printf("%d ",playercards[0][0].bytes[i]);
 			}
 			 cipherlen=BET_ciphercreate(playerprivs[0][0],cardprods[0][0],cipher,rand.bytes,sizeof(rand));
 	 		
