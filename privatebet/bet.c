@@ -771,8 +771,8 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 				 printf("%02x ",rand.bytes[i]);
 			 }
 
-			temp1=curve25519(playerprivs[0][0],curve25519_basepoint9());
-			temp1=curve25519(temp1,keys[0].priv);
+			temp1=curve25519(playerprivs[0][0],keys[0].prod);
+			//temp1=curve25519(temp1,keys[0].priv);
 			printf("\nThe player public cards are:\n");
 			for(i=0;i<sizeof(temp1);i++){
 				printf("%d ",temp1.bytes[i]);
