@@ -770,8 +770,17 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 				 printf("%02x ",rand.bytes[i]);
 			 }
 
+			temp1=curve25519(temp,curve25519_basepoint9());
+			printf("\nThe card public points are:\n");
+			for(i=0;i<;i++){
+				printf("%d ",temp1.bytes[i]);
+			}
+			printf("\n");
+			for(i=0;i<;i++){
+				printf("%d ",cardprods[0][0].bytes[i]);
+			}
 			 cipherlen=BET_ciphercreate(playerprivs[0][0],cardprods[0][0],cipher,rand.bytes,sizeof(rand));
-	 
+	 		
 			 printf("\nCipher is:%d\n",cipherlen);
 			 for(i=0;i<cipherlen;i++){
 				 printf("%02x ",cipher[i]);
