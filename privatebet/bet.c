@@ -447,7 +447,8 @@ struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t 
     for (i=0; i<numcards; i++)
     {
         playerprivs[i] = randcards[permis[i]].priv;
-        playercards[i] = fmul_donna(playerprivs[i],key.prod);
+        //playercards[i] = fmul_donna(playerprivs[i],key.prod);
+        playercards[i]=curve25519(playerprivs[i],curve25519_basepoint9());
     }
     return(key);
 }
