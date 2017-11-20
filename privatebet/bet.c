@@ -776,12 +776,34 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 				 printf("%02x ",rand1.bytes[i]);
 			 }
 
-			 temp=curve25519(rand,curve25519_basepoint9());
+			 /*temp=curve25519(rand,curve25519_basepoint9());
 			 temp=curve25519(rand1,temp);
 
 			 temp1=curve25519(rand1,curve25519_basepoint9());
 			 temp1=curve25519(rand,temp1);
 
+			 printf("\nThe first product is:\n");
+			 for(i=0;i<sizeof(temp);i++){
+				printf("%02x ",temp.bytes[i]);
+			 }
+
+			 printf("\nThe second product is:\n");
+			 for(i=0;i<sizeof(temp1);i++){
+				printf("%02x ",temp1.bytes[i]);
+			 }*/
+			 
+			 temp=curve25519_keypair(&temp1);
+
+			 printf("\nThe first product is:\n");
+			 for(i=0;i<sizeof(temp);i++){
+				printf("%02x ",temp.bytes[i]);
+			 }
+
+			 printf("\nThe second product is:\n");
+			 for(i=0;i<sizeof(temp1);i++){
+				printf("%02x ",temp1.bytes[i]);
+			 }
+			 temp1=curve25519(temp,curve25519_basepoint9());
 			 printf("\nThe first product is:\n");
 			 for(i=0;i<sizeof(temp);i++){
 				printf("%02x ",temp.bytes[i]);
