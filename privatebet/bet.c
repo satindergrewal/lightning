@@ -768,14 +768,13 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 			 bits256 temp1;
 
 			// for player 0
-			//temp=curve25519(temp,playercards[0][0]);
-			//temp1=curve25519(playerprivs[0][0],cardprods[0][0]);
+			// temp=curve25519(playerprivs[0][0],keys[0].priv);
+			 //temp1=curve25519(keys[0].priv,playerprivs[0][0]);
 
-			 temp=curve25519(playerprivs[0][0],keys[0].priv);
+			 //temp1=crecip_donna(temp1);
 			 
-			 temp1=curve25519(keys[0].priv,playerprivs[0][0]);
-
-			 temp1=crecip_donna(temp1);
+			temp=curve25519(rand,rand1);
+			temp1=curve25519(rand1,rand);
 
 			 
 			 printf("\nTemp:\n");
