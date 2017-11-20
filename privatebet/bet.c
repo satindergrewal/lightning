@@ -775,7 +775,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 			 
 			temp=curve25519(rand,rand1);
 			temp1=curve25519(rand1,rand);
-
+			temp1=crecip_donna(temp1);
 			 
 			 printf("\nTemp:\n");
 			 for(i=0;i<sizeof(temp);i++){
