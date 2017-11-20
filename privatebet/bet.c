@@ -773,9 +773,9 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 			 //temp1=curve25519(keys[0].priv,playerprivs[0][0]);
 
 			 //temp1=crecip_donna(temp1);
-			 
-			temp=fcontract(cmult(&x,&z,rand,rand1));
-			temp1=fcontract(cmult(&x1,&z1,rand,rand1));
+			 curve25519
+			temp=fcontract(cmult(&x,&z,rand,fexpand(rand1)));
+			temp1=fcontract(cmult(&x1,&z1,rand1,fexpand(rand)));
 			 
 			 printf("\nTemp:\n");
 			 for(i=0;i<sizeof(temp);i++){
