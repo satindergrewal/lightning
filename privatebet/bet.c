@@ -759,47 +759,38 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	 printf("\nFun starts from here:\n");
 	 
 		#if 1
-			 bits256 rand;
+			 bits256 rand,rand1;
 			 char msg[32]="hello",r_msg[320];
 			 char cipher[320];
 			 uint32_t msglen,cipherlen;
 			 rand=rand256(1);
+			 rand1=rand256(1);
 			 bits256 temp1;
 			 
-			 printf("\nPlainText is:%ld\n",sizeof(rand));
+			 printf("\nRand:%ld\n",sizeof(rand));
 			 for(i=0;i<sizeof(rand);i++){
 				 printf("%02x ",rand.bytes[i]);
 			 }
+			printf("\nRand1:%ld\n",sizeof(rand1));
+			 for(i=0;i<sizeof(rand1);i++){
+				 printf("%02x ",rand1.bytes[i]);
+			 }
 
-			temp1=curve25519(playerprivs[0][0],keys[0].prod);
-			//temp1=curve25519(temp1,keys[0].priv);
-			printf("\nThe player public cards are:\n");
-			for(i=0;i<sizeof(temp1);i++){
-				printf("%d ",temp1.bytes[i]);
-			}
-			printf("\n");
-			for(i=0;i<sizeof(playercards[0][0]);i++){
-				printf("%d ",playercards[0][0].bytes[i]);
-			}
-			 cipherlen=BET_ciphercreate(playerprivs[0][0],cardprods[0][0],cipher,rand.bytes,sizeof(rand));
-	 		
-			 printf("\nCipher is:%d\n",cipherlen);
-			 for(i=0;i<cipherlen;i++){
-				 printf("%02x ",cipher[i]);
+			 temp=curve25519(rand,curve25519_basepoint9());
+			 temp=curve25519(rand1,temp);
+
+			 temp1=curve25519(rand1,curve25519_basepoint9());
+			 temp1=curve25519(rand,temp1);
+
+			 printf("\nThe first product is:\n");
+			 for(i=0;i<sizeof(temp);i++){
+				printf("%02x ",temp.bytes[i]);
 			 }
-			 printf("\n");
-			 
-			 uint8_t decoded[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
-			 recvlen = cipherlen;
-			 if ( (ptr= BET_decrypt(decoded,sizeof(decoded),playercards[0][0],temp,cipher,&recvlen)) == 0 )
-				 printf("decrypt error ");
-			 else {
-			 printf("\nThe recovered message is:%d\n",recvlen);
-			 for(i=0;i<recvlen;i++){
-				 printf("%02x ",ptr[i]);
+
+			 printf("\nThe second product is:\n");
+			 for(i=0;i<sizeof(temp1);i++){
+				printf("%02x ",temp1.bytes[i]);
 			 }
-			 }
-			 
 		#endif
 	
 }
