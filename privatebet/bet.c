@@ -768,11 +768,10 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 			 bits256 temp1;
 
 			// for player 0
-			//keys[0].prod;
-			//playerprivs[0][0]
-			temp1=curve25519(playerprivs[0][0],keys[0].prod);
-			temp=playercards[0][0];
-			 
+			//temp=curve25519(temp,playercards[0][0]);
+			//temp1=curve25519(playerprivs[0][0],cardprods[0][0]);
+			temp1=curve25519(temp,curve25519_basepoint9());
+			 temp=cardprods[0][0];
 			 printf("\nTemp:\n");
 			 for(i=0;i<sizeof(temp);i++){
 				printf("%02x ",temp.bytes[i]);
