@@ -346,7 +346,7 @@ int main(int argc,const char *argv[])
             numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
 			numplayers=5,range=5;
 			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
-			players_init(numplayers,range,rand256(0));
+			sg777_players_init(numplayers,range,rand256(0));
             continue;
             for (i=0; i<numplayers; i++)
                 privkeys[i] = curve25519_keypair(&pubkeys[i]);
