@@ -426,13 +426,7 @@ struct pair256 deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t num
             tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
             
         }
-
-		for(i=0;i<numcards;i++)
-		{
-			vcalc_sha256(0,v_hash[][],xoverz.bytes,sizeof(xoverz));
-            
-		}
-    
+	
     for (i=0; i<numcards; i++)
     {
         finalcards[i] = tmp[permis_d[i]];
@@ -601,7 +595,7 @@ struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 playerpublic,bits2
 		for(i=0;i<numcards;i++)
 		{
 			xoverz=curve25519(randcards[i].priv,playerpublic);
-			vcalc_sha256(0,v_hash[playerid][i],xoverz.bytes,sizeof(xoverz));
+			vcalc_sha256(0,v_hash[playerid][i].bytes,xoverz.bytes,sizeof(xoverz));
             
 		}
     
