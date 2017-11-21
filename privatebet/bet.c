@@ -772,11 +772,14 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 			// temp=curve25519(playerprivs[0][0],keys[0].priv);
 			 //temp1=curve25519(keys[0].priv,playerprivs[0][0]);
 
-			 //temp1=crecip_donna(temp1);
-			cmult(&x,&z,rand,fexpand(curve25519_basepoint9()));
-			cmult(&x1,&z1,curve25519_basepoint9(),fexpand(rand));
-			temp=fcontract(x);
-			temp1=fcontract(x1);
+			 
+			//cmult(&x,&z,rand,fexpand(curve25519_basepoint9()));
+			//cmult(&x1,&z1,curve25519_basepoint9(),fexpand(rand));
+			//temp=fcontract(x);
+			//temp1=fcontract(x1);
+
+			temp=curve25519(rand,curve25519(rand1,curve25519_basepoint9()));
+			temp1=curve25519(rand1,curve25519(rand,curve25519_basepoint9()));
 			 
 			 printf("\nTemp:\n");
 			 for(i=0;i<sizeof(temp);i++){
