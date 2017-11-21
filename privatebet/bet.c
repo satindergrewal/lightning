@@ -50,9 +50,20 @@ char Host_channel[64];
 int32_t permis_d[CARDS777_MAXCARDS],permis_b[CARDS777_MAXCARDS];
 bits256 *allshares=NULL;
 uint8_t sharenrs[256];
+struct rpcrequest_info *LP_garbage_collector;
 
 struct enc_share { uint8_t share[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
 struct enc_share *g_shares=NULL;
+
+uint32_t LP_rand()
+{
+    uint32_t retval;
+    retval = rand();
+    retval = (retval << 7) ^ (retval >> 17) ^ rand();
+    retval = (retval << 13) ^ (retval >> 13) ^ rand();
+    retval = (retval << 17) ^ (retval >> 7) ^ rand();
+    return(retval);
+}
 
 /*char *issue_LP_psock(char *destip,uint16_t destport,int32_t ispaired)
 {
