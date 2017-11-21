@@ -478,7 +478,7 @@ struct pair256 deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t num
         finalcards[i] = tmp[permis_d[i]];
         cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
         printf("\nFinal card:%d\n",i);
-		for(j=0;j<sizeof(finalcards[i]),j++){
+		for(j=0;j<sizeof(finalcards[i]);j++){
 			printf("%02x ",finalcards[i].bytes[j]);
 		}
     }
