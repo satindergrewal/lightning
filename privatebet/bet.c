@@ -635,24 +635,17 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 	}
 	gfshare_recoverdata(shares,sharenrs, M,recover->bytes,sizeof(bits256),M);
 	refval = fmul_donna(blindedcard,crecip_donna(*recover));
+	
 
-	#if 1
-	printf("\nHashes are:");
 	for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
         {
-            tmp = fmul_donna(playerprivs[i],cardprods[j]);
-            tmp = fmul_donna(tmp,keys[playerid].priv);
-            xoverz = xoverz_donna(tmp);
+    		tmp = curve25519(keys[playerid].priv,curve25519(playerprivs[i],cardprods[j]));
+	        xoverz = xoverz_donna(tmp);
             vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
-			printf("\n");
-			for(k=0;k<sizeof(hash);k++){
-				printf("%d ",hash.bytes[k]);
-			}
-			
-            fe = crecip_donna(curve25519_fieldelement(hash));
-            decoded = fmul_donna(fmul_donna(refval,fe),basepoint);
+		    fe = crecip_donna(curve25519_fieldelement(hash));
+            decoded = curve25519(fmul_donna(refval,fe),basepoint);
             if ( bits256_cmp(decoded,cardprods[j]) == 0 )
             {
                 printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
@@ -662,7 +655,6 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     }
     printf("couldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
     memset(tmp.bytes,0,sizeof(tmp));
-	#endif
     return(tmp);
 }
 
@@ -713,47 +705,16 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     {
     	deckgen_vendor(cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid);	
 	}	
-
-	//basepoint = curve25519_basepoint9();
-	//b_key.priv = rand256(1), b_key.prod = fmul_donna(b_key.priv,basepoint);
 	b_key.priv=curve25519_keypair(&b_key.prod);
 	
 	for (playerid=0; playerid<numplayers; playerid++)
     {
     	sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
 	}
-	
-	playerid=0;
-	i=0;
-	 sg777_player_decode(playerid,i,numplayers,keys,b_key,blindingvals[playerid][i],blindedcards[playerid][i],cardprods[playerid],playerprivs[playerid],permis[playerid],numcards);
-
-	 printf("\nFun starts from here:\n");
-	 
-		#if 1
-			 bits256 rand,rand1;
-			 char msg[32]="hello",r_msg[320];
-			 char cipher[320];
-			 uint32_t msglen,cipherlen;
-			 rand=rand256(1);
-			 rand1=rand256(1);
-			 bits256 temp1;
-			 bits320 x,z,x1,z1;
-
-			temp=curve25519(temp,playercards[0][0]);
-			temp1=curve25519(keys[0].priv,curve25519(playerprivs[0][0],cardprods[0][0]));
-			 
-			 printf("\nTemp:\n");
-			 for(i=0;i<sizeof(temp);i++){
-				printf("%02x ",temp.bytes[i]);
-			 }
-
-			 printf("\nTemp1:\n");
-			 for(i=0;i<sizeof(temp1);i++){
-				printf("%02x ",temp1.bytes[i]);
-			 }
-			 
-			
-		#endif
-	
+	for (playerid=0; playerid<numplayers; playerid++){
+		for(i=0;i<numcards;i++){
+			sg777_player_decode(playerid,i,numplayers,keys,b_key,blindingvals[playerid][i],blindedcards[playerid][i],cardprods[playerid],playerprivs[playerid],permis[playerid],numcards);
+		}
+	}
 }
 
