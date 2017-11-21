@@ -701,6 +701,10 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 		keys[playerid]=deckgen_player(playerprivs[playerid],playercards[playerid],permis[playerid],numcards);
     }
 
+	for(i=0;i<numcards;i++){
+		 printf("card %s value %d\n",bits256_str(str,playerprivs[0][i]),playerprivs[0][i].bytes[30]);
+	}
+	
 	for (playerid=0; playerid<numplayers; playerid++)
     {
     	deckgen_vendor(cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid);	
