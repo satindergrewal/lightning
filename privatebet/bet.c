@@ -543,6 +543,10 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 			
             xoverz = xoverz_donna(tmp);
             vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+			printf("\nHash:\n");
+			for(k=0;k<sizeof(hash);k++){
+				printf("%02x ",hash.bytes[k]);
+			}
             fe = crecip_donna(curve25519_fieldelement(hash));
             decoded = fmul_donna(fmul_donna(refval,fe),basepoint);
             if ( bits256_cmp(decoded,cardprods[j]) == 0 )
