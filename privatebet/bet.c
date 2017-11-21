@@ -778,8 +778,15 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 			//temp=fcontract(x);
 			//temp1=fcontract(x1);
 
-			temp=curve25519(rand,curve25519(rand1,curve25519_basepoint9()));
-			temp1=curve25519(rand1,curve25519(rand,curve25519_basepoint9()));
+			playerprivs[0][0]
+			playercards[0][0]
+			keys[0].priv
+			keys[0].prod
+			temp
+			cardprods[0][0]
+
+			temp=curve25519(temp,playercards[0][0]);
+			temp1=curve25519(keys[0].priv,curve25519(playerprivs[0][0],cardprods[0][0]));
 			 
 			 printf("\nTemp:\n");
 			 for(i=0;i<sizeof(temp);i++){
