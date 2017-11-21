@@ -636,7 +636,8 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 	gfshare_recoverdata(shares,sharenrs, M,recover->bytes,sizeof(bits256),M);
 	refval = fmul_donna(blindedcard,crecip_donna(*recover));
 	
-
+	printf("Final card\n");
+	printf("%s\n",bits256_str(str,refval));
 	for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
@@ -713,11 +714,19 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	for(i=0;i<numcards;i++){
 		 printf("%s\n",bits256_str(str,cardprods[0][i]));
 	}
+	printf("Finalcards\n");
+	for(i=0;i<numcards;i++){
+		 printf("%s\n",bits256_str(str,finalcards[0][i]));
+	}
 	b_key.priv=curve25519_keypair(&b_key.prod);
 	
 	for (playerid=0; playerid<numplayers; playerid++)
     {
     	sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
+	}
+	printf("Blindedprods\n");
+	for(i=0;i<numcards;i++){
+		 printf("%s\n",bits256_str(str,blindedcards[0][i]));
 	}
 	for (playerid=0; playerid<1; playerid++){
 		for(i=0;i<numcards;i++){
