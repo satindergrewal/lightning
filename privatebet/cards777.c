@@ -466,11 +466,12 @@ int32_t BET_ciphercreate(bits256 privkey,bits256 destpub,uint8_t *cipher,uint8_t
 
 uint8_t *BET_decrypt(uint8_t *decoded,int32_t maxsize,bits256 senderpub,bits256 mypriv,uint8_t *ptr,int32_t *recvlenp)
 {
-    uint8_t *nonce,*cipher,*dest=0; int32_t recvlen,cipherlen;
+    uint8_t *nonce,*cipher,*dest=0; int32_t recvlen,cipherlen,i;
     recvlen = *recvlenp;
     nonce = ptr;
     cipher = &ptr[crypto_box_NONCEBYTES];
     cipherlen = (recvlen - crypto_box_NONCEBYTES);
+
     if ( (0) )
     {
         int32_t i; char str[65];

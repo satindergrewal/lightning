@@ -102,6 +102,16 @@ struct gfshare_ctx *gfshare_initdec(uint8_t *sharenrs,uint32_t sharecount,uint32
     return(ctx);
 }
 
+// Initialise a gfshare context for recombining shares
+struct gfshare_ctx *gfshare_sg777_initdec(uint8_t *sharenrs,uint32_t sharecount,uint8_t threshold,uint32_t size,void *space,int32_t spacesize)
+{
+    struct gfshare_ctx *ctx = _gfshare_init_core(sharenrs,sharecount,threshold,size,space,spacesize);
+    if ( ctx != NULL )
+        ctx->threshold = 0;
+    return(ctx);
+}
+
+
 // Free a share context's memory
 void gfshare_free(struct gfshare_ctx *ctx)
 {
@@ -126,8 +136,15 @@ void gfshare_enc_setsecret(struct gfshare_ctx *ctx,uint8_t *secret)
 // Extract a share from the context. 'share' must be preallocated and at least 'size' bytes long. 'sharenr' is the index into the 'sharenrs' array of the share you want.
 void gfshare_encgetshare(uint8_t *_logs,uint8_t *_exps,struct gfshare_ctx *ctx,uint8_t sharenr,uint8_t *share)
 {
-    uint32_t pos,coefficient,ilog = _logs[ctx->sharenrs[sharenr]];
+	if ( _logs == 0 )
+        _logs = BET_logs;
+    if ( _exps == 0 )
+        _exps = BET_exps;
+   
+	uint32_t pos,coefficient,ilog = _logs[ctx->sharenrs[sharenr]];
     uint8_t *share_ptr,*coefficient_ptr = ctx->buffer;
+
+	
     for (pos=0; pos<ctx->size; pos++)
         share[pos] = *(coefficient_ptr++);
     for (coefficient=1; coefficient<ctx->threshold; coefficient++)
@@ -340,6 +357,7 @@ void gfshare_calc_share(uint8_t *buffer,int32_t size,int32_t M,uint32_t ilog,uin
 void gfshare_calc_shares(uint8_t *shares,uint8_t *secret,int32_t size,int32_t width,int32_t M,int32_t N,uint8_t *sharenrs,uint8_t *space,int32_t spacesize)
 {
     int32_t i; uint8_t *buffer;
+	//M threshold
     if ( M*width > spacesize )
     {
         buffer = calloc(M,width);
