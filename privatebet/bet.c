@@ -344,8 +344,7 @@ int main(int argc,const char *argv[])
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
             range = (range % CARDS777_MAXCARDS) + 1;
             numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
-			numplayers=2;range=2;
-            sg777_players_init(numplayers,range,rand256(0));
+			players_init(numplayers,range,rand256(0));
             continue;
             for (i=0; i<numplayers; i++)
                 privkeys[i] = curve25519_keypair(&pubkeys[i]);
@@ -400,14 +399,11 @@ bits256 card_rand256(int32_t privkeyflag,int8_t index)
 
 struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
 {
-    int32_t i; struct pair256 key,tmp; bits256 basepoint;
-    basepoint = curve25519_basepoint9();
+    int32_t i; struct pair256 key,tmp; 
 	key.priv=curve25519_keypair(&key.prod);
-    //key.priv = rand256(1), key.prod = fmul_donna(key.priv,basepoint);
-    for (i=0; i<numcards; i++)
-    {
+    for (i=0; i<numcards; i++) {
         tmp.priv = card_rand256(1,i);
-        tmp.prod = curve25519(tmp.priv,curve25519_basepoint9());//fmul_donna(tmp.priv,basepoint);
+        tmp.prod = curve25519(tmp.priv,curve25519_basepoint9());
         randcards[i] = tmp;
     }
     return(key);
@@ -415,14 +411,10 @@ struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
 
 struct pair256 deckgen_common1(struct pair256 *randcards,int32_t numcards)
 {
-    int32_t i; struct pair256 key,tmp; bits256 basepoint;
-    basepoint = curve25519_basepoint9();
+    int32_t i; struct pair256 key,tmp; 
 	key.priv=curve25519_keypair(&key.prod);
-    //key.priv = rand256(1), key.prod = fmul_donna(key.priv,basepoint);
-    for (i=0; i<numcards; i++)
-    {
+    for (i=0; i<numcards; i++) {
         tmp.priv = curve25519_keypair(&tmp.prod);
-        //tmp.prod = curve25519(tmp.priv,curve25519_basepoint9());//fmul_donna(tmp.priv,basepoint);
         randcards[i] = tmp;
     }
     return(key);
@@ -453,40 +445,28 @@ struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t 
     return(key);
 }
 
-bits256 deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid) // given playercards[], returns cardprods[] and finalcards[]
+struct pair256 deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid) // given playercards[], returns cardprods[] and finalcards[]
 {
-    static struct pair256 randcards[256]; static bits256 active_deckid;
+    static struct pair256 key,randcards[256]; static bits256 active_deckid;
     int32_t i,k,permis[256]; bits256 hash,xoverz,tmp[256];
     if ( bits256_cmp(deckid,active_deckid) != 0 )
-        deckgen_common1(randcards,numcards);
-    for (i=0; i<numcards; i++)
+        key=deckgen_common1(randcards,numcards);
+
+	for (i=0; i<numcards; i++)
     {
-        xoverz = xoverz_donna(fmul_donna(playercards[i],randcards[i].priv));
+        xoverz = xoverz_donna(curve25519(randcards[i].priv,playercards[i]));
         vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
         tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
-		printf("\n");
-		for(k=0;k<sizeof(bits256);k++){
-			printf("%d ",hash.bytes[k]);
-		}
+		
     }
 	
-   // BET_permutation(permis,numcards);
     for (i=0; i<numcards; i++)
     {
         finalcards[i] = tmp[permis_d[i]];
         cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
     }
 
-	printf("\nkey pair is:\n");
-	for(i=0;i<sizeof(bits256);i++){
-		printf("%d ",randcards[0].priv.bytes[i]);
-	}
-	printf("\n");
-	for(i=0;i<sizeof(bits256);i++){
-		printf("%d ",randcards[0].prod.bytes[i]);
-	}
-
-	return randcards[0].priv;
+	return key;
 }
 
 void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
@@ -717,12 +697,6 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 		return b_key;
 }
 
-struct pair256 sg777_player_init(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t playerid,int32_t numplayers,int32_t numcards,bits256 deckid)
-{
-    int32_t i,j,k,errs,unpermi; bits256 decoded256,cardprods[256],finalcards[256],blindingvals[256],blindedcards[256];
-	return deckgen_player(playerprivs,playercards,permis,numcards);
-
-}
 void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
 	static int32_t decodebad,decodegood;
@@ -730,9 +704,8 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	struct pair256 keys[CARDS777_MAXPLAYERS],b_key;
 	bits256 temp,decoded256,basepoint,cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindingvals[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 	
-	for (playerid=0; playerid<numplayers; playerid++)
-    {
-		keys[playerid]=sg777_player_init(playerprivs[playerid],playercards[playerid],permis[playerid],playerid,numplayers,numcards,deckid);
+	for (playerid=0; playerid<numplayers; playerid++) {
+		keys[playerid]=deckgen_player(playerprivs[playerid],playercards[playerid],permis[playerid],numcards);
     }
 
 	for (playerid=0; playerid<numplayers; playerid++)
@@ -768,17 +741,6 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 			 bits256 temp1;
 			 bits320 x,z,x1,z1;
 
-			// for player 0
-			// temp=curve25519(playerprivs[0][0],keys[0].priv);
-			 //temp1=curve25519(keys[0].priv,playerprivs[0][0]);
-
-			 
-			//cmult(&x,&z,rand,fexpand(curve25519_basepoint9()));
-			//cmult(&x1,&z1,curve25519_basepoint9(),fexpand(rand));
-			//temp=fcontract(x);
-			//temp1=fcontract(x1);
-
-			
 			temp=curve25519(temp,playercards[0][0]);
 			temp1=curve25519(keys[0].priv,curve25519(playerprivs[0][0],cardprods[0][0]));
 			 
