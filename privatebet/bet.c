@@ -166,7 +166,7 @@ int main(int argc,const char *argv[])
     portable_mutex_init(&LP_messagemutex);
     portable_mutex_init(&BET_shardmutex);
     sleep(1);
-    if ( argc > 1 )
+    if ( 1/*argc > 1*/ )
     {
         if ( (infojson= chipsln_getinfo()) != 0 )
         {
