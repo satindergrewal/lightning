@@ -35,8 +35,6 @@
 // redo unpaid deletes
 //  from external: git submodule add https://github.com/ianlancetaylor/libbacktrace.git
 
-uint32_t LP_rand();
-struct rpcrequest_info *LP_garbage_collector,*LP_garbage_collector2;
 #include "bet.h"
 char *LN_idstr,Host_ipaddr[64],Host_peerid[67],BET_ORACLEURL[64] = "127.0.0.1:7797";
 uint16_t LN_port;
