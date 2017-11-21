@@ -648,7 +648,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
             decoded = curve25519(fmul_donna(refval,fe),basepoint);
             if ( bits256_cmp(decoded,cardprods[j]) == 0 )
             {
-                printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
+                printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,fmul_donna(refval,fe)),playerprivs[j].bytes[30]);
                 return(playerprivs[i]);
             }
         }
