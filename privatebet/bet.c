@@ -55,7 +55,7 @@ uint8_t sharenrs[256];
 struct enc_share { uint8_t share[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
 struct enc_share *g_shares=NULL;
 
-char *issue_LP_psock(char *destip,uint16_t destport,int32_t ispaired)
+/*char *issue_LP_psock(char *destip,uint16_t destport,int32_t ispaired)
 {
     char url[512],*retstr;
     sprintf(url,"http://%s:%u/api/stats/psock?ispaired=%d",destip,destport-1,ispaired);
@@ -63,7 +63,7 @@ char *issue_LP_psock(char *destip,uint16_t destport,int32_t ispaired)
     retstr = issue_curlt(url,LP_HTTP_TIMEOUT*3);
     printf("issue_LP_psock got (%s) from %s\n",retstr,destip);
     return(retstr);
-}
+}*/
 int32_t LP_numpeers()
 {
     printf("this needs to be fixed\n");
@@ -516,25 +516,29 @@ int32_t player_init(uint8_t *decoded,bits256 *playerprivs,bits256 *playercards,i
             errs++;
         else
        	{
-       		unpermi=-1;
-       		for(j=0;j<numcards;j++){
-				if(permis[j]==decoded256.bytes[30]){
-					unpermi=j;
+       		unpermi = -1;
+       		for (j=0; j<numcards; j++)
+            {
+				if ( permis[j] == decoded256.bytes[30] )
+                {
+					unpermi = j;
 					break;
 				}
 			}
-       		decoded[i] = j;    	
+       		decoded[i] = j;
+            printf("{%d} ",j);
 	   	}
-			
     }
+    printf("ordering by playerid.%d\n",playerid);
     return(errs);
 }
 
 int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    static int32_t decodebad,decodegood;
-    int32_t i,j,k,playerid,errs,playererrs,good,bad,permis[CARDS777_MAXPLAYERS][256]; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
-	
+
+    static int32_t decodebad,decodegood,good,bad,numgames;
+    int32_t i,j,playerid,errs,playererrs,permis[CARDS777_MAXPLAYERS][256]; uint8_t decoded[CARDS777_MAXPLAYERS][256]; bits256 playerprivs[CARDS777_MAXPLAYERS][256],playercards[CARDS777_MAXPLAYERS][256]; char str[65];
+    numgames++;
 	dekgen_vendor_perm(numcards);
 	blinding_vendor_perm(numcards);
 
@@ -549,7 +553,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         decodebad += errs;
         decodegood += (numcards - errs);
     }
-	for (good=bad=i=0; i<numplayers-1; i++)
+	for (i=0; i<numplayers-1; i++)
     {
         for (j=i+1; j<numplayers; j++)
         {
@@ -560,7 +564,7 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
             } good++;
         }
     }
-    printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
+    printf("numplayers.%d numcards.%d deck %s -> numgames.%d playererrs.%d ordering.(good.%d bad.%d) decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),numgames,playererrs,good,bad,decodegood,decodebad);
 	return(playererrs);
 }
 
@@ -706,4 +710,3 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
 	
 }
-
