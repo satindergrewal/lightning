@@ -344,7 +344,6 @@ int main(int argc,const char *argv[])
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
             range = (range % CARDS777_MAXCARDS) + 1;
             numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
-			numplayers=5,range=5;
 			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
 			sg777_players_init(numplayers,range,rand256(0));
             continue;
