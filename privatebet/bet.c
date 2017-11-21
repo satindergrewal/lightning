@@ -51,7 +51,7 @@ int32_t permis_d[CARDS777_MAXCARDS],permis_b[CARDS777_MAXCARDS];
 bits256 *allshares=NULL;
 uint8_t sharenrs[256];
 struct rpcrequest_info *LP_garbage_collector;
-
+bits256 v_hash[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 struct enc_share { uint8_t share[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
 struct enc_share *g_shares=NULL;
 
@@ -426,6 +426,12 @@ struct pair256 deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t num
             tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
             
         }
+
+		for(i=0;i<numcards;i++)
+		{
+			vcalc_sha256(0,v_hash[][],xoverz.bytes,sizeof(xoverz));
+            
+		}
     
     for (i=0; i<numcards; i++)
     {
@@ -577,6 +583,37 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     printf("numplayers.%d numcards.%d deck %s -> numgames.%d playererrs.%d ordering.(good.%d bad.%d) decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),numgames,playererrs,good,bad,decodegood,decodebad);
     return(playererrs);
 }
+struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 playerpublic,bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid) // given playercards[], returns cardprods[] and finalcards[]
+{
+    static struct pair256 key,randcards[256]; static bits256 active_deckid;
+    int32_t i,j,permis[256]; bits256 hash,xoverz,tmp[256];
+    if ( bits256_cmp(deckid,active_deckid) != 0 )
+        key=deckgen_common1(randcards,numcards);
+        
+        for (i=0; i<numcards; i++)
+        {
+            xoverz = xoverz_donna(curve25519(randcards[i].priv,playercards[i]));
+            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+            tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
+            
+        }
+
+		for(i=0;i<numcards;i++)
+		{
+			xoverz=curve25519(randcards[i].priv,playerpublic);
+			vcalc_sha256(0,v_hash[playerid][i],xoverz.bytes,sizeof(xoverz));
+            
+		}
+    
+    for (i=0; i<numcards; i++)
+    {
+        finalcards[i] = tmp[permis_d[i]];
+        cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
+        
+    }
+    
+    return key;
+}
 
 bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *keys,struct pair256 b_key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
@@ -591,7 +628,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     basepoint = curve25519_basepoint9();
     recover=calloc(1,sizeof(bits256));
     cardshares = calloc(numplayers,sizeof(bits256));
-    uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
+    uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen,flag=0;
     for (j=0; j<numplayers; j++)
     {
         temp=g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)];
@@ -612,6 +649,17 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     {
         for (j=0; j<numcards; j++)
         {
+        	flag=0;
+        	tmp=curve25519(playerprivs[i],cardprods[j]);
+			vcalc_sha256(0,hash.bytes,tmp.bytes,sizeof(tmp));
+			for(k=0;k<numcards;k++){
+				if(bits256_cmp(v_hash[playerid][j],hash)==0){
+					flag=1;
+					break;
+				}
+			}
+            if (flag == 0)
+				continue;
             tmp = curve25519(keys[playerid].priv,curve25519(playerprivs[i],cardprods[j]));
             xoverz = xoverz_donna(tmp);
             vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
@@ -676,7 +724,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     
     for (playerid=0; playerid<numplayers; playerid++)
     {
-        deckgen_vendor(cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid);
+        sg777_deckgen_vendor(playerid,keys[playerid].prod,cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid);
     }
     b_key.priv=curve25519_keypair(&b_key.prod);
     
