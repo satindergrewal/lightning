@@ -35,7 +35,9 @@
 // redo unpaid deletes
 //  from external: git submodule add https://github.com/ianlancetaylor/libbacktrace.git
 
-#include "bet.h"  
+uint32_t LP_rand();
+struct rpcrequest_info *LP_garbage_collector,*LP_garbage_collector2;
+#include "bet.h"
 char *LN_idstr,Host_ipaddr[64],Host_peerid[67],BET_ORACLEURL[64] = "127.0.0.1:7797";
 uint16_t LN_port;
 int32_t Gamestart,Gamestarted,Lastturni,Maxrounds = 3,Maxplayers = 10;
@@ -47,7 +49,6 @@ int32_t LP_canbind,IAMLP,IAMHOST,IAMORACLE;
 struct LP_peerinfo  *LP_peerinfos,*LP_mypeer;
 bits256 Mypubkey,Myprivkey,Clientrhash,Hostrhashes[CARDS777_MAXPLAYERS+1];
 char Host_channel[64];
-struct rpcrequest_info *LP_garbage_collector,*LP_garbage_collector2;
 int32_t permis_d[CARDS777_MAXCARDS],permis_b[CARDS777_MAXCARDS];
 bits256 *allshares=NULL;
 uint8_t sharenrs[256];
