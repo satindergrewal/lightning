@@ -710,10 +710,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 
 	for (playerid=0; playerid<numplayers; playerid++)
     {
-    	if(playerid==0)
-    		temp=deckgen_vendor(cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid); // over network
-    	else
-			deckgen_vendor(cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid);	
+    	deckgen_vendor(cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid);	
 	}	
 
 	//basepoint = curve25519_basepoint9();
