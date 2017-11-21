@@ -467,8 +467,8 @@ struct pair256 deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t num
         vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
         tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
 		printf("\nHash: for card:%d\n",i);
-		for(i=0;i<sizeof(hash);i++){
-			printf("%02x ",hash.bytes[i]);
+		for(j=0;j<sizeof(hash);j++){
+			printf("%02x ",hash.bytes[j]);
 		}
 		
     }
