@@ -344,7 +344,6 @@ int main(int argc,const char *argv[])
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
             range = (range % CARDS777_MAXCARDS) + 1;
             numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
-			numplayers=2,range=2;
 			players_init(numplayers,range,rand256(0));
             continue;
             for (i=0; i<numplayers; i++)
@@ -424,28 +423,17 @@ struct pair256 deckgen_common1(struct pair256 *randcards,int32_t numcards)
 
 void dekgen_vendor_perm(int numcards)
 {
-	 //BET_permutation(permis_d,numcards);
-	 for(int i=0;i<numcards;i++){
-		permis_d[i]=i;
-	 }
-		
+	BET_permutation(permis_d,numcards);
 }
 void blinding_vendor_perm(int numcards)
 {
-	//BET_permutation(permis_b,numcards);
-	for(int i=0;i<numcards;i++){
-		permis_b[i]=i;
-	 }
-	 
+	BET_permutation(permis_b,numcards);
 }
 struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards)
 {
     int32_t i; struct pair256 key,randcards[256];
     key = deckgen_common(randcards,numcards);
-    //BET_permutation(permis,numcards);
-    for(i=0;i<numcards;i++){
-		permis[i]=i;
-	}
+    BET_permutation(permis,numcards);
     for (i=0; i<numcards; i++)
     {
         playerprivs[i] = randcards[permis[i]].priv;
@@ -466,10 +454,6 @@ struct pair256 deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t num
         xoverz = xoverz_donna(curve25519(randcards[i].priv,playercards[i]));
         vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
         tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
-		/*printf("\nHash: for card:%d\n",i);
-		for(j=0;j<sizeof(hash);j++){
-			printf("%02x ",hash.bytes[j]);
-		}*/
 		
     }
 	
@@ -477,10 +461,7 @@ struct pair256 deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t num
     {
         finalcards[i] = tmp[permis_d[i]];
         cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
-        printf("\nFinal card:%d\n",i);
-		for(j=0;j<sizeof(finalcards[i]);j++){
-			printf("%02x ",finalcards[i].bytes[j]);
-		}
+       
     }
 
 	return key;
@@ -537,26 +518,16 @@ bits256 player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair
 	}
 	gfshare_recoverdata(shares,sharenrs, M,recover->bytes,sizeof(bits256),M);
 	refval = fmul_donna(blindedcard,crecip_donna(*recover));
-	printf("\nRecovered Final card:%d of player:%d\n",cardID,playerid);
-	for(i=0;i<sizeof(refval);i++){
-		printf("%02x ",refval.bytes[i]);
-	}
+	
 
 	for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
         {
-            //tmp = fmul_donna(playerprivs[i],cardprods[j]);
-            //tmp = fmul_donna(tmp,key.priv);
-			tmp = curve25519(key.priv,curve25519(playerprivs[i],cardprods[j]));
-			
-            xoverz = xoverz_donna(tmp);
+    		tmp = curve25519(key.priv,curve25519(playerprivs[i],cardprods[j]));
+	        xoverz = xoverz_donna(tmp);
             vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
-		/*	printf("\nHash:\n");
-			for(k=0;k<sizeof(hash);k++){
-				printf("%02x ",hash.bytes[k]);
-			}*/
-            fe = crecip_donna(curve25519_fieldelement(hash));
+		    fe = crecip_donna(curve25519_fieldelement(hash));
             decoded = curve25519(fmul_donna(refval,fe),basepoint);
             if ( bits256_cmp(decoded,cardprods[j]) == 0 )
             {
