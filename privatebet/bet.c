@@ -53,7 +53,7 @@ uint8_t sharenrs[256];
 struct rpcrequest_info *LP_garbage_collector;
 struct enc_share { uint8_t share[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
 struct enc_share *g_shares=NULL;
-
+bits256 v_hash[CARDS777_MAXCARDS][CARDS777_MAXCARDS];
 uint32_t LP_rand()
 {
     uint32_t retval;
@@ -423,7 +423,6 @@ struct pair256 deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t num
             xoverz = xoverz_donna(curve25519(randcards[i].priv,playercards[i]));
             vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
             tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
-            
         }
     
     for (i=0; i<numcards; i++)
@@ -611,7 +610,8 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     {
         for (j=0; j<numcards; j++)
         {
-            tmp = curve25519(keys[playerid].priv,curve25519(playerprivs[i],cardprods[j]));
+            //tmp = curve25519(keys[playerid].priv,curve25519(playerprivs[i],cardprods[j]));
+            tmp = curve25519(keys[playerid].priv,v_hash[i][j]);
             xoverz = xoverz_donna(tmp);
             vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
             fe = crecip_donna(curve25519_fieldelement(hash));
@@ -683,6 +683,17 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     {
         sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
     }
+
+	printf("\ncomputing hashes start:\n");
+	for(i=0;i<numcards;i++){
+		for(j=0;j<numcards;j++){
+			temp=curve25519(playerprivs[i],cardprods[j]);
+			vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
+			
+            
+		}
+	}
+	printf("\ncomputing hashses ends");
     for (playerid=0; playerid<numplayers; playerid++){
         errs=0;
         for(i=0;i<numcards;i++){
