@@ -460,6 +460,8 @@ void blinding_vendor(bits256 *blindings,bits256 *blindedcards,bits256 *finalcard
             allshares[j*numplayers*numcards + (i*numplayers + playerid)] = cardshares[j];
         }
     }
+	free(recover);
+	free(cardshares);
     // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
 }
 
@@ -634,7 +636,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     }
     gfshare_recoverdata(shares,sharenrs, M,recover->bytes,sizeof(bits256),M);
     refval = fmul_donna(blindedcard,crecip_donna(*recover));
-    
+    #if 0
     for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
@@ -653,7 +655,14 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
         	}
         }
     }
+	#endif
     printf("couldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
+	free(recover);
+	for(i=0;i<numplayers;i++){
+		free(shares[i]);
+	}
+	free(shares);
+	free(cardshares);
     memset(tmp.bytes,0,sizeof(tmp));
     return(tmp);
 }
@@ -694,6 +703,8 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             }
         }
     // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
+    free(recover);
+	free(cardshares);
     return b_key;
 }
 
@@ -728,7 +739,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 			}
 		}
         for(i=0;i<numcards;i++){
-            //decoded256 = sg777_player_decode(playerid,i,numplayers,keys,b_key,blindingvals[playerid][i],blindedcards[playerid][i],cardprods[playerid],playerprivs[playerid],permis[playerid],numcards);
+            decoded256 = sg777_player_decode(playerid,i,numplayers,keys,b_key,blindingvals[playerid][i],blindedcards[playerid][i],cardprods[playerid],playerprivs[playerid],permis[playerid],numcards);
             
             if ( bits256_nonz(decoded256) == 0 )
                 errs++;
@@ -759,4 +770,5 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         }
     }
     printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
+	free(g_shares);
 }
