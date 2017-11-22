@@ -649,8 +649,6 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 	            if ( bits256_cmp(decoded,cardprods[j]) == 0 )
 	            {
 	                printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
-                    free(recover);
-                    free(cardshares);
 	                return(playerprivs[i]);
 	            }
         	}
@@ -658,8 +656,6 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     }
     printf("couldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
     memset(tmp.bytes,0,sizeof(tmp));
-    free(recover);
-    free(cardshares);
     return(tmp);
 }
 
@@ -699,8 +695,6 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             }
         }
     // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
-    free(recover);
-    free(cardshares);
     return b_key;
 }
 
