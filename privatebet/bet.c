@@ -313,7 +313,7 @@ int main(int argc,const char *argv[])
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
             range = (range % CARDS777_MAXCARDS) + 1;
             numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
-			numplayers=2,range=2;
+			//numplayers=2,range=2;
             printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
             sg777_players_init(numplayers,range,rand256(0));
             continue;
@@ -733,7 +733,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 		}
 	}
 	printf("\ncomputing hashses ends");
-	printf("\nThe hashses of the player are:\n");
+	/*printf("\nThe hashses of the player are:\n");
 	for(i=0;i<numcards;i++){
 		 printf("%s \n",bits256_str(str,g_hash[0][i]));
 	 }
@@ -743,7 +743,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 		 printf("%s \n",bits256_str(str,v_hash[i][j]));
 		}
 	}
-
+*/
 	#if 1
     for (playerid=0; playerid<1; playerid++){
         errs=0;
