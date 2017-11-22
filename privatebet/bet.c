@@ -636,7 +636,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     }
     gfshare_recoverdata(shares,sharenrs, M,recover->bytes,sizeof(bits256),M);
     refval = fmul_donna(blindedcard,crecip_donna(*recover));
-    #if 0
+    #if 1
     for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
@@ -739,7 +739,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 			}
 		}
         for(i=0;i<numcards;i++){
-            decoded256 = sg777_player_decode(playerid,i,numplayers,keys,b_key,blindingvals[playerid][i],blindedcards[playerid][i],cardprods[playerid],playerprivs[playerid],permis[playerid],numcards);
+            //decoded256 = sg777_player_decode(playerid,i,numplayers,keys,b_key,blindingvals[playerid][i],blindedcards[playerid][i],cardprods[playerid],playerprivs[playerid],permis[playerid],numcards);
             
             if ( bits256_nonz(decoded256) == 0 )
                 errs++;
