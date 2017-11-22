@@ -314,11 +314,8 @@ int main(int argc,const char *argv[])
             range = (range % 52) + 1;
             numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
 			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
-<<<<<<< HEAD
 			numplayers=4,range=40;
-=======
 			//numplayers=2,range=2;
->>>>>>> 27f03eb8b3f82d3346043724198776fcec92714d
             sg777_players_init(numplayers,range,rand256(0));
             continue;
             for (i=0; i<numplayers; i++)
