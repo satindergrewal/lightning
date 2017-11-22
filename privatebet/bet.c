@@ -697,7 +697,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
     // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
     return b_key;
 }
-
+ 
 void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
     static int32_t decodebad,decodegood,good,bad;
