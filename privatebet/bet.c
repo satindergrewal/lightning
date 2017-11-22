@@ -51,10 +51,10 @@ int32_t permis_d[CARDS777_MAXCARDS],permis_b[CARDS777_MAXCARDS];
 bits256 *allshares=NULL;
 uint8_t sharenrs[256];
 struct rpcrequest_info *LP_garbage_collector;
-
 struct enc_share { uint8_t share[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
 struct enc_share *g_shares=NULL;
-
+bits256 v_hash[CARDS777_MAXCARDS][CARDS777_MAXCARDS];
+bits256 g_hash[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 uint32_t LP_rand()
 {
     uint32_t retval;
@@ -308,12 +308,13 @@ int main(int argc,const char *argv[])
         
         while ( testmode != 1 )
         {
-            //testmode=1;
+            
             OS_randombytes((uint8_t *)&range,sizeof(range));
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
             range = (range % CARDS777_MAXCARDS) + 1;
             numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
-            printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
+			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
+			numplayers=2,range=2;
             sg777_players_init(numplayers,range,rand256(0));
             continue;
             for (i=0; i<numplayers; i++)
@@ -424,7 +425,7 @@ struct pair256 deckgen_vendor(bits256 *cardprods,bits256 *finalcards,int32_t num
             xoverz = xoverz_donna(curve25519(randcards[i].priv,playercards[i]));
             vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
             tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
-            
+
         }
     
     for (i=0; i<numcards; i++)
@@ -577,10 +578,37 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     printf("numplayers.%d numcards.%d deck %s -> numgames.%d playererrs.%d ordering.(good.%d bad.%d) decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),numgames,playererrs,good,bad,decodegood,decodebad);
     return(playererrs);
 }
+struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid) // given playercards[], returns cardprods[] and finalcards[]
+{
+    static struct pair256 key,randcards[256]; static bits256 active_deckid,hash_temp[CARDS777_MAXCARDS];
+    int32_t i,j,permis[256]; bits256 hash,xoverz,tmp[256];
+    if ( bits256_cmp(deckid,active_deckid) != 0 )
+        key=deckgen_common1(randcards,numcards);
+        
+        for (i=0; i<numcards; i++)
+        {
+            xoverz = xoverz_donna(curve25519(randcards[i].priv,playercards[i]));
+            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+			hash_temp[i]=hash; //optimization
+			tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
+			
+        }
+    
+    for (i=0; i<numcards; i++)
+    {
+        finalcards[i] = tmp[permis_d[i]];
+		g_hash[playerid][i]=hash_temp[permis_d[i]];//optimization
+		cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
+        
+        
+    }
+    
+    return key;
+}
 
 bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *keys,struct pair256 b_key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
-    bits256 decoded,tmp,xoverz,hash,fe,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];uint8_t space[8192];
+    bits256 decoded,tmp,xoverz,hash,fe,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];
     bits256 *recover=NULL;
     struct enc_share temp;
     uint8_t **shares;
@@ -612,16 +640,18 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     {
         for (j=0; j<numcards; j++)
         {
-            tmp = curve25519(keys[playerid].priv,curve25519(playerprivs[i],cardprods[j]));
-            xoverz = xoverz_donna(tmp);
-            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
-            fe = crecip_donna(curve25519_fieldelement(hash));
-            decoded = curve25519(fmul_donna(refval,fe),basepoint);
-            if ( bits256_cmp(decoded,cardprods[j]) == 0 )
-            {
-                printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
-                return(playerprivs[i]);
-            }
+        	if ( bits256_cmp(v_hash[i][j],g_hash[playerid][cardID]) == 0 ){
+	            tmp = curve25519(keys[playerid].priv,curve25519(playerprivs[i],cardprods[j]));
+	            xoverz = xoverz_donna(tmp);
+	            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+	            fe = crecip_donna(curve25519_fieldelement(hash));
+	            decoded = curve25519(fmul_donna(refval,fe),basepoint);
+	            if ( bits256_cmp(decoded,cardprods[j]) == 0 )
+	            {
+	                printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
+	                return(playerprivs[i]);
+	            }
+        	}
         }
     }
     printf("couldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
@@ -631,15 +661,22 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 
 struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
-    int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares,*recover,basepoint;
+    int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares,*recover,basepoint,temp_hash[CARDS777_MAXCARDS];
     
     struct enc_share temp;
+	
     
     recover=calloc(1,sizeof(bits256));
-    for (i=0; i<numcards; i++)
+	//optimization
+	for (i=0; i<numcards; i++){
+		temp_hash[i]=g_hash[playerid][i];
+	}
+
+	for (i=0; i<numcards; i++)
     {
         blindings[i] = rand256(1);
         blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
+		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
     }
     M = (numplayers/2) + 1;
     
@@ -669,23 +706,28 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     bits256 temp,decoded256,basepoint,cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindingvals[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
     dekgen_vendor_perm(numcards);
     blinding_vendor_perm(numcards);
-    
     for (playerid=0; playerid<numplayers; playerid++) {
         keys[playerid]=deckgen_player(playerprivs[playerid],playercards[playerid],permis[playerid],numcards);
     }
-    
     for (playerid=0; playerid<numplayers; playerid++)
     {
-        deckgen_vendor(cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid);
+        sg777_deckgen_vendor(playerid,cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid);
     }
     b_key.priv=curve25519_keypair(&b_key.prod);
-    
     for (playerid=0; playerid<numplayers; playerid++)
     {
         sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
     }
     for (playerid=0; playerid<numplayers; playerid++){
         errs=0;
+		for(i=0;i<numcards;i++){
+			for(j=0;j<numcards;j++){
+				temp=xoverz_donna(curve25519(keys[playerid].priv,curve25519(playerprivs[playerid][i],cardprods[playerid][j])));
+				vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
+				
+	            
+			}
+		}
         for(i=0;i<numcards;i++){
             decoded256 = sg777_player_decode(playerid,i,numplayers,keys,b_key,blindingvals[playerid][i],blindedcards[playerid][i],cardprods[playerid],playerprivs[playerid],permis[playerid],numcards);
             
@@ -718,5 +760,4 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         }
     }
     printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
-    
 }
