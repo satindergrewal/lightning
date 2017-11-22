@@ -668,17 +668,17 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     bits256 temp,decoded256,basepoint,cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindingvals[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
     dekgen_vendor_perm(numcards);
     blinding_vendor_perm(numcards);
-    
+    printf("\nplayer starts");
     for (playerid=0; playerid<numplayers; playerid++) {
         keys[playerid]=deckgen_player(playerprivs[playerid],playercards[playerid],permis[playerid],numcards);
     }
-    
+      printf("\ndeckgen starts");  
     for (playerid=0; playerid<numplayers; playerid++)
     {
         deckgen_vendor(cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid);
     }
     b_key.priv=curve25519_keypair(&b_key.prod);
-    
+    printf("\nblinding starts");
     for (playerid=0; playerid<numplayers; playerid++)
     {
         sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
@@ -687,8 +687,8 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	printf("\ncomputing hashes start:\n");
 	for(i=0;i<numcards;i++){
 		for(j=0;j<numcards;j++){
-			temp=curve25519(playerprivs[0][i],cardprods[0][j]);
-			vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
+			v_hash[i][j]=curve25519(playerprivs[0][i],cardprods[0][j]);
+			//vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 			
             
 		}
