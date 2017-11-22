@@ -213,7 +213,7 @@ char *pangea_command(void *ctx,cJSON *argjson,char *remoteaddr,uint16_t port)
         return(clonestr("{\"result\":\"success\", \"agent\":\"pangea\"}"));
     } else return(clonestr("{\"error\":\"missing method\"}"));
 }
-
+/*
 char *stats_JSON(void *ctx,char *myipaddr,int32_t mypubsock,cJSON *argjson,char *remoteaddr,uint16_t port)
 {
     char *agent;
@@ -232,7 +232,7 @@ char *stats_JSON(void *ctx,char *myipaddr,int32_t mypubsock,cJSON *argjson,char 
     printf("stats_JSON.(%s)\n",jprint(argjson,0));
     return(clonestr("{\"result\":\"success\"}"));
 }
-
+*/
 int32_t BET_peer_state(char *peerid,char *statestr)
 {
     cJSON *retjson,*array,*item,*obj; int32_t i,n,retval = -1;
