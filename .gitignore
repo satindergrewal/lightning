@@ -27,3 +27,5 @@ bitcoin/test/run-tx-encode
 daemon/test/run-maxfee
 test/test_protocol
 test/test_sphinx
+privatebet/bet
+
