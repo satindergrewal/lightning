@@ -748,7 +748,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         decodebad += errs;
         decodegood+= (numcards - errs);
     }
-    for (good=bad=i=0; i<numplayers-1; i++)
+    for (i=0; i<numplayers-1; i++)
     {
         for (j=i+1; j<numplayers; j++)
         {
