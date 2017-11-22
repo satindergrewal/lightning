@@ -608,7 +608,7 @@ struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256
 
 bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *keys,struct pair256 b_key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
-    bits256 decoded,tmp,xoverz,hash,fe,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];uint8_t space[8192];
+    bits256 decoded,tmp,xoverz,hash,fe,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];
     bits256 *recover=NULL;
     struct enc_share temp;
     uint8_t **shares;
@@ -642,7 +642,6 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
         {
         	if ( bits256_cmp(v_hash[i][j],g_hash[playerid][cardID]) == 0 ){
 	            tmp = curve25519(keys[playerid].priv,curve25519(playerprivs[i],cardprods[j]));
-	            //tmp = v_hash[i][j];
 	            xoverz = xoverz_donna(tmp);
 	            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
 	            fe = crecip_donna(curve25519_fieldelement(hash));
