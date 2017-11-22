@@ -311,7 +311,7 @@ int main(int argc,const char *argv[])
             
             OS_randombytes((uint8_t *)&range,sizeof(range));
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
-            range = (range % CARDS777_MAXCARDS) + 1;
+            range = (range % 52) + 1;
             numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
 			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
 			//numplayers=2,range=2;
