@@ -733,7 +733,18 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 		}
 	}
 	printf("\ncomputing hashses ends");
-	#if 0
+	printf("\nThe hashses of the player are:\n");
+	for(i=0;i<numcards;i++){
+		 printf("%s \n",bits256_str(str,g_hash[0][i]));
+	 }
+	printf("\nVerifying hashes are:\n");
+	for(i=0;i<numcards;i++){
+		for(j=0;j<numcards;j++){
+		 printf("%s \n",bits256_str(str,v_hash[i][j]));
+		}
+	}
+
+	#if 1
     for (playerid=0; playerid<1; playerid++){
         errs=0;
         for(i=0;i<numcards;i++){
