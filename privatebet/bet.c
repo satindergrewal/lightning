@@ -311,10 +311,14 @@ int main(int argc,const char *argv[])
             
             OS_randombytes((uint8_t *)&range,sizeof(range));
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
-            range = (range % CARDS777_MAXCARDS) + 1;
+            range = (range % 52) + 1;
             numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
 			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
+<<<<<<< HEAD
 			numplayers=4,range=40;
+=======
+			//numplayers=2,range=2;
+>>>>>>> 27f03eb8b3f82d3346043724198776fcec92714d
             sg777_players_init(numplayers,range,rand256(0));
             continue;
             for (i=0; i<numplayers; i++)
@@ -700,8 +704,8 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 
 void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
-    static int32_t decodebad,decodegood;
-    int32_t i,j,k,playerid,errs,unpermi,playererrs,good,bad,decoded[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],permis[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; bits256 playerprivs[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; char str[65];
+    static int32_t decodebad,decodegood,good,bad;
+    int32_t i,j,k,playerid,errs,unpermi,playererrs,decoded[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],permis[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; bits256 playerprivs[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; char str[65];
     struct pair256 keys[CARDS777_MAXPLAYERS],b_key;
     bits256 temp,decoded256,basepoint,cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindingvals[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
     dekgen_vendor_perm(numcards);
@@ -748,7 +752,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         decodebad += errs;
         decodegood+= (numcards - errs);
     }
-    for (good=bad=i=0; i<numplayers-1; i++)
+    for (i=0; i<numplayers-1; i++)
     {
         for (j=i+1; j<numplayers; j++)
         {

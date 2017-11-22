@@ -1,5 +1,5 @@
 rm bet
-export ROOT="/home/sarat/SuperNET"
+export ROOT="$HOME/SuperNET"
 export C777="$ROOT/crypto777"
 export IGUANA="$ROOT/iguana"
 #-DFROM_MARKETMAKER=1
