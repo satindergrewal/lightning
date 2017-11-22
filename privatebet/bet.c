@@ -588,14 +588,15 @@ struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256
         {
             xoverz = xoverz_donna(curve25519(randcards[i].priv,playercards[i]));
             vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
-            tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
-			hash_temp[i]=hash;
+			hash_temp[i]=hash; //optimization
+			tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
+			
         }
     
     for (i=0; i<numcards; i++)
     {
         finalcards[i] = tmp[permis_d[i]];
-		g_hash[playerid][i]=hash_temp[permis_d[i]];
+		g_hash[playerid][i]=hash_temp[permis_d[i]];//optimization
 		cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
         
         
@@ -666,6 +667,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 	
     
     recover=calloc(1,sizeof(bits256));
+	//optimization
 	for (i=0; i<numcards; i++){
 		temp_hash[i]=g_hash[playerid][i];
 	}
@@ -674,7 +676,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
     {
         blindings[i] = rand256(1);
         blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
-		g_hash[playerid][i]=temp_hash[permis_b[i]];
+		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
     }
     M = (numplayers/2) + 1;
     
@@ -730,6 +732,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 		}
 	}
 	printf("\ncomputing hashses ends");
+	#if 0
     for (playerid=0; playerid<1; playerid++){
         errs=0;
         for(i=0;i<numcards;i++){
@@ -764,5 +767,5 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         }
     }
     printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
-    
+   #endif 
 }
