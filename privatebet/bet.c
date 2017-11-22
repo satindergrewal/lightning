@@ -687,14 +687,14 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	printf("\ncomputing hashes start:\n");
 	for(i=0;i<numcards;i++){
 		for(j=0;j<numcards;j++){
-			temp=curve25519(playerprivs[i],cardprods[j]);
+			temp=curve25519(playerprivs[0][i],cardprods[j]);
 			vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 			
             
 		}
 	}
 	printf("\ncomputing hashses ends");
-    for (playerid=0; playerid<numplayers; playerid++){
+    for (playerid=0; playerid<1; playerid++){
         errs=0;
         for(i=0;i<numcards;i++){
             decoded256 = sg777_player_decode(playerid,i,numplayers,keys,b_key,blindingvals[playerid][i],blindedcards[playerid][i],cardprods[playerid],playerprivs[playerid],permis[playerid],numcards);
