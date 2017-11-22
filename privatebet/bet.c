@@ -611,7 +611,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
         for (j=0; j<numcards; j++)
         {
             //tmp = curve25519(keys[playerid].priv,curve25519(playerprivs[i],cardprods[j]));
-            tmp = curve25519(keys[playerid].priv,v_hash[i][j]);
+            tmp = v_hash[i][j];
             xoverz = xoverz_donna(tmp);
             vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
             fe = crecip_donna(curve25519_fieldelement(hash));
@@ -687,7 +687,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 	printf("\ncomputing hashes start:\n");
 	for(i=0;i<numcards;i++){
 		for(j=0;j<numcards;j++){
-			v_hash[i][j]=curve25519(playerprivs[0][i],cardprods[0][j]);
+			v_hash[i][j]=curve25519(keys[0].priv,curve25519(playerprivs[0][i],cardprods[0][j]));
 			//vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 			
             
