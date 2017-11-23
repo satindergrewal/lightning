@@ -611,7 +611,7 @@ struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256
 
 bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *keys,struct pair256 b_key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
-    bits256 decoded,tmp,xoverz,hash,fe,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65]={0x00};
+    bits256 decoded,tmp,xoverz,hash,fe,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];
     bits256 *recover=NULL;
     struct enc_share temp;
     uint8_t **shares;
@@ -723,7 +723,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
     static int32_t decodebad,decodegood,good,bad;
-    int32_t i,j,k,playerid,errs,unpermi,playererrs,decoded[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],permis[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; bits256 playerprivs[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; char str[65]={0x00};
+    int32_t i,j,k,playerid,errs,unpermi,playererrs=0,decoded[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],permis[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; bits256 playerprivs[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS]; char str[65];
     struct pair256 keys[CARDS777_MAXPLAYERS],b_key;
     bits256 temp,decoded256,basepoint,cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindingvals[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
     dekgen_vendor_perm(numcards);
@@ -781,7 +781,6 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
             } good++;
         }
     }
-    //printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
-    printf("numplayers.%d numcards.%d -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,playererrs,good,bad,decodegood,decodebad);
-	
+    printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
+    
 }
