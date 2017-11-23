@@ -614,7 +614,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     bits256 decoded,tmp,xoverz,hash,fe,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];
     bits256 *recover=NULL;
     struct enc_share temp;
-    uint8_t **shares;
+    uint8_t **shares,flag=0;
     shares=calloc(numplayers,sizeof(uint8_t*));
     for(i=0;i<numplayers;i++)
         shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
@@ -652,20 +652,26 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 	            if ( bits256_cmp(decoded,cardprods[j]) == 0 )
 	            {
 	                printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
-	                return(playerprivs[i]);
+	                //return(playerprivs[i]);
+					tmp=playerprivs[i];
+					flag=1;
+					goto end;
 	            }
         	}
         }
     }
 	#endif
-    printf("couldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
-	free(recover);
+	end:
+    free(recover);
 	for(i=0;i<numplayers;i++){
 		free(shares[i]);
 	}
 	free(shares);
 	free(cardshares);
-    memset(tmp.bytes,0,sizeof(tmp));
+	if(!flag){
+	memset(tmp.bytes,0,sizeof(tmp));
+	printf("couldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
+	}
     return(tmp);
 }
 
