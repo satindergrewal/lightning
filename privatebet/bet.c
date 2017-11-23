@@ -308,19 +308,30 @@ int main(int argc,const char *argv[])
     {
         printf("no argjson, default to testmode\n");
 
-		if ( OS_thread_create(malloc(sizeof(pthread_t)),NULL,(void *)BET_player,(void *)BET) != 0 )
+		pthread_t t1,t2;
+		if ( OS_thread_create(&t1,NULL,(void *)BET_player,(void *)BET) != 0 )
         {
             printf("error launching BET_clientloop\n");
             exit(-1);
         }
 
 		
-		if ( OS_thread_create(malloc(sizeof(pthread_t)),NULL,(void *)BET_player1,(void *)BET) != 0 )
+		if ( OS_thread_create(&t2,NULL,(void *)BET_player1,(void *)BET) != 0 )
         {
             printf("error launching BET_clientloop\n");
             exit(-1);
         }
+		if(pthread_join(t1,NULL)){
+			printf("\nError joining the main thread for thread1");
+		}
+		if(pthread_join(t2,NULL)){
+			printf("\nError joining the main thread for thread2");
+		}
 
+
+
+
+		
 		testmode=1;
 		while ( testmode != 1 )
         {

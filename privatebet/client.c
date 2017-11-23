@@ -329,20 +329,22 @@ int32_t BET_clientupdate(cJSON *argjson,uint8_t *ptr,int32_t recvlen,struct priv
     return(-1);
 }
 
-void BET_player(void *_ptr)
+void* BET_player(void *_ptr)
 {
 	while(1){
 	printf("\nPlayer");
 	sleep(5);
 	}
+	return NULL;
 }
 
-void BET_player1(void *_ptr)
+void* BET_player1(void *_ptr)
 {
 	while(1){
 	printf("\nPlayer1");
 	sleep(5);
 	}
+	return NULL;
 }
 
 void BET_clientloop(void *_ptr)
