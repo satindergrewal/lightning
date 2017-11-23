@@ -691,20 +691,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
     gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
     cardshares = calloc(numplayers,sizeof(bits256));
     if ( g_shares == 0)
-      //  g_shares= calloc(numplayers,sizeof(struct enc_share) * numplayers * numcards);
-        g_shares= calloc(numplayers,sizeof(struct enc_share*));
-	for(i=0;i<numplayers;i++)
-			g_shares[i]=calloc(numplayers * numcards,sizeof(struct enc_share));
-	for(i=0;i<numplayers;i++)
-		for(j=0;j<numcards;j++)
-			g_shares[i][j]=calloc(sizeof(struct enc_share),sizeof(uint8_t));
-	/*	
-
-	shares=calloc(numplayers,sizeof(uint8_t*));
-    for(i=0;i<numplayers;i++)
-        shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
-	*/
-        
+        g_shares= calloc(numplayers,sizeof(struct enc_share) * numplayers * numcards);
         for (i=0; i<numcards; i++)
         {
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
