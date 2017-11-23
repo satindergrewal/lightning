@@ -694,7 +694,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
       //  g_shares= calloc(numplayers,sizeof(struct enc_share) * numplayers * numcards);
         g_shares= calloc(numplayers,sizeof(struct enc_share*));
 	for(i=0;i<numplayers;i++)
-			g_shares[i]=calloc(numplayers * numcards,sizeof(bits256));
+			g_shares[i]=calloc(numplayers * numcards,sizeof(struct enc_share));
 	/*	
 
 	shares=calloc(numplayers,sizeof(uint8_t*));
