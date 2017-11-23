@@ -310,7 +310,7 @@ int main(int argc,const char *argv[])
 
 		if ( OS_thread_create(malloc(sizeof(pthread_t)),NULL,(void *)BET_player,(void *)BET) != 0 )
         {
-            printf("error launching BET_clientloop for sub.%d\n",BET->subsock);
+            printf("error launching BET_clientloop\n");
             exit(-1);
         }
 
