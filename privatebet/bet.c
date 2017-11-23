@@ -307,8 +307,14 @@ int main(int argc,const char *argv[])
     else
     {
         printf("no argjson, default to testmode\n");
-        
-        while ( testmode != 1 )
+
+		if ( OS_thread_create(malloc(sizeof(pthread_t)),NULL,(void *)utxosQ_loop,(void *)hostip) != 0 )   
+			{       printf("error launching utxosQ_loop for (%s)\n",hostip);       exit(-1);   }
+
+
+
+		testmode=1;
+		while ( testmode != 1 )
         {
             
             OS_randombytes((uint8_t *)&range,sizeof(range));
