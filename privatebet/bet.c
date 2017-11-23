@@ -52,8 +52,8 @@ bits256 *allshares=NULL;
 uint8_t sharenrs[256];
 struct rpcrequest_info *LP_garbage_collector;
 struct enc_share { uint8_t share[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
-//struct enc_share *g_shares=NULL;
-struct enc_share g_shares[CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS];
+struct enc_share *g_shares=NULL;
+//struct enc_share g_shares[CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS];
 
 bits256 v_hash[CARDS777_MAXCARDS][CARDS777_MAXCARDS];
 bits256 g_hash[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
@@ -307,67 +307,6 @@ int main(int argc,const char *argv[])
     else
     {
         printf("no argjson, default to testmode\n");
-
-		#if 1 //using threads
-		pthread_t player_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
-		OS_randombytes((uint8_t *)&range,sizeof(range));
-        OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
-        range = (range % 52) + 1;
-        numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
-		printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
-		
-		for(i=0;i<numplayers && 0;i++){
-			if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)i) != 0 )
-					{
-						printf("error launching BET_clientloop\n");
-						exit(-1);
-					}
-			printf("\n:%d",i);		
-		}
-		i=0;
-		if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)&i) != 0 )
-					{
-						printf("error launching BET_clientloop\n");
-						exit(-1);
-					}
-		i=1;
-		if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)&i) != 0 )
-					{
-						printf("error launching BET_clientloop\n");
-						exit(-1);
-					}
-		/*
-		if ( OS_thread_create(&dcv_t,NULL,(void *)BET_dcv,(void *)BET) != 0 )
-        {
-            printf("error launching BET_clientloop\n");
-            exit(-1);
-        }
-
-		
-		if ( OS_thread_create(&bvv_t,NULL,(void *)BET_bvv,(void *)BET) != 0 )
-        {
-            printf("error launching BET_clientloop\n");
-            exit(-1);
-        }
-*/
-		for(i=0;i<numplayers;i++){
-			if(pthread_join(player_t[i],NULL)){
-				printf("\nError in joining the main thread for player thread %d",i);
-			}
-		}
-/*
-		if(pthread_join(dcv_t,NULL)){
-			printf("\nError in joining the main thread for DCV thread");
-		}
-		if(pthread_join(bvv_t,NULL)){
-			printf("\nError in joining the main thread for BVV thread");
-		}
-*/
-
-
-
-		#endif
-		testmode=1;
 		while ( testmode != 1 )
         {
             
@@ -671,8 +610,7 @@ struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256
 
 bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *keys,struct pair256 b_key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
-    bits256 decoded,tmp,xoverz,hash,fe,refval,basepoint,*cardshares; int32_t i,j,k,unpermi,M; char str[65];
-    bits256 *recover=NULL;
+    bits256 recover,decoded,tmp,xoverz,hash,fe,refval,basepoint,cardshares[CARDS777_MAXPLAYERS]; int32_t i,j,k,unpermi,M; char str[65];
     struct enc_share temp;
     uint8_t **shares,flag=0;
     shares=calloc(numplayers,sizeof(uint8_t*));
@@ -680,8 +618,6 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
         shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
     
     basepoint = curve25519_basepoint9();
-    recover=calloc(1,sizeof(bits256));
-    cardshares = calloc(numplayers,sizeof(bits256));
     uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
     for (j=0; j<numplayers; j++)
     {
@@ -696,8 +632,8 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     for(i=0;i<M;i++) {
         memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
     }
-    gfshare_recoverdata(shares,sharenrs, M,recover->bytes,sizeof(bits256),M);
-    refval = fmul_donna(blindedcard,crecip_donna(*recover));
+    gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
+    refval = fmul_donna(blindedcard,crecip_donna(recover));
     #if 1
     for (i=0; i<numcards; i++)
     {
@@ -722,12 +658,10 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     }
 	#endif
 	end:
-    free(recover);
-	for(i=0;i<numplayers;i++){
+   for(i=0;i<numplayers;i++){
 		free(shares[i]);
 	}
 	free(shares);
-	free(cardshares);
 	if(!flag){
 	memset(tmp.bytes,0,sizeof(tmp));
 	printf("couldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
@@ -737,13 +671,11 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 
 struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
-    int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares,*recover,basepoint,temp_hash[CARDS777_MAXCARDS];
+    int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 cardshares[CARDS777_MAXPLAYERS],basepoint,temp_hash[CARDS777_MAXCARDS];
     
     struct enc_share temp;
 	
     
-    recover=calloc(1,sizeof(bits256));
-	//optimization
 	for (i=0; i<numcards; i++){
 		temp_hash[i]=g_hash[playerid][i];
 	}
@@ -757,11 +689,6 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
     M = (numplayers/2) + 1;
     
     gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
-    cardshares = calloc(numplayers,sizeof(bits256));
-	 /*   if ( g_shares == 0)
-        g_shares= calloc(numplayers,sizeof(struct enc_share) * numplayers * numcards);
-	*/
-	  
 	
         for (i=0; i<numcards; i++)
         {
@@ -773,8 +700,6 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             }
         }
     // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
-    free(recover);
-	free(cardshares);
     return b_key;
 }
 
@@ -794,6 +719,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         sg777_deckgen_vendor(playerid,cardprods[playerid],finalcards[playerid],numcards,playercards[playerid],deckid);
     }
     b_key.priv=curve25519_keypair(&b_key.prod);
+	g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
     for (playerid=0; playerid<numplayers; playerid++)
     {
         sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
@@ -840,5 +766,5 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
         }
     }
     printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
-    
+    free(g_shares);
 }
