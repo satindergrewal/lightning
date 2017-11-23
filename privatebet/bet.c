@@ -690,10 +690,10 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
     
     gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
     cardshares = calloc(numplayers,sizeof(bits256));
-  /*  if ( g_shares == 0)
+    if ( g_shares == 0)
         g_shares= calloc(numplayers,sizeof(struct enc_share) * numplayers * numcards);
-  */
-	  g_shares=(struct enc_share*)malloc(sizeof(struct enc_share) * numplayers * numcards*numplayers);
+  
+	 // g_shares=(struct enc_share*)malloc(sizeof(struct enc_share) * numplayers * numcards*numplayers);
 	  
 	
         for (i=0; i<numcards; i++)
@@ -772,6 +772,7 @@ void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
             } good++;
         }
     }
-    printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
+    //printf("numplayers.%d numcards.%d deck %s -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),playererrs,good,bad,decodegood,decodebad);
+    printf("numplayers.%d numcards.%d -> playererrs.%d good.%d bad.%d decode.[good %d, bad %d]\n",numplayers,numcards,playererrs,good,bad,decodegood,decodebad);
 	
 }
