@@ -308,30 +308,52 @@ int main(int argc,const char *argv[])
     {
         printf("no argjson, default to testmode\n");
 
-		pthread_t t1,t2;
-		if ( OS_thread_create(&t1,NULL,(void *)BET_player,(void *)BET) != 0 )
+		#if 1 //using threads
+		pthread_t player_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
+		OS_randombytes((uint8_t *)&range,sizeof(range));
+        OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
+        range = (range % 52) + 1;
+        numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
+		printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
+
+		for(i=0;i<numplayers;i++){
+			if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)&i) != 0 )
+					{
+						printf("error launching BET_clientloop\n");
+						exit(-1);
+					}
+			
+		}
+		
+		if ( OS_thread_create(&dcv_t,NULL,(void *)BET_dcv,(void *)BET) != 0 )
         {
             printf("error launching BET_clientloop\n");
             exit(-1);
         }
 
 		
-		if ( OS_thread_create(&t2,NULL,(void *)BET_player1,(void *)BET) != 0 )
+		if ( OS_thread_create(&bvv_t,NULL,(void *)BET_bvv,(void *)BET) != 0 )
         {
             printf("error launching BET_clientloop\n");
             exit(-1);
         }
-		if(pthread_join(t1,NULL)){
-			printf("\nError joining the main thread for thread1");
+
+		for(i=0;i<numplayers;i++){
+			if(pthread_join(player_t[i],NULL)){
+				printf("\nError in joining the main thread for player thread %d",i);
+			}
 		}
-		if(pthread_join(t2,NULL)){
-			printf("\nError joining the main thread for thread2");
+		if(pthread_join(dcv_t,NULL)){
+			printf("\nError in joining the main thread for DCV thread");
+		}
+		if(pthread_join(bvv_t,NULL)){
+			printf("\nError in joining the main thread for BVV thread");
 		}
 
 
 
 
-		
+		#endif
 		testmode=1;
 		while ( testmode != 1 )
         {
