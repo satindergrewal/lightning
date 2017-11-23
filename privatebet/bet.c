@@ -315,7 +315,7 @@ int main(int argc,const char *argv[])
         range = (range % 52) + 1;
         numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
 		printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
-
+		
 		for(i=0;i<numplayers;i++){
 			if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)&i) != 0 )
 					{
@@ -324,7 +324,7 @@ int main(int argc,const char *argv[])
 					}
 			
 		}
-		
+		/*
 		if ( OS_thread_create(&dcv_t,NULL,(void *)BET_dcv,(void *)BET) != 0 )
         {
             printf("error launching BET_clientloop\n");
@@ -337,19 +337,20 @@ int main(int argc,const char *argv[])
             printf("error launching BET_clientloop\n");
             exit(-1);
         }
-
+*/
 		for(i=0;i<numplayers;i++){
 			if(pthread_join(player_t[i],NULL)){
 				printf("\nError in joining the main thread for player thread %d",i);
 			}
 		}
+/*
 		if(pthread_join(dcv_t,NULL)){
 			printf("\nError in joining the main thread for DCV thread");
 		}
 		if(pthread_join(bvv_t,NULL)){
 			printf("\nError in joining the main thread for BVV thread");
 		}
-
+*/
 
 
 
