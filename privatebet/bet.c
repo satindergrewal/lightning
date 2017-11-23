@@ -308,9 +308,11 @@ int main(int argc,const char *argv[])
     {
         printf("no argjson, default to testmode\n");
 
-		if ( OS_thread_create(malloc(sizeof(pthread_t)),NULL,(void *)utxosQ_loop,(void *)hostip) != 0 )   
-			{       printf("error launching utxosQ_loop for (%s)\n",hostip);       exit(-1);   }
-
+		if ( OS_thread_create(malloc(sizeof(pthread_t)),NULL,(void *)BET_player,(void *)BET) != 0 )
+        {
+            printf("error launching BET_clientloop for sub.%d\n",BET->subsock);
+            exit(-1);
+        }
 
 
 		testmode=1;
