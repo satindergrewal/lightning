@@ -322,7 +322,9 @@ int main(int argc,const char *argv[])
 						printf("error launching BET_clientloop\n");
 						exit(-1);
 					}
-			
+			if(pthread_join(player_t[i],NULL)){
+				printf("\nError in joining the main thread for player thread %d",i);
+			}
 		}
 		/*
 		if ( OS_thread_create(&dcv_t,NULL,(void *)BET_dcv,(void *)BET) != 0 )
@@ -337,13 +339,13 @@ int main(int argc,const char *argv[])
             printf("error launching BET_clientloop\n");
             exit(-1);
         }
-*/
+
 		for(i=0;i<numplayers;i++){
 			if(pthread_join(player_t[i],NULL)){
 				printf("\nError in joining the main thread for player thread %d",i);
 			}
 		}
-/*
+
 		if(pthread_join(dcv_t,NULL)){
 			printf("\nError in joining the main thread for DCV thread");
 		}
