@@ -669,7 +669,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 
 struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
-    int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 *cardshares,*recover,basepoint,temp_hash[CARDS777_MAXCARDS];
+    int32_t i,j,k,M,permi,permis[256],total_size,access_size; uint8_t space[8192]; bits256 *cardshares,*recover,basepoint,temp_hash[CARDS777_MAXCARDS];
     
     struct enc_share temp;
 	
@@ -692,6 +692,8 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
     cardshares = calloc(numplayers,sizeof(bits256));
     if ( g_shares == 0)
         g_shares= calloc(numplayers,sizeof(struct enc_share) * numplayers * numcards);
+
+	total_size=numplayers * numplayers * numcards;
   
 	 // g_shares=(struct enc_share*)malloc(sizeof(struct enc_share) * numplayers * numcards*numplayers);
 	  
@@ -702,6 +704,11 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             // create combined allshares
             for (j=0; j<numplayers; j++) {
                 BET_ciphercreate(b_key.priv,keys[j].prod,temp.share,cardshares[j].bytes,sizeof(cardshares[j]));
+				access_size=j*numplayers*numcards + (i*numplayers + playerid);
+				if(access_size>total_size)
+					{
+						printf("\nMemory violation:total_size:%d,access_size:%d,i:%d,j:%d,playerid:%d,numplayers:%d,numcards:%d",total_size,access_size,i,j,numplayers,numcards);
+					}
                 memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].share,temp.share,sizeof(temp));
             }
         }
