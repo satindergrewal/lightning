@@ -329,6 +329,34 @@ int32_t BET_clientupdate(cJSON *argjson,uint8_t *ptr,int32_t recvlen,struct priv
     return(-1);
 }
 
+void* BET_player(void *_ptr)
+{
+	int playerid=(int)_ptr;
+	while(1){
+	printf("\nPlayer %d",playerid);
+	sleep(5);
+	}
+	return NULL;
+}
+
+void* BET_dcv(void *_ptr)
+{
+	while(1){
+	printf("\ndcv");
+	sleep(5);
+	}
+	return NULL;
+}
+
+void* BET_bvv(void *_ptr)
+{
+	while(1){
+	printf("\nbvv");
+	sleep(5);
+	}
+	return NULL;
+}
+
 void BET_clientloop(void *_ptr)
 {
     uint32_t lasttime = 0; int32_t nonz,recvlen,lastChips_paid; uint16_t port=7798; char connectaddr[64],hostip[64]; void *ptr; cJSON *msgjson,*reqjson; struct privatebet_vars *VARS; struct privatebet_info *bet = _ptr;
