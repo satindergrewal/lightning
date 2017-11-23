@@ -316,7 +316,7 @@ int main(int argc,const char *argv[])
         numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
 		printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
 		
-		for(i=0;i<numplayers;i++){
+		for(i=0;i<numplayers && 0;i++){
 			if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)&i) != 0 )
 					{
 						printf("error launching BET_clientloop\n");
@@ -324,6 +324,18 @@ int main(int argc,const char *argv[])
 					}
 			printf("\n:%d",i);		
 		}
+		i=0;
+		if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)&i) != 0 )
+					{
+						printf("error launching BET_clientloop\n");
+						exit(-1);
+					}
+		i=1;
+		if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)&i) != 0 )
+					{
+						printf("error launching BET_clientloop\n");
+						exit(-1);
+					}
 		/*
 		if ( OS_thread_create(&dcv_t,NULL,(void *)BET_dcv,(void *)BET) != 0 )
         {
