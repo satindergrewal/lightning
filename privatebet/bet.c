@@ -52,7 +52,7 @@ bits256 *allshares=NULL;
 uint8_t sharenrs[256];
 struct rpcrequest_info *LP_garbage_collector;
 struct enc_share { uint8_t share[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
-struct enc_share *g_shares=NULL;
+struct enc_share **g_shares=NULL;
 bits256 v_hash[CARDS777_MAXCARDS][CARDS777_MAXCARDS];
 bits256 g_hash[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 uint32_t LP_rand()
@@ -690,8 +690,14 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
     
     gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
     cardshares = calloc(numplayers,sizeof(bits256));
-    if ( g_shares == 0)
+  /*  if ( g_shares == 0)
         g_shares= calloc(numplayers,sizeof(struct enc_share) * numplayers * numcards);
+  */
+	  g_shares=(struct enc_share**)malloc(numplayers,sizeof(struct enc_share*));
+	  
+	  for (i=0; i<numcards; i++){
+		g_shares=(struct enc_share*)malloc(numplayers*numcards,sizeof(struct enc_share));
+	  }
         for (i=0; i<numcards; i++)
         {
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
