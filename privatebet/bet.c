@@ -317,7 +317,7 @@ int main(int argc,const char *argv[])
 		printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
 		
 		for(i=0;i<numplayers && 0;i++){
-			if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)&i) != 0 )
+			if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)i) != 0 )
 					{
 						printf("error launching BET_clientloop\n");
 						exit(-1);
