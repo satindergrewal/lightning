@@ -314,6 +314,12 @@ int main(int argc,const char *argv[])
             exit(-1);
         }
 
+		
+		if ( OS_thread_create(malloc(sizeof(pthread_t)),NULL,(void *)BET_player1,(void *)BET) != 0 )
+        {
+            printf("error launching BET_clientloop\n");
+            exit(-1);
+        }
 
 		testmode=1;
 		while ( testmode != 1 )

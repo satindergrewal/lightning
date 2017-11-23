@@ -331,8 +331,20 @@ int32_t BET_clientupdate(cJSON *argjson,uint8_t *ptr,int32_t recvlen,struct priv
 
 void BET_player(void *_ptr)
 {
-	printf("\nThe player operation will be done here");
+	while(1){
+	printf("\nPlayer");
+	sleep(5);
+	}
 }
+
+void BET_player1(void *_ptr)
+{
+	while(1){
+	printf("\nPlayer1");
+	sleep(5);
+	}
+}
+
 void BET_clientloop(void *_ptr)
 {
     uint32_t lasttime = 0; int32_t nonz,recvlen,lastChips_paid; uint16_t port=7798; char connectaddr[64],hostip[64]; void *ptr; cJSON *msgjson,*reqjson; struct privatebet_vars *VARS; struct privatebet_info *bet = _ptr;
