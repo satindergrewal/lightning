@@ -311,59 +311,43 @@ int main(int argc,const char *argv[])
 		
 		#if 1 //using threads
 			pthread_t player_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
+			uint32_t values[CARDS777_MAXPLAYERS];
 			OS_randombytes((uint8_t *)&range,sizeof(range));
 			OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
 			range = (range % 52) + 1;
 			numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
 			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
-			
-			for(i=0;i<numplayers && 0;i++){
-				if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)i) != 0 )
-						{
-							printf("error launching BET_clientloop\n");
-							exit(-1);
-						}
-				printf("\n:%d",i);		
+			for(i=0;i<numplayers;i++){
+				values[i]=i;
+				if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)&values[i]) != 0 )
+				{
+					printf("error launching BET_clientloop\n");
+					exit(-1);
+				}
 			}
-			i=0;
-			if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)&i) != 0 )
-						{
-							printf("error launching BET_clientloop\n");
-							exit(-1);
-						}
-			i=1;
-			if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)&i) != 0 )
-						{
-							printf("error launching BET_clientloop\n");
-							exit(-1);
-						}
-			/*
 			if ( OS_thread_create(&dcv_t,NULL,(void *)BET_dcv,(void *)BET) != 0 )
 			{
 				printf("error launching BET_clientloop\n");
 				exit(-1);
 			}
 	
-			
 			if ( OS_thread_create(&bvv_t,NULL,(void *)BET_bvv,(void *)BET) != 0 )
 			{
 				printf("error launching BET_clientloop\n");
 				exit(-1);
 			}
-	*/
+
 			for(i=0;i<numplayers;i++){
 				if(pthread_join(player_t[i],NULL)){
 					printf("\nError in joining the main thread for player thread %d",i);
 				}
 			}
-	/*
 			if(pthread_join(dcv_t,NULL)){
-				printf("\nError in joining the main thread for DCV thread");
+				printf("\nError in joining the main thread for dcv");
 			}
 			if(pthread_join(bvv_t,NULL)){
-				printf("\nError in joining the main thread for BVV thread");
+				printf("\nError in joining the main thread for bvv");
 			}
-	*/
 	
 	
 	

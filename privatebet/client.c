@@ -331,9 +331,9 @@ int32_t BET_clientupdate(cJSON *argjson,uint8_t *ptr,int32_t recvlen,struct priv
 
 void* BET_player(void *_ptr)
 {
-	int playerid=(int)_ptr;
+	int *playerid=_ptr;
 	while(1){
-	printf("\nPlayer %d",playerid);
+	printf("\nPlayer %d",*playerid);
 	sleep(5);
 	}
 	return NULL;
