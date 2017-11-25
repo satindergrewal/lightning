@@ -316,7 +316,7 @@ int main(int argc,const char *argv[])
 			OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
 			range = (range % 52) + 1;
 			numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
-			numplayers=1;
+			numplayers=0;
 			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
 			for(i=0;i<numplayers;i++){
 				values[i]=i;
@@ -331,13 +331,13 @@ int main(int argc,const char *argv[])
 				printf("error launching BET_clientloop\n");
 				exit(-1);
 			}
-	
+			/*
 			if ( OS_thread_create(&bvv_t,NULL,(void *)BET_bvv,(void *)BET) != 0 )
 			{
 				printf("error launching BET_clientloop\n");
 				exit(-1);
 			}
-
+			*/
 			for(i=0;i<numplayers;i++){
 				if(pthread_join(player_t[i],NULL)){
 					printf("\nError in joining the main thread for player thread %d",i);
@@ -346,11 +346,12 @@ int main(int argc,const char *argv[])
 			if(pthread_join(dcv_t,NULL)){
 				printf("\nError in joining the main thread for dcv");
 			}
+			/*
 			if(pthread_join(bvv_t,NULL)){
 				printf("\nError in joining the main thread for bvv");
 			}
 	
-	
+			*/
 	
 		#endif
 		testmode=1;

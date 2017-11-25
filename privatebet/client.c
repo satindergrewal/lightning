@@ -414,13 +414,14 @@ void* BET_dcv(void *_ptr)
 	
 	  const char *url="ipc:///tmp/bet.ipc";
 	  int sock = nn_socket (AF_SP, NN_PUB);
-	  assert (sock >= 0);
-	  assert (nn_bind (sock, url) >= 0);
+	 // assert (sock >= 0);
+	  //assert (nn_bind (sock, url) >= 0);
 	  while (1)
 	    {
 	      char *buf = "some data";
 	      int bytes=nn_send(sock,buf,sizeof(buf),0);
-	      assert (bytes == sizeof(buf));
+	      printf("\ndcv: %d %d",bytes,sizeof(buf));
+		//assert (bytes == sizeof(buf));
 	      printf ("sent:dcv: %s\n",buf);
 	      nn_freemsg (buf);
 		  sleep(5);
