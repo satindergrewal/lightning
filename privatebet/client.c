@@ -419,7 +419,7 @@ void* BET_dcv(void *_ptr)
 	  while (1)
 	    {
 	      char *buf = "some data";
-	      int bytes=nn_send(sock,buf,sizeof(buf),0)
+	      int bytes=nn_send(sock,buf,sizeof(buf),0);
 	      assert (bytes == sizeof(buf));
 	      printf ("sent:dcv: %s\n",buf);
 	      nn_freemsg (buf);
