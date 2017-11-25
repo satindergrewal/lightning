@@ -189,7 +189,7 @@ int main(int argc,const char *argv[])
         } else printf("need to have CHIPS and lightning running\n"), exit(-1);
         printf("help.(%s)\n",jprint(chipsln_help(),1));
         printf("LN_idstr.(%s)\n",LN_idstr);
-        if ( (argjson= cJSON_Parse(argv[1])) != 0 )
+		if ( (argjson= cJSON_Parse(argv[1])) != 0 )
         {
             hostip = jstr(argjson,"hostip");
             if ( (tmp= juint(argjson,"hostport")) != 0 )
@@ -316,6 +316,7 @@ int main(int argc,const char *argv[])
 			OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
 			range = (range % 52) + 1;
 			numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
+			numplayers=1;
 			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
 			for(i=0;i<numplayers;i++){
 				values[i]=i;
