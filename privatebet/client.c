@@ -396,41 +396,21 @@ void* BET_player(void *_ptr)
 	  const char *url="ipc:///tmp/bet.ipc";	
 	  assert (sock >= 0);
 	  assert (nn_connect (sock, url) >= 0);
-	  while (1)
+      assert (nn_setsockopt(sock,NN_SUB,NN_SUB_SUBSCRIBE,"",0)>=0);
+      while (1)
 	    {
 	      char *buf = NULL;
-	      int bytes = nn_recv (sock, &buf, NN_MSG, 0);
+          int bytes = nn_recv (sock, &buf, NN_MSG, 0);
 	      assert (bytes >= 0);
-	      printf ("received:player: %s\n",buf);
-	      nn_freemsg (buf);
+	      printf ("received:player: %s:%d\n",buf,bytes);
+	      
 		  sleep(5);
 	    }
 	  nn_shutdown (sock, 0);
       return NULL;
 }
 
-void* BET_dcv(void *_ptr)
-{
-	
-	  const char *url="ipc:///tmp/bet.ipc";
-	  int sock = nn_socket (AF_SP, NN_PUB);
-	  assert (sock >= 0);
-	  assert (nn_bind (sock, url) >= 0);
-	  #if 0
-            while (1)
-	    {
-	      char *buf = "some data";
-	      int bytes=nn_send(sock,buf,sizeof(buf),0);
-	      printf("\ndcv: %d %d",bytes,sizeof(buf));
-		//assert (bytes == sizeof(buf));
-	      printf ("sent:dcv: %s\n",buf);
-	      nn_freemsg (buf);
-		  sleep(5);
-	    }
-	  nn_shutdown (sock, 0);
-	 #endif 
-	return NULL;
-}
+
 
 void* BET_bvv(void *_ptr)
 {
@@ -438,14 +418,14 @@ void* BET_bvv(void *_ptr)
 	  const char *url="ipc:///tmp/bet.ipc";	
 	  assert (sock >= 0);
 	  assert (nn_connect (sock, url) >= 0);
+      assert (nn_setsockopt(sock,NN_SUB,NN_SUB_SUBSCRIBE,"",0)>=0);
 	  while (1)
 	    {
 	      char *buf = NULL;
 	      int bytes = nn_recv (sock, &buf, NN_MSG, 0);
 	      assert (bytes >= 0);
 	      printf ("received:bvv: %s\n",buf);
-	      nn_freemsg (buf);
-		  sleep(5);
+	      sleep(5);
 	    }
 	  nn_shutdown (sock, 0);
       return NULL;

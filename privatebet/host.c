@@ -345,3 +345,23 @@ void BET_hostloop(void *_ptr)
         }
     }
 }
+void* BET_dcv(void *_ptr)
+{
+    
+      const char *url="ipc:///tmp/bet.ipc";
+      int sock = nn_socket (AF_SP, NN_PUB);
+      assert (sock >= 0);
+      assert (nn_bind (sock, url) >= 0);
+        while (1)
+        {
+          char buf[20] = "some data";
+
+          int bytes=nn_send(sock,buf,sizeof(buf),0);
+          assert (bytes == sizeof(buf));
+          printf ("sent:dcv: %s:%d\n",buf,bytes);
+          
+          sleep(5);
+        }
+      nn_shutdown (sock, 0);
+      return NULL;
+}
