@@ -306,27 +306,29 @@ int main(int argc,const char *argv[])
     }
     else
     {
-        printf("no argjson, default to testmode\n");
-
-		 cJSON *root;
-  		char str [ 65 ];
-		bits256 rand=rand256(1),r_value;
-		jaddbits256(root,"random",rand);
-		r_value=jbits256(root,"random");
-
-		printf("\nrandom:%s\nr_value=%s",bits256_str(str,rand),bits256_str(str,r_value));
+        
 		
-		#if 0 //using threads
+		#if 1 //using threads
+			cJSON *gameInfo=NULL;
 			pthread_t player_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
 			uint32_t values[CARDS777_MAXPLAYERS];
 			OS_randombytes((uint8_t *)&range,sizeof(range));
 			OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
 			range = (range % 52) + 1;
 			numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
+
+			gameInfo=cJSON_CreateObject();
+			cJSON_AddNumberToObject(game_info,"numplayers",numplayers);
+			cJSON_AddNumberToObject(game_info,"range",range);
+			cJSON_AddNumberToObject(game_info,"maxnumplayers",CARDS777_MAXPLAYERS);
+			cJSON_AddNumberToObject(game_info,"maxrange",CARDS777_MAXCARDS);
+			
+			
+			
 			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
 			for(i=0;i<numplayers;i++){
 				values[i]=i;
-				if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)&values[i]) != 0 )
+				if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)gameInfo) != 0 )
 				{
 					printf("error launching BET_clientloop\n");
 					exit(-1);

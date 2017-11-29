@@ -390,10 +390,57 @@ void BET_clientloop(void *_ptr)
     }
 }
 
+struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
+{
+    int32_t i; struct pair256 key,tmp;
+    key.priv=curve25519_keypair(&key.prod);
+    for (i=0; i<numcards; i++) {
+        tmp.priv = card_rand256(1,i);
+        tmp.prod = curve25519(tmp.priv,curve25519_basepoint9());
+        randcards[i] = tmp;
+    }
+    return(key);
+}
+
+struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards)
+{
+    int32_t i; struct pair256 key,randcards[256];
+    key = deckgen_common(randcards,numcards);
+    BET_permutation(permis,numcards);
+    for (i=0; i<numcards; i++)
+    {
+        playerprivs[i] = randcards[permis[i]].priv;
+        playercards[i]=curve25519(playerprivs[i],key.prod);
+    }
+    return(key);
+}
+
+
 void* BET_player(void *_ptr)
 {
-	  int sock = nn_socket (AF_SP, NN_SUB);
-	  const char *url="ipc:///tmp/bet.ipc";	
+	 bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS];
+	 struct pair256 key;
+	 int32_t permis[CARDS777_MAXCARDS],numcards;
+
+	 int sock = nn_socket (AF_SP, NN_SUB);
+	 const char *url="ipc:///tmp/bet.ipc";	
+	 
+	 cJSON *player=NULL,*gameInfo=NULL;
+	 gameInfo=_ptr;
+
+	 
+	 printf("\nNumber of players:%d",jint(gameInfo,"numplayers"));	
+
+	//key = deckgen_player(playerprivs,playercards,permis,numcards);
+		
+
+
+
+
+
+
+
+
 	  assert (sock >= 0);
 	  assert (nn_connect (sock, url) >= 0);
       assert (nn_setsockopt(sock,NN_SUB,NN_SUB_SUBSCRIBE,"",0)>=0);
