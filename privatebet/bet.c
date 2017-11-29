@@ -326,13 +326,11 @@ int main(int argc,const char *argv[])
 			char *rendered= cJSON_Print(gameInfo);
 			
 			printf("\nnumplayers=%d",jint(gameInfo,"numplayers"));
-			printf("\nsize of json=%d",strlen(rendered));
 			printf("\n%s",rendered);
 			numplayers=1;
-			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
 			for(i=0;i<numplayers;i++){
 				values[i]=i;
-				if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)gameInfo) != 0 )
+				if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)rendered) != 0 )
 				{
 					printf("error launching BET_clientloop\n");
 					exit(-1);

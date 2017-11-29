@@ -424,7 +424,7 @@ void* BET_player(void *_ptr)
 	 int sock = nn_socket (AF_SP, NN_SUB);
 	 const char *url="ipc:///tmp/bet.ipc";	
 	 
-	 cJSON *player=NULL,*gameInfo=_ptr;
+	 cJSON *player=NULL,*gameInfo=cJSON_Parse(_ptr);
 
 	 if(gameInfo==NULL)
 	 	printf("\n%s:%d",__FUNCTION__,__LINE__);
