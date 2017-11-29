@@ -419,14 +419,15 @@ struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t 
 void* BET_player(void *_ptr)
 {
 	 bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS];
-	 struct pair256 key;
 	 int32_t permis[CARDS777_MAXCARDS],numcards;
 
 	 int sock = nn_socket (AF_SP, NN_SUB);
 	 const char *url="ipc:///tmp/bet.ipc";	
 	 
-	 cJSON *player=NULL,*gameInfo=NULL;
-	 gameInfo=_ptr;
+	 cJSON *player=NULL,*gameInfo=_ptr;
+
+	 if(gameInfo==NULL)
+	 	printf("\n%s:%d",__FUNCTION__,__LINE__);
 
 	 
 	 printf("\nNumber of players:%d",jint(gameInfo,"numplayers"));	
