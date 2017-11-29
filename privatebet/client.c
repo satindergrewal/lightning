@@ -432,8 +432,9 @@ void* BET_player(void *_ptr)
 	 if(gameInfo==NULL)
 	 	printf("\n%s:%d",__FUNCTION__,__LINE__);
 
-	 
+	 	printf("\n%s:%d",__FUNCTION__,__LINE__);
 	 printf("\nNumber of players:%d",jint(gameInfo,"numplayers"));	
+	 printf("\n%s:%d",__FUNCTION__,__LINE__);
 
 	//key = deckgen_player(playerprivs,playercards,permis,numcards);
 		
