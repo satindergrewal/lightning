@@ -347,7 +347,20 @@ void BET_hostloop(void *_ptr)
 }
 void* BET_dcv(void *_ptr)
 {
-    
+		uint32 numplayers,range;
+		cJSON *gameInfo=NULL;
+    	OS_randombytes((uint8_t *)&range,sizeof(range));
+		OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
+		range = (range % 52) + 1;
+		numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
+
+		gameInfo=cJSON_CreateObject();
+		cJSON_AddNumberToObject(gameInfo,"numplayers",numplayers);
+		cJSON_AddNumberToObject(gameInfo,"range",range);
+		cJSON_AddNumberToObject(gameInfo,"maxnumplayers",CARDS777_MAXPLAYERS);
+		cJSON_AddNumberToObject(gameInfo,"maxrange",CARDS777_MAXCARDS);
+
+	  printf("\nnumplayers=%d",jint(gameInfo,"numplayers"));
       const char *url="ipc:///tmp/bet.ipc";
       int sock = nn_socket (AF_SP, NN_PUB);
       assert (sock >= 0);
