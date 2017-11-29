@@ -318,7 +318,8 @@ int main(int argc,const char *argv[])
   		cJSON_AddNumberToObject(fmt, "height", 1080);
   		cJSON_AddFalseToObject (fmt, "interlace");
   		cJSON_AddNumberToObject(fmt, "frame rate", 24);
-		cJSON_Print(root);
+		
+		jprint(root,1);
 
 
 		#if 0 //using threads
