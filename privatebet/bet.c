@@ -326,7 +326,8 @@ int main(int argc,const char *argv[])
 			char *rendered= cJSON_Print(gameInfo);
 			
 			printf("\nnumplayers=%d",jint(gameInfo,"numplayers"));
-			printf("\nsize of json=%d",sizeof(rendered));
+			printf("\nsize of json=%d",strlen(rendered));
+			printf("\n%s",rendered);
 			numplayers=1;
 			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
 			for(i=0;i<numplayers;i++){
