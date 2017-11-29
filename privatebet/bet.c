@@ -324,7 +324,7 @@ int main(int argc,const char *argv[])
 			cJSON_AddNumberToObject(game_info,"maxrange",CARDS777_MAXCARDS);
 			
 			
-			
+			numplayers=1;
 			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
 			for(i=0;i<numplayers;i++){
 				values[i]=i;
@@ -334,6 +334,7 @@ int main(int argc,const char *argv[])
 					exit(-1);
 				}
 			}
+			/*
 			if ( OS_thread_create(&dcv_t,NULL,(void *)BET_dcv,(void *)BET) != 0 )
 			{
 				printf("error launching BET_clientloop\n");
@@ -345,16 +346,17 @@ int main(int argc,const char *argv[])
 				printf("error launching BET_clientloop\n");
 				exit(-1);
 			}
-			
+			*/
 			for(i=0;i<numplayers;i++){
 				if(pthread_join(player_t[i],NULL)){
 					printf("\nError in joining the main thread for player thread %d",i);
 				}
 			}
+			/*
 			if(pthread_join(dcv_t,NULL)){
 				printf("\nError in joining the main thread for dcv");
 			}
-			/*
+			
 			if(pthread_join(bvv_t,NULL)){
 				printf("\nError in joining the main thread for bvv");
 			}
