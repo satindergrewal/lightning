@@ -323,8 +323,10 @@ int main(int argc,const char *argv[])
 			cJSON_AddNumberToObject(gameInfo,"maxnumplayers",CARDS777_MAXPLAYERS);
 			cJSON_AddNumberToObject(gameInfo,"maxrange",CARDS777_MAXCARDS);
 
+			char *rendered= cJSON_Print(gameInfo);
+			
 			printf("\nnumplayers=%d",jint(gameInfo,"numplayers"));
-			printf("\nsize of json=%d",sizeof(gameInfo));
+			printf("\nsize of json=%d",sizeof(rendered));
 			numplayers=1;
 			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
 			for(i=0;i<numplayers;i++){
