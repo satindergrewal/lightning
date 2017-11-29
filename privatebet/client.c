@@ -449,7 +449,7 @@ void* BET_player(void *_ptr)
 	  assert (sock >= 0);
 	  assert (nn_connect (sock, url) >= 0);
       assert (nn_setsockopt(sock,NN_SUB,NN_SUB_SUBSCRIBE,"",0)>=0);
-      while (1)
+      while (0)
 	    {
 	      char *buf = NULL;
           int bytes = nn_recv (sock, &buf, NN_MSG, 0);
