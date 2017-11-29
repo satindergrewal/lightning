@@ -389,6 +389,7 @@ void BET_clientloop(void *_ptr)
         }
     }
 }
+struct pair256 { bits256 priv,prod; };
 
 struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
 {

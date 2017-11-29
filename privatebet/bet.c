@@ -318,10 +318,10 @@ int main(int argc,const char *argv[])
 			numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
 
 			gameInfo=cJSON_CreateObject();
-			cJSON_AddNumberToObject(game_info,"numplayers",numplayers);
-			cJSON_AddNumberToObject(game_info,"range",range);
-			cJSON_AddNumberToObject(game_info,"maxnumplayers",CARDS777_MAXPLAYERS);
-			cJSON_AddNumberToObject(game_info,"maxrange",CARDS777_MAXCARDS);
+			cJSON_AddNumberToObject(gameInfo,"numplayers",numplayers);
+			cJSON_AddNumberToObject(gameInfo,"range",range);
+			cJSON_AddNumberToObject(gameInfo,"maxnumplayers",CARDS777_MAXPLAYERS);
+			cJSON_AddNumberToObject(gameInfo,"maxrange",CARDS777_MAXCARDS);
 			
 			
 			numplayers=1;
