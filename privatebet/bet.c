@@ -309,19 +309,13 @@ int main(int argc,const char *argv[])
         printf("no argjson, default to testmode\n");
 
 		 cJSON *root;
-  		cJSON *fmt;
-  		root = cJSON_CreateObject();
-  		cJSON_AddItemToObject(root, "name", cJSON_CreateString("Jack (\"Bee\") Nimble"));
-  		cJSON_AddItemToObject(root, "format", fmt = cJSON_CreateObject());
-  		cJSON_AddStringToObject(fmt, "type", "rect");
-  		cJSON_AddNumberToObject(fmt, "width", 1920);
-  		cJSON_AddNumberToObject(fmt, "height", 1080);
-  		cJSON_AddFalseToObject (fmt, "interlace");
-  		cJSON_AddNumberToObject(fmt, "frame rate", 24);
+  		char str [ 65 ];
+		bits256 rand=rand256(1),r_value;
+		jaddbits256(root,"random",rand);
+		r_value=jbits256(root,"random");
+
+		printf("\nrandom:%s\nr_value=%s",bits256_str(str,rand),bits256_str(str,r_value));
 		
-		jprint(root,1);
-
-
 		#if 0 //using threads
 			pthread_t player_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
 			uint32_t values[CARDS777_MAXPLAYERS];
