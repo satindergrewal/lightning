@@ -347,7 +347,7 @@ void BET_hostloop(void *_ptr)
 }
 void* BET_dcv(void *_ptr)
 {
-		uint32 numplayers,range;
+		uint32_t numplayers,range;
 		cJSON *gameInfo=NULL;
     	OS_randombytes((uint8_t *)&range,sizeof(range));
 		OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
