@@ -404,7 +404,7 @@ void* BET_player(void *_ptr)
 
 	 numplayers=jint(gameInfo,"numplayers");
 	 numcards=jint(gameInfo,"numcards");
-	 
+	 printf("\n numplayers=%d,numcards=%d",numplayers,numcards);
 	 key = deckgen_player(playerprivs,playercards,permis,numcards);
 		
 	 playerInfo=cJSON_CreateObject();
@@ -412,7 +412,8 @@ void* BET_player(void *_ptr)
 	 for(int i=0;i<numcards;i++){
 		cJSON_AddItemToArray(cjsonplayercards,cJSON_CreateString(bits256_str(str,playercards[i])));
 	 }
-	 printf("\nPrinting array");
+	 
+	 printf("\nPrinting array:%s",cJSON_Print(playerInfo));
 	temp=cJSON_GetObjectItem(playerInfo,"playercards");
 	if(is_cJSON_Array(temp)==0) {
 		printf("\nSize of array:%d",cJSON_GetArraySize(temp));
