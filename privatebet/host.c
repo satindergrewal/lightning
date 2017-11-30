@@ -361,11 +361,12 @@ void* BET_dcv(void *_ptr)
 		cJSON_AddNumberToObject(gameInfo,"maxrange",CARDS777_MAXCARDS);
 
 	  printf("\nnumplayers=%d",jint(gameInfo,"numplayers"));
-      const char *url="ipc:///tmp/bet.ipc";
+      const char *url="ipc:///tmp/bet.ipc",*url1="ipc:///tmp/bet1.ipc";
       int pubsock,pullsock;
+	 #if 1
 	  pullsock=nn_socket(AF_SP,NN_PULL);
 	  assert(pullsock >= 0);
-	  nn_bind(pullsock,"ipc:///tmp/bet.ipc");
+	  nn_bind(pullsock,url1);
 
 	  char *buf=NULL;
 	  int bytes=nn_recv(pullsock,&buf,NN_MSG,0);
@@ -383,6 +384,7 @@ void* BET_dcv(void *_ptr)
 		
 	}
 	nn_shutdown(pullsock,0);
+	#endif
 	  #if 1
 	  
 	  pubsock= nn_socket (AF_SP, NN_PUB);

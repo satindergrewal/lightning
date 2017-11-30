@@ -396,7 +396,7 @@ void* BET_player(void *_ptr)
 	 int32_t permis[CARDS777_MAXCARDS],numcards,numplayers;
 	 struct pair256 key;
 	 int pushsock,pullsock,pubsock,subsock;
-	 const char *url="ipc:///tmp/bet.ipc";	
+	 const char *url="ipc:///tmp/bet.ipc",*url1="ipc:///tmp/bet1.ipc";	
 	 char str[65];
 	 
 	 cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp,*item;
@@ -412,28 +412,27 @@ void* BET_player(void *_ptr)
 	 for(int i=0;i<numcards;i++){
 	 	cJSON_AddItemToArray(cjsonplayercards,cJSON_CreateString(bits256_str(str,playercards[i])));
 	}
-	
+	#if 1
 	pushsock=nn_socket(AF_SP,NN_PUSH);
 	assert(pushsock >= 0);
-	assert (nn_connect (pushsock, url) >= 0);
+	assert (nn_connect (pushsock, url1) >= 0);
     char *rendered=cJSON_Print(playerInfo);
 	int bytes=nn_send(pushsock,rendered,strlen(rendered),0);
 	printf("\nNumber of bytes sent:%d:\n",bytes);
 	nn_shutdown(pushsock,0);
-	
+	#endif
 	
 	#if 1
 	  subsock = nn_socket (AF_SP, NN_SUB);	
 	  assert (subsock >= 0);
 	  assert (nn_connect (subsock, url) >= 0);
-      assert (nn_setsockopt(subsock,NN_SUB,NN_SUB_SUBSCRIBE,"",0)>=0);
+          assert (nn_setsockopt(subsock,NN_SUB,NN_SUB_SUBSCRIBE,"",0)>=0);
       while (1)
 	    {
 	      char *buf = NULL;
-          int bytes = nn_recv (subsock, &buf, NN_MSG, 0);
+              int bytes = nn_recv (subsock, &buf, NN_MSG, 0);
 	      assert (bytes >= 0);
 	      printf ("received:player: %s:%d\n",buf,bytes);
-	      
 		  sleep(5);
 	    }
 	  nn_shutdown (subsock, 0);
