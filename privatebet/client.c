@@ -403,7 +403,7 @@ void* BET_player(void *_ptr)
 	 gameInfo=cJSON_Parse(_ptr);
 
 	 numplayers=jint(gameInfo,"numplayers");
-	 numcards=jint(gameInfo,"numcards");
+	 numcards=jint(gameInfo,"range");
 	 printf("\n numplayers=%d,numcards=%d",numplayers,numcards);
 	 key = deckgen_player(playerprivs,playercards,permis,numcards);
 		
