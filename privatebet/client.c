@@ -399,7 +399,7 @@ void* BET_player(void *_ptr)
 	 const char *url="ipc:///tmp/bet.ipc";	
 	 char str[65];
 	 
-	 cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp;
+	 cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp,*item;
 	 gameInfo=cJSON_Parse(_ptr);
 
 	 numplayers=jint(gameInfo,"numplayers");
@@ -410,7 +410,8 @@ void* BET_player(void *_ptr)
 	 playerInfo=cJSON_CreateObject();
 	 cJSON_AddItemToObject(playerInfo,"playercards",cjsonplayercards=cJSON_CreateArray());
 	 for(int i=0;i<numcards;i++){
-		cJSON_AddItemToArray(cjsonplayercards,cJSON_CreateString(bits256_str(str,playercards[i])));
+	 	cJSON_AddItemToArray(cjsonplayercards,cJSON_CreateString(bits256_str(str,playercards[i])));
+		printf("\nInside:%s",bits256_str(str,playercards[i]));
 	 }
 	 
 	 printf("\nPrinting array:%s",cJSON_Print(playerInfo));
