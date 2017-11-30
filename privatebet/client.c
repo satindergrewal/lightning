@@ -417,7 +417,8 @@ void* BET_player(void *_ptr)
 	assert(pushsock >= 0);
 	assert (nn_connect (pushsock, url) >= 0);
     
-	nn_send(pushsock,cJSON_Print(playerInfo),strlen(cJSON_Print(playerInfo)),0);
+	int bytes=nn_send(pushsock,cJSON_Print(playerInfo),strlen(cJSON_Print(playerInfo)),0);
+	printf("\nNumber of bytes sent:%d",bytes);
 	nn_shutdown(pushsock,0);
 
 	#if 0
