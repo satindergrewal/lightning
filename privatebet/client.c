@@ -421,7 +421,7 @@ void* BET_player(void *_ptr)
 	printf("\nNumber of bytes sent:%d:%s\n",bytes,rendered);
 	nn_shutdown(pushsock,0);
 	temp=cJSON_Parse(rendered);
-	if(is_cJSON_Object(temp)==0){
+	if(is_cJSON_Object(temp)!=0){
 		printf("\n%s %d ",__FUNCTION__,__LINE__);
 		cJSON_Print(temp);
 	}
