@@ -389,7 +389,9 @@ void BET_clientloop(void *_ptr)
         }
     }
 }
-#if 0
+#if 1
+struct pair256 { bits256 priv,prod; };
+
 struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
 {
     int32_t i; struct pair256 key,tmp;
@@ -427,16 +429,7 @@ void* BET_player(void *_ptr)
 	 cJSON *player=NULL,*gameInfo;
 	 gameInfo=cJSON_Parse(_ptr);
 
-	 printf("\n%s",_ptr);
-
-	 if(gameInfo==NULL)
-	 	printf("\n%s:%d",__FUNCTION__,__LINE__);
-
-	 	printf("\n%s:%d",__FUNCTION__,__LINE__);
-	 printf("\nNumber of players:%d",jint(gameInfo,"numplayers"));	
-	 printf("\n%s:%d",__FUNCTION__,__LINE__);
-
-	//key = deckgen_player(playerprivs,playercards,permis,numcards);
+	key = deckgen_player(playerprivs,playercards,permis,numcards);
 		
 
 
