@@ -422,7 +422,7 @@ void* BET_player(void *_ptr)
 	nn_shutdown(pushsock,0);
 	
 	
-	#if 0
+	#if 1
 	  subsock = nn_socket (AF_SP, NN_SUB);	
 	  assert (subsock >= 0);
 	  assert (nn_connect (subsock, url) >= 0);

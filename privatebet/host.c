@@ -382,8 +382,8 @@ void* BET_dcv(void *_ptr)
 		}
 		
 	}
-			
-	  #if 0
+	nn_shutdown(pullsock,0);
+	  #if 1
 	  
 	  pubsock= nn_socket (AF_SP, NN_PUB);
       assert (pubsock >= 0);
