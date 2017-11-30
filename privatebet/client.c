@@ -418,13 +418,18 @@ void* BET_player(void *_ptr)
 	assert (nn_connect (pushsock, url) >= 0);
     char *rendered=cJSON_Print(playerInfo);
 	int bytes=nn_send(pushsock,rendered,strlen(rendered),0);
-	printf("\nNumber of bytes sent:%d:%s\n",bytes,rendered);
+	printf("\nNumber of bytes sent:%d:\n",bytes);
 	nn_shutdown(pushsock,0);
+	temp=NULL;
 	temp=cJSON_Parse(rendered);
 	if(is_cJSON_Object(temp)!=0){
-		printf("\n%s %d ",__FUNCTION__,__LINE__);
+		printf("object is created");
 		cJSON_Print(temp);
 	}
+	else {
+		printf("\nobject creation failed");
+	}
+	
 	#if 0
 	  subsock = nn_socket (AF_SP, NN_SUB);	
 	  assert (subsock >= 0);
