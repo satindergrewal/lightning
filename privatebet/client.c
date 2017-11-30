@@ -427,7 +427,7 @@ void* BET_player(void *_ptr)
 	  assert (subsock >= 0);
 	  assert (nn_connect (subsock, url) >= 0);
       assert (nn_setsockopt(subsock,NN_SUB,NN_SUB_SUBSCRIBE,"",0)>=0);
-      while (0)
+      while (1)
 	    {
 	      char *buf = NULL;
           int bytes = nn_recv (subsock, &buf, NN_MSG, 0);
