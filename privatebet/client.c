@@ -389,8 +389,7 @@ void BET_clientloop(void *_ptr)
         }
     }
 }
-#if 1
-struct pair256 { bits256 priv,prod; };
+#if 0
 
 struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
 {
@@ -422,7 +421,7 @@ void* BET_player(void *_ptr)
 {
 	 bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS];
 	 int32_t permis[CARDS777_MAXCARDS],numcards;
-
+	 
 	 int sock = nn_socket (AF_SP, NN_SUB);
 	 const char *url="ipc:///tmp/bet.ipc";	
 	 

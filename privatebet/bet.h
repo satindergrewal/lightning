@@ -299,6 +299,9 @@ struct privatebet_vars
     cJSON *actions[CARDS777_MAXROUNDS][CARDS777_MAXPLAYERS+1];
     int32_t mypermi[CARDS777_MAXCARDS],permi[CARDS777_MAXCARDS],turni,round,validperms,roundready,lastround,numconsensus;
 };
+
+struct pair256 { bits256 priv,prod; };
+
 bits256 *BET_process_packet(bits256 *cardpubs,bits256 *deckidp,bits256 senderpub,bits256 mypriv,uint8_t *decoded,int32_t maxsize,bits256 mypub,uint8_t *sendbuf,int32_t size,int32_t checkplayers,int32_t range);
 cJSON *BET_hostrhashes(struct privatebet_info *bet);
 bits256 BET_clientrhash();
