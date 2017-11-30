@@ -435,6 +435,9 @@ void* BET_player(void *_ptr)
 		else {
 			
 				printf("\nArray size:%d",cJSON_GetArraySize(item));
+				for(int i=0;i<cJSON_GetArraySize(item);i++){
+					printf("\n%s",cJSON_str(cJSON_GetArrayItem(item,i)));
+				}
 		}
 	}
 	
