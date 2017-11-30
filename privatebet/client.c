@@ -389,49 +389,39 @@ void BET_clientloop(void *_ptr)
         }
     }
 }
-#if 0
-
-struct pair256 client_deckgen_common(struct pair256 *randcards,int32_t numcards)
-{
-    int32_t i; struct pair256 key,tmp;
-    key.priv=curve25519_keypair(&key.prod);
-    for (i=0; i<numcards; i++) {
-        tmp.priv = card_rand256(1,i);
-        tmp.prod = curve25519(tmp.priv,curve25519_basepoint9());
-        randcards[i] = tmp;
-    }
-    return(key);
-}
-
-struct pair256 client_deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards)
-{
-    int32_t i; struct pair256 key,randcards[256];
-    key = client_deckgen_common(randcards,numcards);
-    BET_permutation(permis,numcards);
-    for (i=0; i<numcards; i++)
-    {
-        playerprivs[i] = randcards[permis[i]].priv;
-        playercards[i]=curve25519(playerprivs[i],key.prod);
-    }
-    return(key);
-}
-#endif
 
 void* BET_player(void *_ptr)
 {
 	 bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS];
-	 int32_t permis[CARDS777_MAXCARDS],numcards;
+	 int32_t permis[CARDS777_MAXCARDS],numcards,numplayers;
 	 struct pair256 key;
 	 int sock = nn_socket (AF_SP, NN_SUB);
 	 const char *url="ipc:///tmp/bet.ipc";	
+	 char str[65];
 	 
-	 cJSON *player=NULL,*gameInfo;
+	 cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp;
 	 gameInfo=cJSON_Parse(_ptr);
 
-	key = deckgen_player(playerprivs,playercards,permis,numcards);
+	 numplayers=jint(gameInfo,"numplayers");
+	 numcards=jint(gameInfo,"numcards");
+	 
+	 key = deckgen_player(playerprivs,playercards,permis,numcards);
 		
-
-
+	 playerInfo=cJSON_CreateObject();
+	 cJSON_AddItemToObject(playerInfo,"playercards",cjsonplayercards=cJSON_CreateArray());
+	 for(int i=0;i<numcards;i++){
+		cJSON_AddItemToArray(cjsonplayercards,cJSON_CreateString(bits256_str(str,playercards[i])));
+	 }
+	 printf("\nPrinting array");
+	temp=cJSON_GetObjectItem(playerInfo,"playercards");
+	if(is_cJSON_Array(temp)==0) {
+		printf("\nSize of array:%d",cJSON_GetArraySize(temp));
+		for(int i=0;i<cJSON_GetArraySize(temp);i++){
+			printf("\n%s",cJSON_GetArrayItem(temp,i));
+		}
+	}
+	
+	
 
 
 
