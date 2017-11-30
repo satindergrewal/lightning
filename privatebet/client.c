@@ -426,6 +426,17 @@ void* BET_player(void *_ptr)
 		printf("\nparsing failed");
 
 	}
+	else{
+		item=NULL;
+		item=cJSON_GetObjectItem(temp,"playercards");
+		if(item == NULL){
+			printf("\nError in getting array object");
+		}
+		else {
+			
+				printf("\nArray size:%d",cJSON_GetArraySize(item));
+		}
+	}
 	
 	#if 0
 	  subsock = nn_socket (AF_SP, NN_SUB);	
