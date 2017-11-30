@@ -368,7 +368,7 @@ void* BET_dcv(void *_ptr)
 	  nn_bind(pullsock,"ipc:///tmp/bet.ipc");
 
 	  char *buf=NULL;
-	  int bytes=nn_recv(pullsock,&buf,NN_MSG,0);
+	  int bytes=nn_recv(pullsock,buf,NN_MSG,0);
 	  printf("\nNumber of bytes received:%d",bytes);
 	  playerInfo=cJSON_Parse(buf);
 	  cJSON_Print(playerInfo);
