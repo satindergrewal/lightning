@@ -370,8 +370,8 @@ void* BET_dcv(void *_ptr)
 	  char *buf=NULL;
 	  int bytes=nn_recv(pullsock,&buf,NN_MSG,0);
 	  printf("\nNumber of bytes received:%d:%s",bytes,buf);
-	  playerInfo=cJSON_Parse(buf);
-	  cJSON_Print(playerInfo);
+	  //playerInfo=cJSON_Parse(buf);
+	  cJSON_Print(buf);
 	  if(is_cJSON_Object(playerInfo)==0){
 			playercards=cJSON_GetObjectItem(playerInfo,"playercards");
 			if(is_cJSON_Array(playercards)==0){
