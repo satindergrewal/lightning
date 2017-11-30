@@ -416,11 +416,15 @@ void* BET_player(void *_ptr)
 	pushsock=nn_socket(AF_SP,NN_PUSH);
 	assert(pushsock >= 0);
 	assert (nn_connect (pushsock, url) >= 0);
-    
-	int bytes=nn_send(pushsock,cJSON_Print(playerInfo),strlen(cJSON_Print(playerInfo)),0);
-	printf("\nNumber of bytes sent:%d",bytes);
+    char *rendered=cJSON_Print(playerInfo);
+	int bytes=nn_send(pushsock,rendered,strlen(rendered),0);
+	printf("\nNumber of bytes sent:%d:%s\n",bytes,rendered);
 	nn_shutdown(pushsock,0);
-
+	temp=cJSON_Parse(rendered);
+	if(is_cJSON_Object(temp)==0){
+		printf("\n%s %d ",__FUNCTION__,__LINE__);
+		cJSON_Print(temp);
+	}
 	#if 0
 	  subsock = nn_socket (AF_SP, NN_SUB);	
 	  assert (subsock >= 0);
