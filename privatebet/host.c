@@ -348,7 +348,7 @@ void BET_hostloop(void *_ptr)
 void* BET_dcv(void *_ptr)
 {
 		uint32_t numplayers,range;
-		cJSON *gameInfo=NULL;
+		cJSON *gameInfo=NULL,*playerInfo,*playercards;
     	OS_randombytes((uint8_t *)&range,sizeof(range));
 		OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
 		range = (range % 52) + 1;
@@ -362,19 +362,41 @@ void* BET_dcv(void *_ptr)
 
 	  printf("\nnumplayers=%d",jint(gameInfo,"numplayers"));
       const char *url="ipc:///tmp/bet.ipc";
-      int sock = nn_socket (AF_SP, NN_PUB);
-      assert (sock >= 0);
-      assert (nn_bind (sock, url) >= 0);
+      int pubsock,pullsock;
+	  pullsock=nn_socket(AF_SP,NN_PULL);
+	  assert(pullsock >= 0);
+	  nn_bind(pullsock,"ipc:///tmp/bet.ipc");
+
+	  char *buf=NULL;
+	  int bytes=nn_recv(pullsock,&buf,NN_MSG,0);
+	  playerInfo=cJSON_Parse(buf);
+	  if(is_cJSON_Object(playerInfo)==0){
+			playercards=cJSON_GetObjectItem(playerInfo,"playercards");
+			if(is_cJSON_Array(playercards)==0){
+				printf("\nSize of the array:%d",cJSON_GetArraySize(playercards));
+				for(int i=0;i<cJSON_GetArraySize(playercards);i++){
+					printf("\n%s",cJSON_GetArrayItem(playercards,i));
+					
+				}
+			}
+	  }
+		
+	  #if 0
+	  
+	  pubsock= nn_socket (AF_SP, NN_PUB);
+      assert (pubsock >= 0);
+      assert (nn_bind (pubsock, url) >= 0);
         while (1)
         {
           char buf[20] = "some data";
 
-          int bytes=nn_send(sock,buf,sizeof(buf),0);
+          int bytes=nn_send(pubsock,buf,sizeof(buf),0);
           assert (bytes == sizeof(buf));
           printf ("sent:dcv: %s:%d\n",buf,bytes);
           
           sleep(5);
         }
-      nn_shutdown (sock, 0);
+      nn_shutdown (pubsock, 0);
+	  #endif
       return NULL;
 }
