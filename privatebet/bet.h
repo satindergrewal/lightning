@@ -333,5 +333,9 @@ void stats_rpcloop(void *args);
 bits256 xoverz_donna(bits256 a);
 bits256 crecip_donna(bits256 a);
 bits256 fmul_donna(bits256 a,bits256 b);
+bits256 card_rand256(int32_t privkeyflag,int8_t index);
+struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards);
+struct pair256 deckgen_common1(struct pair256 *randcards,int32_t numcards);
+struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards);
 
 

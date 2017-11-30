@@ -391,7 +391,7 @@ void BET_clientloop(void *_ptr)
 }
 #if 0
 
-struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
+struct pair256 client_deckgen_common(struct pair256 *randcards,int32_t numcards)
 {
     int32_t i; struct pair256 key,tmp;
     key.priv=curve25519_keypair(&key.prod);
@@ -403,10 +403,10 @@ struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards)
     return(key);
 }
 
-struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards)
+struct pair256 client_deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards)
 {
     int32_t i; struct pair256 key,randcards[256];
-    key = deckgen_common(randcards,numcards);
+    key = client_deckgen_common(randcards,numcards);
     BET_permutation(permis,numcards);
     for (i=0; i<numcards; i++)
     {
@@ -421,7 +421,7 @@ void* BET_player(void *_ptr)
 {
 	 bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS];
 	 int32_t permis[CARDS777_MAXCARDS],numcards;
-	 
+	 struct pair256 key;
 	 int sock = nn_socket (AF_SP, NN_SUB);
 	 const char *url="ipc:///tmp/bet.ipc";	
 	 
