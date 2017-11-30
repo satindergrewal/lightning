@@ -416,18 +416,15 @@ void* BET_player(void *_ptr)
 	pushsock=nn_socket(AF_SP,NN_PUSH);
 	assert(pushsock >= 0);
 	assert (nn_connect (pushsock, url) >= 0);
-    char *rendered=cJSON_Print(playerInfo);
-	int bytes=nn_send(pushsock,rendered,strlen(rendered),0);
-	printf("\nNumber of bytes sent:%d:\n",bytes);
-	nn_shutdown(pushsock,0);
+        char *rendered=cJSON_Print(playerInfo);
+//	int bytes=nn_send(pushsock,rendered,strlen(rendered),0);
+//	printf("\nNumber of bytes sent:%d:\n",bytes);
+//	nn_shutdown(pushsock,0);
 	temp=NULL;
 	temp=cJSON_Parse(rendered);
-	if(is_cJSON_Object(temp)!=0){
-		printf("object is created");
-		cJSON_Print(temp);
-	}
-	else {
-		printf("\nobject creation failed");
+	if(temp == 0){
+		printf("\nparsing failed");
+
 	}
 	
 	#if 0
