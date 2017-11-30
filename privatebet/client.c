@@ -416,30 +416,11 @@ void* BET_player(void *_ptr)
 	pushsock=nn_socket(AF_SP,NN_PUSH);
 	assert(pushsock >= 0);
 	assert (nn_connect (pushsock, url) >= 0);
-        char *rendered=cJSON_Print(playerInfo);
-//	int bytes=nn_send(pushsock,rendered,strlen(rendered),0);
-//	printf("\nNumber of bytes sent:%d:\n",bytes);
-//	nn_shutdown(pushsock,0);
-	temp=NULL;
-	temp=cJSON_Parse(rendered);
-	if(temp == 0){
-		printf("\nparsing failed");
-
-	}
-	else{
-		item=NULL;
-		item=cJSON_GetObjectItem(temp,"playercards");
-		if(item == NULL){
-			printf("\nError in getting array object");
-		}
-		else {
-			
-				printf("\nArray size:%d",cJSON_GetArraySize(item));
-				for(int i=0;i<cJSON_GetArraySize(item);i++){
-					printf("\n%s",cJSON_str(cJSON_GetArrayItem(item,i)));
-				}
-		}
-	}
+    char *rendered=cJSON_Print(playerInfo);
+	int bytes=nn_send(pushsock,rendered,strlen(rendered),0);
+	printf("\nNumber of bytes sent:%d:\n",bytes);
+	nn_shutdown(pushsock,0);
+	
 	
 	#if 0
 	  subsock = nn_socket (AF_SP, NN_SUB);	

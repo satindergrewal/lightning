@@ -369,21 +369,20 @@ void* BET_dcv(void *_ptr)
 
 	  char *buf=NULL;
 	  int bytes=nn_recv(pullsock,&buf,NN_MSG,0);
-	  printf("\nNumber of bytes received:%d:%s",bytes,buf);
-	  playerInfo=cJSON_Parse(buf);
-	 
-	  if(is_cJSON_Object(playerInfo)==0){
-	  	printf("\n %s %d",__FUNCTION__,__LINE__);
-			playercards=cJSON_GetObjectItem(playerInfo,"playercards");
-			if(is_cJSON_Array(playercards)==0){
-				printf("\nSize of the array:%d",cJSON_GetArraySize(playercards));
-				for(int i=0;i<cJSON_GetArraySize(playercards);i++){
-					printf("\n%s",cJSON_GetArrayItem(playercards,i));
-					
-				}
+	  printf("\nNumber of bytes received:%d",bytes);
+	  
+	playercards=cJSON_Parse(buf);
+	if(playercards){
+		item=cJSON_GetObjectItem(playercards,"playercards");
+		if(item){
+			printf("\nArray size:%d",cJSON_GetArraySize(item));
+			for(int i=0;i<cJSON_GetArraySize(item);i++){
+					printf("\n%s",cJSON_str(cJSON_GetArrayItem(item,i)));
 			}
-	  }
+		}
 		
+	}
+			
 	  #if 0
 	  
 	  pubsock= nn_socket (AF_SP, NN_PUB);
