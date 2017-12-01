@@ -352,8 +352,6 @@ void* BET_hostdcv(void * _ptr)
 		struct privatebet_info *bet = _ptr;
 		
 	  numplayers=bet->numplayers;
-	  printf("\nInside:%s, socket values:%d:%d",__FUNCTION__,bet->pubsock,bet->pullsock);
-		
 	  if ( bet->pubsock >= 0 && bet->pullsock >= 0 )
 	  {
 		while(1)
@@ -362,69 +360,13 @@ void* BET_hostdcv(void * _ptr)
 			int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
 			if(bytes>0)
 			{
+				printf("\n%s:Bytes published:%d",__FUNCTION__,bytes);
 				nn_send(bet->pubsock,buf,bytes,0);
-				#if 0
-				printf("\nNumber of bytes received:%d",bytes);
-				playercards=cJSON_Parse(buf);
-				if(playercards)
-				{
-					item=cJSON_GetObjectItem(playercards,"playercards");
-					if(item)
-					{
-						printf("\nArray size:%d",cJSON_GetArraySize(item));
-						for(int i=0;i<cJSON_GetArraySize(item);i++)
-						{
-						printf("\n%s",cJSON_str(cJSON_GetArrayItem(item,i)));
-						}
-					}
-				}
-				#endif
 			 }
 					
 	      }
 		  nn_shutdown(bet->pullsock,0);
 		  nn_shutdown(bet->pubsock,0);
 	  }
-		
-	 #if 0
-	  pullsock=nn_socket(AF_SP,NN_PULL);
-	  assert(pullsock >= 0);
-	  nn_bind(pullsock,url1);
-
-	  char *buf=NULL;
-	  int bytes=nn_recv(pullsock,&buf,NN_MSG,0);
-	  printf("\nNumber of bytes received:%d",bytes);
-	  
-	playercards=cJSON_Parse(buf);
-	if(playercards){
-		item=cJSON_GetObjectItem(playercards,"playercards");
-		if(item){
-			printf("\nArray size:%d",cJSON_GetArraySize(item));
-			for(int i=0;i<cJSON_GetArraySize(item);i++){
-					printf("\n%s",cJSON_str(cJSON_GetArrayItem(item,i)));
-			}
-		}
-		
-	}
-	nn_shutdown(pullsock,0);
-	#endif
-	  #if 0
-	  
-	  pubsock= nn_socket (AF_SP, NN_PUB);
-      assert (pubsock >= 0);
-      assert (nn_bind (pubsock, url) >= 0);
-        while (1)
-        {
-          char buf[20] = "some data";
-
-          int bytes=nn_send(pubsock,buf,sizeof(buf),0);
-          assert (bytes == sizeof(buf));
-          printf ("sent:dcv: %s:%d\n",buf,bytes);
-          
-          sleep(5);
-        }
-      nn_shutdown (pubsock, 0);
-	  #endif
-	  	
-      return NULL;
+	  return NULL;
 }
