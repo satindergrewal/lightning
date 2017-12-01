@@ -353,6 +353,7 @@ void* BET_hostdcv(void * _ptr)
 		
 	  numplayers=bet->numplayers;
 	  printf("\nInside:%s, socket values:%d:%d",__FUNCTION__,bet->pubsock,bet->pullsock);
+	  sleep(5);
 	  if ( bet->pubsock >= 0 && bet->pullsock >= 0 )
 	  {
 		char *buf=NULL;
