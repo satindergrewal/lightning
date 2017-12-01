@@ -353,23 +353,38 @@ void* BET_hostdcv(void * _ptr)
 		
 	  numplayers=bet->numplayers;
 	  printf("\nInside:%s, socket values:%d:%d",__FUNCTION__,bet->pubsock,bet->pullsock);
-	  sleep(5);
+		
 	  if ( bet->pubsock >= 0 && bet->pullsock >= 0 )
 	  {
-		char *buf=NULL;
-		int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
-		printf("\nNumber of bytes received:%d",bytes);
-		playercards=cJSON_Parse(buf);
-		if(playercards){
-			item=cJSON_GetObjectItem(playercards,"playercards");
-			if(item){
-				printf("\nArray size:%d",cJSON_GetArraySize(item));
-				for(int i=0;i<cJSON_GetArraySize(item);i++){
-				printf("\n%s",cJSON_str(cJSON_GetArrayItem(item,i)));
+		while(1)
+		  {
+			char *buf=NULL;
+			int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
+			if(bytes>0)
+			{
+				nn_send(bet->pubsock,buf,bytes,0);
+				#if 0
+				printf("\nNumber of bytes received:%d",bytes);
+				playercards=cJSON_Parse(buf);
+				if(playercards)
+				{
+					item=cJSON_GetObjectItem(playercards,"playercards");
+					if(item)
+					{
+						printf("\nArray size:%d",cJSON_GetArraySize(item));
+						for(int i=0;i<cJSON_GetArraySize(item);i++)
+						{
+						printf("\n%s",cJSON_str(cJSON_GetArrayItem(item,i)));
+						}
+					}
 				}
-			}
-		}		
-      }
+				#endif
+			 }
+					
+	      }
+		  nn_shutdown(bet->pullsock,0);
+		  nn_shutdown(bet->pubsock,0);
+	  }
 		
 	 #if 0
 	  pullsock=nn_socket(AF_SP,NN_PULL);
@@ -410,6 +425,6 @@ void* BET_hostdcv(void * _ptr)
         }
       nn_shutdown (pubsock, 0);
 	  #endif
-	  sleep(5);
+	  	
       return NULL;
 }
