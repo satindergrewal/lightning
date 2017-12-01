@@ -396,13 +396,9 @@ void* BET_clientplayer(void * _ptr)
 		int32_t permis[CARDS777_MAXCARDS],numcards,numplayers;
 		struct pair256 key;struct privatebet_info *bet = _ptr;
 		int pushsock,subsock;
-		//const char *url="ipc:///tmp/bet.ipc",*url1="ipc:///tmp/bet1.ipc";	
 		char str[65];
 
 		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp,*item;
-		//gameInfo=cJSON_Parse(_ptr);
-		//numplayers=jint(gameInfo,"numplayers");
-		//numcards=jint(gameInfo,"range");
 		numplayers=bet->numplayers;
 		numcards=bet->range;
 		printf("\n numplayers=%d,numcards=%d",numplayers,numcards);
@@ -441,6 +437,7 @@ void* BET_clientplayer(void * _ptr)
 		}
 		nn_shutdown (subsock, 0);
 		#endif
+		sleep(5);
 		return NULL;
 }
 
@@ -457,9 +454,6 @@ void* BET_clientbvv(void * _ptr)
 	  char str[65];
 
 	  cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp,*item;
-	  //gameInfo=cJSON_Parse(_ptr);
-	  //numplayers=jint(gameInfo,"numplayers");
-	  //numcards=jint(gameInfo,"range");
 	  numplayers=bet->numplayers;
 	  numcards=bet->range;
 	  printf("\n numplayers=%d,numcards=%d",numplayers,numcards);
@@ -467,7 +461,7 @@ void* BET_clientbvv(void * _ptr)
 	  {
 		  printf("\n%s:%d",__FUNCTION__,__LINE__);
 	  }
-	  #if 0
+	  #if 1
 		  playerInfo=cJSON_CreateObject();
 		  cJSON_AddItemToObject(playerInfo,"playercards",cjsonplayercards=cJSON_CreateArray());
 		  for(int i=0;i<numcards;i++)
@@ -497,6 +491,7 @@ void* BET_clientbvv(void * _ptr)
 		  }
 		  nn_shutdown (subsock, 0);
 	#endif
+		  sleep(5);	
 		  return NULL;
 }
 

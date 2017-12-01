@@ -408,5 +408,6 @@ void* BET_hostdcv(void * _ptr)
         }
       nn_shutdown (pubsock, 0);
 	  #endif
+	  sleep(5);
       return NULL;
 }
