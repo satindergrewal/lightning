@@ -419,7 +419,7 @@ int main(int argc,const char *argv[])
 int main(int argc,const char *argv[])
 {
     uint16_t tmp,rpcport = 7797,port = 7797+1;
-    char connectaddr[128],bindaddr[128]="ipc:///tmp/bet.ipc",smartaddr[64],randphrase[32],*modestr,*hostip,*passphrase=0,*retstr; 
+    char connectaddr[128],bindaddr[128]="ipc:///tmp/bet.ipc",bindaddr1[128]="ipc:///tmp/bet1.ipc",smartaddr[64],randphrase[32],*modestr,*hostip,*passphrase=0,*retstr; 
 	cJSON *infojson,*argjson,*reqjson,*deckjson; 
 	uint64_t randvals; bits256 privkey,pubkey,pubkeys[64],privkeys[64]; 
 	uint8_t pubkey33[33],taddr=0,pubtype=60; uint32_t i,n,range,numplayers; int32_t testmode=0,pubsock=-1,subsock=-1,pullsock=-1,pushsock=-1; long fsize; 
@@ -431,7 +431,7 @@ int main(int argc,const char *argv[])
 	// for dcv
 	BET_dcv=calloc(1,sizeof(struct privatebet_info));
     BET_dcv->pubsock = BET_nanosock(1,bindaddr,NN_PUB);
-    BET_dcv->pullsock = BET_nanosock(1,bindaddr,NN_PULL);
+    BET_dcv->pullsock = BET_nanosock(1,bindaddr1,NN_PULL);
     BET_dcv->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
     BET_dcv->maxchips = CARDS777_MAXCHIPS;
     BET_dcv->chipsize = CARDS777_CHIPSIZE;
@@ -446,7 +446,7 @@ int main(int argc,const char *argv[])
 	// for bvv
 	BET_bvv=calloc(1,sizeof(struct privatebet_info));
     BET_bvv->subsock = BET_nanosock(0,bindaddr,NN_SUB);
-    BET_bvv->pushsock = BET_nanosock(0,bindaddr,NN_PUSH);
+    BET_bvv->pushsock = BET_nanosock(0,bindaddr1,NN_PUSH);
     BET_bvv->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
     BET_bvv->maxchips = CARDS777_MAXCHIPS;
     BET_bvv->chipsize = CARDS777_CHIPSIZE;
@@ -467,7 +467,7 @@ int main(int argc,const char *argv[])
     
 	for(int i=0;i<numplayers;i++){
 		BET_players[i]->subsock = BET_nanosock(0,bindaddr,NN_SUB);
-	    BET_players[i]->pushsock = BET_nanosock(0,bindaddr,NN_PUSH);
+	    BET_players[i]->pushsock = BET_nanosock(0,bindaddr1,NN_PUSH);
 	    BET_players[i]->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
 	    BET_players[i]->maxchips = CARDS777_MAXCHIPS;
 	    BET_players[i]->chipsize = CARDS777_CHIPSIZE;
