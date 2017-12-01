@@ -419,14 +419,13 @@ int main(int argc,const char *argv[])
 int main(int argc,const char *argv[])
 {
     uint16_t tmp,rpcport = 7797,port = 7797+1;
-    char connectaddr[128],bindaddr[128],smartaddr[64],randphrase[32],*modestr,*hostip,*passphrase=0,*retstr; 
+    char connectaddr[128],bindaddr[128]="ipc:///tmp/bet.ipc",smartaddr[64],randphrase[32],*modestr,*hostip,*passphrase=0,*retstr; 
 	cJSON *infojson,*argjson,*reqjson,*deckjson; 
 	uint64_t randvals; bits256 privkey,pubkey,pubkeys[64],privkeys[64]; 
 	uint8_t pubkey33[33],taddr=0,pubtype=60; uint32_t i,n,range,numplayers; int32_t testmode=0,pubsock=-1,subsock=-1,pullsock=-1,pushsock=-1; long fsize; 
 	struct privatebet_info *BET_players,*BET_dcv,*BET_bvv;
 	pthread_t players_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
 			
-	bindaddr="ipc:///tmp/bet.ipc";
 	numplayers=1;
 
 	// for dcv
@@ -461,7 +460,11 @@ int main(int argc,const char *argv[])
     }
 
 	// for players
-	BET_players=calloc(numplayers,sizeof(struct privatebet_info));
+	BET_players=(struct privatebet_info**) malloc(numplayers*sizeof(struct privatebet_info*));
+	for(int i=0;i<numplayers;i++){
+	BET_players[i]=(struct privatebet_info*) malloc(sizeof(struct privatebet_info));	
+	}
+	calloc(numplayers,sizeof(struct privatebet_info));
     
 	for(int i=0;i<numplayers;i++){
 		BET_players[i]->subsock = BET_nanosock(1,bindaddr,NN_SUB);
