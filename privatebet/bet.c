@@ -445,8 +445,8 @@ int main(int argc,const char *argv[])
 
 	// for bvv
 	BET_bvv=calloc(1,sizeof(struct privatebet_info));
-    BET_bvv->subsock = BET_nanosock(1,bindaddr,NN_SUB);
-    BET_bvv->pushsock = BET_nanosock(1,bindaddr,NN_PUSH);
+    BET_bvv->subsock = BET_nanosock(0,bindaddr,NN_SUB);
+    BET_bvv->pushsock = BET_nanosock(0,bindaddr,NN_PUSH);
     BET_bvv->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
     BET_bvv->maxchips = CARDS777_MAXCHIPS;
     BET_bvv->chipsize = CARDS777_CHIPSIZE;
@@ -466,8 +466,8 @@ int main(int argc,const char *argv[])
 	}
     
 	for(int i=0;i<numplayers;i++){
-		BET_players[i]->subsock = BET_nanosock(1,bindaddr,NN_SUB);
-	    BET_players[i]->pushsock = BET_nanosock(1,bindaddr,NN_PUSH);
+		BET_players[i]->subsock = BET_nanosock(0,bindaddr,NN_SUB);
+	    BET_players[i]->pushsock = BET_nanosock(0,bindaddr,NN_PUSH);
 	    BET_players[i]->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
 	    BET_players[i]->maxchips = CARDS777_MAXCHIPS;
 	    BET_players[i]->chipsize = CARDS777_CHIPSIZE;
