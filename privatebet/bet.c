@@ -160,10 +160,7 @@ void randombytes_buf(void * const buf, const size_t size)
 
 int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
 void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
-
-
-
-
+#if 0
 int main(int argc,const char *argv[])
 {
     uint16_t tmp,rpcport = 7797,port = 7797+1;
@@ -180,6 +177,7 @@ int main(int argc,const char *argv[])
     sleep(1);
     if ( argc > 1 )
     {
+    	
         if ( (infojson= chipsln_getinfo()) != 0 )
         {
             if ( (LN_idstr= clonestr(jstr(infojson,"id"))) == 0 || strlen(LN_idstr) != 66 )
@@ -189,8 +187,10 @@ int main(int argc,const char *argv[])
         } else printf("need to have CHIPS and lightning running\n"), exit(-1);
         printf("help.(%s)\n",jprint(chipsln_help(),1));
         printf("LN_idstr.(%s)\n",LN_idstr);
+        
 		if ( (argjson= cJSON_Parse(argv[1])) != 0 )
         {
+            
             hostip = jstr(argjson,"hostip");
             if ( (tmp= juint(argjson,"hostport")) != 0 )
                 port = tmp;
@@ -201,10 +201,13 @@ int main(int argc,const char *argv[])
                 printf("error launching stats rpcloop for port.%u\n",port);
                 exit(-1);
             }
+            
+
             if ( (modestr= jstr(argjson,"mode")) != 0 )
             {
                 if ( strcmp(modestr,"host") == 0 )
                 {
+                 
                     if ( hostip == 0 && system("curl -s4 checkip.amazonaws.com > /tmp/myipaddr") == 0 )
                     {
                         if ( (hostip= OS_filestr(&fsize,"/tmp/myipaddr")) != 0 && hostip[0] != 0 )
@@ -214,6 +217,7 @@ int main(int argc,const char *argv[])
                                 hostip[--n] = 0;
                         } else printf("error getting myipaddr\n");
                     }
+				
                     BET_transportname(1,bindaddr,hostip,port);
                     pubsock = BET_nanosock(1,bindaddr,NN_PUB);
                     BET_transportname(1,bindaddr,hostip,port+1);
@@ -337,7 +341,7 @@ int main(int argc,const char *argv[])
 				}
 			}
 					
-			if ( OS_thread_create(&dcv_t,NULL,(void *)BET_dcv,(void *)BET) != 0 )
+			if ( OS_thread_create(&dcv_t,NULL,(void *)BET_dcv,(void *)rendered) != 0 )
 			{
 				printf("error launching BET_clientloop\n");
 				exit(-1);
@@ -409,6 +413,72 @@ int main(int argc,const char *argv[])
         }
     }
     sleep(1);
+    return 0;
+}
+#endif
+int main(int argc,const char *argv[])
+{
+    uint16_t tmp,rpcport = 7797,port = 7797+1;
+    char connectaddr[128],bindaddr[128],smartaddr[64],randphrase[32],*modestr,*hostip,*passphrase=0,*retstr; 
+	cJSON *infojson,*argjson,*reqjson,*deckjson; 
+	uint64_t randvals; bits256 privkey,pubkey,pubkeys[64],privkeys[64]; 
+	uint8_t pubkey33[33],taddr=0,pubtype=60; uint32_t i,n,range,numplayers; int32_t testmode=0,pubsock=-1,subsock=-1,pullsock=-1,pushsock=-1; long fsize; 
+	struct privatebet_info *BET_players,*BET_dcv,*BET_bvv;
+	pthread_t players_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
+			
+	bindaddr="ipc:///tmp/bet.ipc";
+	numplayers=1;
+
+	// for dcv
+	BET_dcv=calloc(1,sizeof(struct privatebet_info));
+    BET_dcv->pubsock = BET_nanosock(1,bindaddr,NN_PUB);
+    BET_dcv->pullsock = BET_nanosock(1,bindaddr,NN_PULL);
+    BET_dcv->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
+    BET_dcv->maxchips = CARDS777_MAXCHIPS;
+    BET_dcv->chipsize = CARDS777_CHIPSIZE;
+	BET_dcv->numplayers=numplayers;
+    BET_betinfo_set(BET_dcv,"demo",36,0,Maxplayers);
+    if ( OS_thread_create(malloc(sizeof(pthread_t)),NULL,(void *)BET_hostdcv,(void *)BET_dcv) != 0 )
+    {
+        printf("error launching BET_hostloop for pub.%d pull.%d\n",BET_dcv->pubsock,BET_dcv->pullsock);
+        exit(-1);
+    }
+
+	// for bvv
+	BET_bvv=calloc(1,sizeof(struct privatebet_info));
+    BET_bvv->subsock = BET_nanosock(1,bindaddr,NN_SUB);
+    BET_bvv->pushsock = BET_nanosock(1,bindaddr,NN_PUSH);
+    BET_bvv->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
+    BET_bvv->maxchips = CARDS777_MAXCHIPS;
+    BET_bvv->chipsize = CARDS777_CHIPSIZE;
+	BET_bvv->numplayers=numplayers;
+	BET_bvv->myplayerid=0;
+    BET_betinfo_set(BET_bvv,"demo",36,0,Maxplayers);
+    if ( OS_thread_create(malloc(sizeof(pthread_t)),NULL,(void *)BET_clientbvv,(void *)BET_bvv) != 0 )
+    {
+        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_bvv->subsock,BET_bvv->pushsock);
+        exit(-1);
+    }
+
+	// for players
+	BET_players=calloc(numplayers,sizeof(struct privatebet_info));
+    
+	for(int i=0;i<numplayers;i++){
+		BET_players[i]->subsock = BET_nanosock(1,bindaddr,NN_SUB);
+	    BET_players[i]->pushsock = BET_nanosock(1,bindaddr,NN_PUSH);
+	    BET_players[i]->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
+	    BET_players[i]->maxchips = CARDS777_MAXCHIPS;
+	    BET_players[i]->chipsize = CARDS777_CHIPSIZE;
+		BET_players[i]->numplayers=numplayers;
+		BET_players[i]->myplayerid=1;
+	    BET_betinfo_set(BET_players[i],"demo",36,0,Maxplayers);
+	    if ( OS_thread_create(malloc(sizeof(pthread_t)),NULL,(void *)BET_clientplayer,(void *)BET_players[i]) != 0 )
+	    {
+	        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_players[i]->subsock,BET_players[i]->pushsock);
+	        exit(-1);
+	    }	
+	}
+	
     return 0;
 }
 

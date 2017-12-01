@@ -345,11 +345,14 @@ void BET_hostloop(void *_ptr)
         }
     }
 }
-void* BET_dcv(void *_ptr)
+void* BET_hostdcv(void * _ptr)
 {
 		uint32_t numplayers,range;
 		cJSON *gameInfo=NULL,*playerInfo,*playercards=NULL,*item=NULL;
-    	OS_randombytes((uint8_t *)&range,sizeof(range));
+		struct privatebet_info *bet = _ptr;
+		int pubsock,pullsock;
+		/*
+		OS_randombytes((uint8_t *)&range,sizeof(range));
 		OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
 		range = (range % 52) + 1;
 		numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
@@ -359,11 +362,14 @@ void* BET_dcv(void *_ptr)
 		cJSON_AddNumberToObject(gameInfo,"range",range);
 		cJSON_AddNumberToObject(gameInfo,"maxnumplayers",CARDS777_MAXPLAYERS);
 		cJSON_AddNumberToObject(gameInfo,"maxrange",CARDS777_MAXCARDS);
-
-	  printf("\nnumplayers=%d",jint(gameInfo,"numplayers"));
-      const char *url="ipc:///tmp/bet.ipc",*url1="ipc:///tmp/bet1.ipc";
-      int pubsock,pullsock;
-	 #if 1
+		*/
+	  numplayers=bet->numplayers;
+	  if ( bet->pubsock >= 0 && bet->pullsock >= 0 )
+		{
+			printf("\n%s:%d",__FUNCTION__,__LINE__);
+		}
+		
+	 #if 0
 	  pullsock=nn_socket(AF_SP,NN_PULL);
 	  assert(pullsock >= 0);
 	  nn_bind(pullsock,url1);
@@ -385,7 +391,7 @@ void* BET_dcv(void *_ptr)
 	}
 	nn_shutdown(pullsock,0);
 	#endif
-	  #if 1
+	  #if 0
 	  
 	  pubsock= nn_socket (AF_SP, NN_PUB);
       assert (pubsock >= 0);
