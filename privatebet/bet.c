@@ -464,7 +464,7 @@ int main(int argc,const char *argv[])
 	for(int i=0;i<numplayers;i++){
 	BET_players[i]=(struct privatebet_info*) malloc(sizeof(struct privatebet_info));	
 	}
-	calloc(numplayers,sizeof(struct privatebet_info));
+	
     
 	for(int i=0;i<numplayers;i++){
 		BET_players[i]->subsock = BET_nanosock(1,bindaddr,NN_SUB);
