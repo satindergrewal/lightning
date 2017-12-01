@@ -395,7 +395,6 @@ void* BET_clientplayer(void * _ptr)
 		bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS];
 		int32_t permis[CARDS777_MAXCARDS],numcards,numplayers;
 		struct pair256 key;struct privatebet_info *bet = _ptr;
-		int pushsock,subsock;
 		char str[65];
 
 		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp,*item;
@@ -407,20 +406,16 @@ void* BET_clientplayer(void * _ptr)
 			printf("\n%s:%d",__FUNCTION__,__LINE__);
 		}
 		key = deckgen_player(playerprivs,playercards,permis,numcards);
-		#if 0
+		#if 1
 		playerInfo=cJSON_CreateObject();
 		cJSON_AddItemToObject(playerInfo,"playercards",cjsonplayercards=cJSON_CreateArray());
 		for(int i=0;i<numcards;i++)
 		{
 			cJSON_AddItemToArray(cjsonplayercards,cJSON_CreateString(bits256_str(str,playercards[i])));
 		}
-		pushsock=nn_socket(AF_SP,NN_PUSH);
-		assert(pushsock >= 0);
-		assert (nn_connect (pushsock, url1) >= 0);
 		char *rendered=cJSON_Print(playerInfo);
-		int bytes=nn_send(pushsock,rendered,strlen(rendered),0);
+		int bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
 		printf("\nNumber of bytes sent:%d:\n",bytes);
-		nn_shutdown(pushsock,0);
 		#endif
 		#if 0
 		subsock = nn_socket (AF_SP, NN_SUB);	
@@ -437,7 +432,8 @@ void* BET_clientplayer(void * _ptr)
 		}
 		nn_shutdown (subsock, 0);
 		#endif
-		sleep(5);
+		nn_shutdown(bet->pushsock,0);
+		nn_shutdown(bet->subsock,0);
 		return NULL;
 }
 
@@ -461,7 +457,7 @@ void* BET_clientbvv(void * _ptr)
 	  {
 		  printf("\n%s:%d",__FUNCTION__,__LINE__);
 	  }
-	  #if 1
+	  #if 0
 		  playerInfo=cJSON_CreateObject();
 		  cJSON_AddItemToObject(playerInfo,"playercards",cjsonplayercards=cJSON_CreateArray());
 		  for(int i=0;i<numcards;i++)

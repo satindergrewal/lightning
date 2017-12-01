@@ -350,24 +350,25 @@ void* BET_hostdcv(void * _ptr)
 		uint32_t numplayers,range;
 		cJSON *gameInfo=NULL,*playerInfo,*playercards=NULL,*item=NULL;
 		struct privatebet_info *bet = _ptr;
-		int pubsock,pullsock;
-		/*
-		OS_randombytes((uint8_t *)&range,sizeof(range));
-		OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
-		range = (range % 52) + 1;
-		numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
-
-		gameInfo=cJSON_CreateObject();
-		cJSON_AddNumberToObject(gameInfo,"numplayers",numplayers);
-		cJSON_AddNumberToObject(gameInfo,"range",range);
-		cJSON_AddNumberToObject(gameInfo,"maxnumplayers",CARDS777_MAXPLAYERS);
-		cJSON_AddNumberToObject(gameInfo,"maxrange",CARDS777_MAXCARDS);
-		*/
+		
 	  numplayers=bet->numplayers;
 	  if ( bet->pubsock >= 0 && bet->pullsock >= 0 )
-		{
-			printf("\n%s:%d",__FUNCTION__,__LINE__);
-		}
+	  {
+	
+		char *buf=NULL;
+		int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
+		printf("\nNumber of bytes received:%d",bytes);
+		playercards=cJSON_Parse(buf);
+		if(playercards){
+			item=cJSON_GetObjectItem(playercards,"playercards");
+			if(item){
+				printf("\nArray size:%d",cJSON_GetArraySize(item));
+				for(int i=0;i<cJSON_GetArraySize(item);i++){
+				printf("\n%s",cJSON_str(cJSON_GetArrayItem(item,i)));
+				}
+			}
+		}		
+      }
 		
 	 #if 0
 	  pullsock=nn_socket(AF_SP,NN_PULL);
