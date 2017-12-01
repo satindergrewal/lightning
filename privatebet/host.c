@@ -352,9 +352,9 @@ void* BET_hostdcv(void * _ptr)
 		struct privatebet_info *bet = _ptr;
 		
 	  numplayers=bet->numplayers;
+	  printf("\nInside:%s, socket values:%d:%d",__FUNCTION__,bet->pubsock,bet->pullsock);
 	  if ( bet->pubsock >= 0 && bet->pullsock >= 0 )
 	  {
-	
 		char *buf=NULL;
 		int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
 		printf("\nNumber of bytes received:%d",bytes);

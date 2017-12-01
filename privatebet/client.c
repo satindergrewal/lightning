@@ -404,9 +404,20 @@ void* BET_clientplayer(void * _ptr)
 		if ( bet->subsock >= 0 && bet->pushsock >= 0 )
 		{
 			printf("\n%s:%d",__FUNCTION__,__LINE__);
+			key = deckgen_player(playerprivs,playercards,permis,numcards);
+			playerInfo=cJSON_CreateObject();
+			cJSON_AddItemToObject(playerInfo,"playercards",cjsonplayercards=cJSON_CreateArray());
+			for(int i=0;i<numcards;i++)
+			{
+				cJSON_AddItemToArray(cjsonplayercards,cJSON_CreateString(bits256_str(str,playercards[i])));
+			}
+			char *rendered=cJSON_Print(playerInfo);
+			int bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
+			printf("\nNumber of bytes sent:%d:%s\n",bytes,rendered);
+			
 		}
+		#if 0
 		key = deckgen_player(playerprivs,playercards,permis,numcards);
-		#if 1
 		playerInfo=cJSON_CreateObject();
 		cJSON_AddItemToObject(playerInfo,"playercards",cjsonplayercards=cJSON_CreateArray());
 		for(int i=0;i<numcards;i++)
@@ -415,7 +426,7 @@ void* BET_clientplayer(void * _ptr)
 		}
 		char *rendered=cJSON_Print(playerInfo);
 		int bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
-		printf("\nNumber of bytes sent:%d:\n",bytes);
+		printf("\nNumber of bytes sent:%d:%s\n",bytes,rendered);
 		#endif
 		#if 0
 		subsock = nn_socket (AF_SP, NN_SUB);	
