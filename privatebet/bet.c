@@ -437,7 +437,7 @@ int main(int argc,const char *argv[])
     BET_dcv->chipsize = CARDS777_CHIPSIZE;
 	BET_dcv->numplayers=numplayers;
     BET_betinfo_set(BET_dcv,"demo",36,0,Maxplayers);
-    if ( &dcv_t,NULL,(void *)BET_hostdcv,(void *)BET_dcv) != 0 )
+    if ( OS_thread_create(&dcv_t,NULL,(void *)BET_hostdcv,(void *)BET_dcv) != 0 )
     {
         printf("error launching BET_hostloop for pub.%d pull.%d\n",BET_dcv->pubsock,BET_dcv->pullsock);
         exit(-1);
@@ -474,7 +474,7 @@ int main(int argc,const char *argv[])
 		BET_players[i]->numplayers=numplayers;
 		BET_players[i]->myplayerid=1;
 	    BET_betinfo_set(BET_players[i],"demo",36,0,Maxplayers);
-	    if ( &players_t[i],NULL,(void *)BET_clientplayer,(void *)BET_players[i]) != 0 )
+	    if (OS_thread_create(&players_t[i],NULL,(void *)BET_clientplayer,(void *)BET_players[i]) != 0 )
 	    {
 	        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_players[i]->subsock,BET_players[i]->pushsock);
 	        exit(-1);
@@ -486,12 +486,12 @@ int main(int argc,const char *argv[])
 	}
 
 	if(pthread_join(bvv_t,NULL)){
-		printf("\nError in joining the main thread for dcv");
+		printf("\nError in joining the main thread for bvvv");
 	}
 
 	for(int i=0;i<numplayers;i++){
 		if(pthread_join(players_t[i],NULL)){
-		printf("\nError in joining the main thread for dcv");
+		printf("\nError in joining the main thread for player %d",i);
 	}
 	}
     return 0;

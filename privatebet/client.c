@@ -456,7 +456,7 @@ void* BET_clientbvv(void * _ptr)
 	  numplayers=bet->numplayers;
 	  numcards=bet->range;
 	  printf("\n numplayers=%d,numcards=%d",numplayers,numcards);
-	  printf("\nsocket values are:%d:%d",bet->subsock,bet->pushsock)
+	  printf("\nsocket values are:%d:%d",bet->subsock,bet->pushsock);
 	  if ( bet->subsock >= 0 && bet->pushsock >= 0 )
 	  {
 		  printf("\n%s:%d",__FUNCTION__,__LINE__);
