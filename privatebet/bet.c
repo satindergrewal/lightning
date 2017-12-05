@@ -472,7 +472,7 @@ int main(int argc,const char *argv[])
 	    BET_players[i]->maxchips = CARDS777_MAXCHIPS;
 	    BET_players[i]->chipsize = CARDS777_CHIPSIZE;
 		BET_players[i]->numplayers=numplayers;
-		BET_players[i]->myplayerid=1;
+		BET_players[i]->myplayerid=i;
 	    BET_betinfo_set(BET_players[i],"demo",36,0,Maxplayers);
 	    if (OS_thread_create(&players_t[i],NULL,(void *)BET_clientplayer,(void *)BET_players[i]) != 0 )
 	    {

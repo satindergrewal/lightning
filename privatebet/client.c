@@ -404,11 +404,14 @@ void* BET_clientplayer(void * _ptr)
 		{
 			key = deckgen_player(playerprivs,playercards,permis,numcards);
 			playerInfo=cJSON_CreateObject();
+			cJSON_AddStringToObject(playerInfo,"messageid","init");
+			cJSON_AddNumberToObject(playerInfo,"playerid",bet->myplayerid);
 			cJSON_AddItemToObject(playerInfo,"playercards",cjsonplayercards=cJSON_CreateArray());
 			for(int i=0;i<numcards;i++)
 			{
 				cJSON_AddItemToArray(cjsonplayercards,cJSON_CreateString(bits256_str(str,playercards[i])));
 			}
+			
 			char *rendered=cJSON_Print(playerInfo);
 			int bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
 			printf("\nNumber of bytes sent:%d\n",bytes);

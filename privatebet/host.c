@@ -360,6 +360,8 @@ void* BET_hostdcv(void * _ptr)
 			int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
 			if(bytes>0)
 			{
+				gameInfo=cJSON_Parse(buf);
+				cJSON_Print(gameInfo);
 				printf("\n%s:Bytes published:%d",__FUNCTION__,bytes);
 				nn_send(bet->pubsock,buf,bytes,0);
 			 }
