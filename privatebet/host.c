@@ -361,6 +361,10 @@ void* BET_hostdcv(void * _ptr)
 			if(bytes>0)
 			{
 				gameInfo=cJSON_Parse(buf);
+				printf("\nMessage ID:%s",cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")));
+				if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init")){
+					printf("\nInitialization is done");
+				}
 				cJSON_Print(gameInfo);
 				printf("\n%s:Bytes published:%d",__FUNCTION__,bytes);
 				nn_send(bet->pubsock,buf,bytes,0);
