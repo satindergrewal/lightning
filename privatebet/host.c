@@ -353,10 +353,10 @@ void* BET_hostdcv(void * _ptr)
 		bits256 playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 		struct privatebet_info *bet = _ptr;
 		
-	  numplayers=bet->numplayers;
+	  numplayers=0;
 	  if ( bet->pubsock >= 0 && bet->pullsock >= 0 )
 	  {
-		while(1)
+		while(numplayers!=bet->numplayers)
 		  {
 			char *buf=NULL;
 			int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
@@ -373,12 +373,9 @@ void* BET_hostdcv(void * _ptr)
 						
 					}
 				}
-				if(numplayers==bet->numplayers){
-					printf("\nDCV received cards from all the players:%d",numplayers);
-				}
 			 }
-					
 	      }
+          printf("\nDCV received all cards:%d",numplayers);
 		  nn_shutdown(bet->pullsock,0);
 		  nn_shutdown(bet->pubsock,0);
 	  }
