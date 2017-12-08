@@ -349,7 +349,8 @@ void* BET_hostdcv(void * _ptr)
 {
 		uint32_t numplayers,range,playerID;
 		char str[65];
-		cJSON *gameInfo=NULL,*playerInfo,playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],*item=NULL;
+		cJSON *gameInfo=NULL,*playerInfo,*item=NULL;
+		bits256 playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 		struct privatebet_info *bet = _ptr;
 		
 	  numplayers=bet->numplayers;
@@ -368,7 +369,7 @@ void* BET_hostdcv(void * _ptr)
 					range=jint(gameInfo,"range");
 					playerInfo=cJSON_GetObjectItem(gameInfo,"playercards");
 					for(int i=0;i<cJSON_GetArraySize(playerInfo);i++){
-							playercards[playerID][i]=jbits256i(playerInfo,i));
+							playercards[playerID][i]=jbits256i(playerInfo,i);
 						
 					}
 				}
