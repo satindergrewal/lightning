@@ -338,5 +338,7 @@ struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards);
 struct pair256 deckgen_common1(struct pair256 *randcards,int32_t numcards);
 struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards);
 struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid); 
+struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid);
+
 
 

@@ -350,12 +350,13 @@ void* BET_hostdcv(void * _ptr)
 		uint32_t numplayers,range,playerID,bytes;
 		char str[65];
 		cJSON *gameInfo=NULL,*playerInfo=NULL,*item=NULL,*cjsoncardprods=NULL,*cjsonfinalcards=NULL;
-		bits256 playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+		bits256 playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],deckid;
 		struct privatebet_info *bet = _ptr;
 		range=bet->range;
 		
 	  numplayers=0;
 	  dekgen_vendor_perm(bet->range);
+      deckid=rand256(0);
 	  if ( bet->pubsock >= 0 && bet->pullsock >= 0 )
 	  {
 		while(numplayers!=bet->numplayers)
@@ -372,7 +373,6 @@ void* BET_hostdcv(void * _ptr)
 					playerInfo=cJSON_GetObjectItem(gameInfo,"playercards");
 					for(int i=0;i<cJSON_GetArraySize(playerInfo);i++){
 							playercards[playerID][i]=jbits256i(playerInfo,i);
-						
 					}
 				}
 			 }
@@ -380,7 +380,7 @@ void* BET_hostdcv(void * _ptr)
 		  cJSON_Delete(gameInfo);
 		  printf("\n%s:%d:DCV received all players:%d",__FUNCTION__,__LINE__,numplayers);
 		  for (int playerid=0; playerid<numplayers; playerid++){
-        		sg777_deckgen_vendor(playerid,cardprods[playerid],finalcards[playerid],range,playercards[playerid],rand256(0));
+        		sg777_deckgen_vendor(playerid,cardprods[playerid],finalcards[playerid],range,playercards[playerid],deckid);
           }
 		  printf("\ncard prods:\n");
 		  for(int i=0;i<numplayers;i++){
@@ -390,6 +390,7 @@ void* BET_hostdcv(void * _ptr)
 		  }
 		  gameInfo=cJSON_CreateObject();
 		  cJSON_AddStringToObject(gameInfo,"messageid","init_d");
+		  jaddbits256(gameInfo,"deckid",deckid);
 		  cJSON_AddItemToObject(gameInfo,"cardprods",cjsoncardprods=cJSON_CreateArray());
 		  for(int i=0;i<numplayers;i++){
 			for(int j=0;j<range;j++){
