@@ -349,7 +349,7 @@ void* BET_hostdcv(void * _ptr)
 {
 		uint32_t numplayers,range,playerID;
 		char str[65];
-		cJSON *gameInfo=NULL,*playerInfo,*playercards=NULL,*item=NULL;
+		cJSON *gameInfo=NULL,*playerInfo,playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],*item=NULL;
 		struct privatebet_info *bet = _ptr;
 		
 	  numplayers=bet->numplayers;
@@ -363,17 +363,18 @@ void* BET_hostdcv(void * _ptr)
 			{
 				gameInfo=cJSON_Parse(buf);
 				if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init")){
+					numplayers++;
 					playerID=jint(gameInfo,"playerid");
 					range=jint(gameInfo,"range");
-					printf("\n%d:%d\n",playerID,range);
 					playerInfo=cJSON_GetObjectItem(gameInfo,"playercards");
-					printf("\nPlayer cards:\n");
 					for(int i=0;i<cJSON_GetArraySize(playerInfo);i++){
-						printf("\n%s",bits256_str(str,jbits256i(playerInfo,i)));
+							playercards[playerID][i]=jbits256i(playerInfo,i));
 						
 					}
 				}
-				nn_send(bet->pubsock,buf,bytes,0);
+				if(numplayers==bet->numplayers){
+					printf("\nDCV received cards from all the players:%d",numplayers);
+				}
 			 }
 					
 	      }
