@@ -406,6 +406,7 @@ void* BET_clientplayer(void * _ptr)
 			playerInfo=cJSON_CreateObject();
 			cJSON_AddStringToObject(playerInfo,"messageid","init");
 			cJSON_AddNumberToObject(playerInfo,"playerid",bet->myplayerid);
+			cJSON_AddNumberToObject(playerInfo,"range",bet->range);
 			cJSON_AddItemToObject(playerInfo,"playercards",cjsonplayercards=cJSON_CreateArray());
 			for(int i=0;i<numcards;i++)
 			{

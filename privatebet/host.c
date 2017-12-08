@@ -347,7 +347,8 @@ void BET_hostloop(void *_ptr)
 }
 void* BET_hostdcv(void * _ptr)
 {
-		uint32_t numplayers,range;
+		uint32_t numplayers,range,playerID;
+		char str[65];
 		cJSON *gameInfo=NULL,*playerInfo,*playercards=NULL,*item=NULL;
 		struct privatebet_info *bet = _ptr;
 		
@@ -361,12 +362,17 @@ void* BET_hostdcv(void * _ptr)
 			if(bytes>0)
 			{
 				gameInfo=cJSON_Parse(buf);
-				printf("\nMessage ID:%s",cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")));
 				if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init")){
-					printf("\nInitialization is done");
+					playerID=jint(gameInfo,"playerid");
+					range=jint(gameInfo,"range");
+					printf("\n%d:%d\n",playerID,range);
+					playerInfo=cJSON_GetObjectItem(gameInfo,"playercards");
+					printf("\nPlayer cards:\n");
+					for(int i=0;i<cJSON_GetArraySize(playerInfo);i++){
+						printf("\n%s",bits256_str(str,jbits256i(playerInfo,i)));
+						
+					}
 				}
-				cJSON_Print(gameInfo);
-				printf("\n%s:Bytes published:%d",__FUNCTION__,bytes);
 				nn_send(bet->pubsock,buf,bytes,0);
 			 }
 					
