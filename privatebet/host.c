@@ -389,7 +389,7 @@ void* BET_hostdcv(void * _ptr)
 			}
 		  }
 		  gameInfo=cJSON_CreateObject();
-		  cJSON_AddStringToObject(gameInfo,"messageid","d_init");
+		  cJSON_AddStringToObject(gameInfo,"messageid","init_d");
 		  cJSON_AddItemToObject(gameInfo,"cardprods",cjsoncardprods=cJSON_CreateArray());
 		  for(int i=0;i<numplayers;i++){
 			for(int j=0;j<range;j++){
