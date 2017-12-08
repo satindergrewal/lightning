@@ -347,7 +347,7 @@ void BET_hostloop(void *_ptr)
 }
 void* BET_hostdcv(void * _ptr)
 {
-		uint32_t numplayers,range,playerID;
+		uint32_t numplayers,range,playerID,bytes;
 		char str[65];
 		cJSON *gameInfo=NULL,*playerInfo=NULL,*item=NULL,*cjsoncardprods=NULL,*cjsonfinalcards=NULL;
 		bits256 playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
@@ -403,8 +403,10 @@ void* BET_hostdcv(void * _ptr)
 			}
 		  }	
 		  char *rendered=cJSON_Print(gameInfo);
-		  printf("\n%s:%d:%s",__FUNCTION__,__LINE__,rendered);
-
+		  bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
+		  while(1){
+			sleep(5);
+		  }
 		  nn_shutdown(bet->pullsock,0);
 		  nn_shutdown(bet->pubsock,0);
 	  }

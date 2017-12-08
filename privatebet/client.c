@@ -422,7 +422,10 @@ void* BET_clientplayer(void * _ptr)
 				int bytes = nn_recv (bet->subsock, &buf, NN_MSG, 0);
 				if(bytes>0)
 				{
-					printf ("%s:%d :: %s:%d\n",__FUNCTION__,__LINE__,buf,bytes);
+					gameInfo=cJSON_Parse(buf);
+					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"action")){
+						printf ("%s:%d :: %s:%d\n",__FUNCTION__,__LINE__,buf,bytes);
+					}
 				}
 				sleep(5);
 			}
@@ -453,7 +456,10 @@ void* BET_clientbvv(void * _ptr)
 				int bytes = nn_recv (bet->subsock, &buf, NN_MSG, 0);
 				if(bytes>0)
 				{
-					printf ("%s:%d :: %s:%d\n",__FUNCTION__,__LINE__,buf,bytes);
+					gameInfo=cJSON_Parse(buf);
+					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d")){
+						printf ("%s:%d :: %s:%d\n",__FUNCTION__,__LINE__,buf,bytes);
+					}
 				}
 				sleep(5);
 			}
