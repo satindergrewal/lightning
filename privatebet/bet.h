@@ -337,5 +337,6 @@ bits256 card_rand256(int32_t privkeyflag,int8_t index);
 struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards);
 struct pair256 deckgen_common1(struct pair256 *randcards,int32_t numcards);
 struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards);
+struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid); 
 
 
