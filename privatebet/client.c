@@ -455,6 +455,7 @@ void* BET_clientbvv(void * _ptr)
 		{
 			while(numplayers!=bet->numplayers)
 			  {
+			  	printf("\n%s:%d:%d",__FUNCTION__,__LINE__,numplayers);
 				char *buf=NULL;
 				int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
 				if(bytes>0)
@@ -473,6 +474,7 @@ void* BET_clientbvv(void * _ptr)
 				 }
 		      }
 			printf("\n%s:%d:players:%d,numcards:%d",__FUNCTION__,__LINE__,numplayers,numcards);
+			#if 0
 			while (1) 
 			{
 				char *buf = NULL;
@@ -507,6 +509,7 @@ void* BET_clientbvv(void * _ptr)
 				}
 				sleep(5);
 			}
+			#endif
 			nn_shutdown(bet->pushsock,0);
 			nn_shutdown(bet->subsock,0);
 		
