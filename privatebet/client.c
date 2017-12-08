@@ -451,8 +451,10 @@ void* BET_clientbvv(void * _ptr)
 		numcards=bet->range;
 		blinding_vendor_perm(bet->range);
 		b_key.priv=curve25519_keypair(&b_key.prod);
+		printf("\n%s:%d:%d",__FUNCTION__,__LINE__,numplayers);
 		if ( bet->subsock >= 0 && bet->pushsock >= 0 )
 		{
+			printf("\n%s:%d:%d",__FUNCTION__,__LINE__,numplayers);
 			while(numplayers!=bet->numplayers)
 			  {
 			  	printf("\n%s:%d:%d",__FUNCTION__,__LINE__,numplayers);
