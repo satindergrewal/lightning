@@ -446,7 +446,7 @@ void* BET_clientbvv(void * _ptr)
 		struct pair256 b_key,keys[CARDS777_MAXPLAYERS];struct privatebet_info *bet = _ptr;
 		char str[65];
 
-		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp,*item,*cjsonblindedcards;
+		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp,*item,*cjsonblindedcards,*cjsonfinalcards;
 		numplayers=bet->numplayers;
 		numcards=bet->range;
 		blinding_vendor_perm(bet->range);
@@ -481,6 +481,10 @@ void* BET_clientbvv(void * _ptr)
 					gameInfo=cJSON_Parse(buf);
 					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d")){
 						deckid=jbits256(gameInfo,"deckid");
+						cjsonfinalcards=cJSON_GetObjectItem(gameInfo,"finalcards");
+						for(int i=0;i<cJSON_GetArraySize(cjsonfinalcards);i++){
+								finalcards[playerID][i]=jbits256i(cjsonfinalcards,i);
+						}
 	         		    g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
 					    for (int playerid=0; playerid<numplayers; playerid++){
 					        sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
