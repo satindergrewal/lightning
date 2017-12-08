@@ -489,9 +489,12 @@ void* BET_clientbvv(void * _ptr)
 						gameInfo=cJSON_CreateObject();
 						cJSON_AddStringToObject(gameInfo,"messageid","decode");
 						cJSON_AddItemToObject(gameInfo,"blindedcards",cjsonblindedcards=cJSON_CreateArray());
-						for(int i=0;i<numcards;i++)
+						for(int i=0;i<numplayers;i++)
 						{
-							cJSON_AddItemToArray(cjsonblindedcards,cJSON_CreateString(bits256_str(str,blindedcards[i])));
+							for(int j=0;j<numcards;j++)
+							{
+							cJSON_AddItemToArray(cjsonblindedcards,cJSON_CreateString(bits256_str(str,blindedcards[i][j])));
+							}
 						}
 						char *rendered=cJSON_Print(gameInfo);
 						printf("\n%s:%d:%s",__FUNCTION__,__LINE__,rendered);
