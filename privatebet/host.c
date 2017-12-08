@@ -402,7 +402,8 @@ void* BET_hostdcv(void * _ptr)
 				cJSON_AddItemToArray(cjsonfinalcards,cJSON_CreateString(bits256_str(str,finalcards[i][j])));
 			}
 		  }	
-		  cJSON_Print(gameInfo);
+		  char *rendered=cJSON_Print(gameInfo);
+		  printf("\n%s:%d:%s",__FUNCTION__,__LINE__,rendered);
 
 		  nn_shutdown(bet->pullsock,0);
 		  nn_shutdown(bet->pubsock,0);
