@@ -377,6 +377,7 @@ void* BET_hostdcv(void * _ptr)
 				}
 			 }
 	      }
+		  printf("\n%s:%d:DCV received all players:%d",__FUNCTION__,__LINE__,numplayers);
 		  for (int playerid=0; playerid<numplayers; playerid++)
           {
         		sg777_deckgen_vendor(playerid,cardprods[playerid],finalcards[playerid],range,playercards[playerid],rand256(0));
