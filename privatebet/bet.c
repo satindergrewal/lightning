@@ -427,6 +427,7 @@ int main(int argc,const char *argv[])
 	pthread_t players_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
 			
 	numplayers=2;
+	range=2;
 
 	// for dcv
 	BET_dcv=calloc(1,sizeof(struct privatebet_info));
@@ -436,7 +437,7 @@ int main(int argc,const char *argv[])
     BET_dcv->maxchips = CARDS777_MAXCHIPS;
     BET_dcv->chipsize = CARDS777_CHIPSIZE;
 	BET_dcv->numplayers=numplayers;
-    BET_betinfo_set(BET_dcv,"demo",36,0,Maxplayers);
+    BET_betinfo_set(BET_dcv,"demo",range,0,Maxplayers);
     if ( OS_thread_create(&dcv_t,NULL,(void *)BET_hostdcv,(void *)BET_dcv) != 0 )
     {
         printf("error launching BET_hostloop for pub.%d pull.%d\n",BET_dcv->pubsock,BET_dcv->pullsock);
@@ -452,7 +453,7 @@ int main(int argc,const char *argv[])
     BET_bvv->chipsize = CARDS777_CHIPSIZE;
 	BET_bvv->numplayers=numplayers;
 	BET_bvv->myplayerid=0;
-    BET_betinfo_set(BET_bvv,"demo",36,0,Maxplayers);
+    BET_betinfo_set(BET_bvv,"demo",range,0,Maxplayers);
     if ( OS_thread_create(&bvv_t,NULL,(void *)BET_clientbvv,(void *)BET_bvv) != 0 )
     {
         printf("error launching BET_clientloop for sub.%d push.%d\n",BET_bvv->subsock,BET_bvv->pushsock);
@@ -473,7 +474,7 @@ int main(int argc,const char *argv[])
 	    BET_players[i]->chipsize = CARDS777_CHIPSIZE;
 		BET_players[i]->numplayers=numplayers;
 		BET_players[i]->myplayerid=i;
-	    BET_betinfo_set(BET_players[i],"demo",36,0,Maxplayers);
+	    BET_betinfo_set(BET_players[i],"demo",range,0,Maxplayers);
 	    if (OS_thread_create(&players_t[i],NULL,(void *)BET_clientplayer,(void *)BET_players[i]) != 0 )
 	    {
 	        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_players[i]->subsock,BET_players[i]->pushsock);

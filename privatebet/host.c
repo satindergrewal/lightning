@@ -377,24 +377,29 @@ void* BET_hostdcv(void * _ptr)
 				}
 			 }
 	      }
+		  cJSON_Delete(gameInfo);
 		  printf("\n%s:%d:DCV received all players:%d",__FUNCTION__,__LINE__,numplayers);
-		  for (int playerid=0; playerid<numplayers; playerid++)
-          {
+		  for (int playerid=0; playerid<numplayers; playerid++){
         		sg777_deckgen_vendor(playerid,cardprods[playerid],finalcards[playerid],range,playercards[playerid],rand256(0));
           }
-		  cJSON_Delete(gameInfo);
+		  printf("\ncard prods:\n");
+		  for(int i=0;i<numplayers;i++){
+			for(int j=0;j<range;j++){
+				printf("\n%s",bits256_str(str,cardprods[i][j]));
+			}
+		  }
 		  gameInfo=cJSON_CreateObject();
 		  cJSON_AddStringToObject(gameInfo,"messageid","d_init");
 		  cJSON_AddItemToObject(gameInfo,"cardprods",cjsoncardprods=cJSON_CreateArray());
 		  for(int i=0;i<numplayers;i++){
 			for(int j=0;j<range;j++){
-				jaddibits256(cjsoncardprods,cardprods[i][j]);
+				cJSON_AddItemToArray(cjsoncardprods,cJSON_CreateString(bits256_str(str,cardprods[i][j])));
 			}
 		  }
 		  cJSON_AddItemToObject(gameInfo,"finalcards",cjsonfinalcards=cJSON_CreateArray());
 		  for(int i=0;i<numplayers;i++){
 			for(int j=0;j<range;j++){
-				jaddibits256(cjsonfinalcards,finalcards[i][j]);
+				cJSON_AddItemToArray(cjsonfinalcards,cJSON_CreateString(bits256_str(str,finalcards[i][j])));
 			}
 		  }	
 		  cJSON_Print(gameInfo);
