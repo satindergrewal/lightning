@@ -447,7 +447,7 @@ void* BET_clientbvv(void * _ptr)
 		char str[65];
 
 		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp,*item,*cjsonblindedcards,*cjsonfinalcards;
-		numplayers=bet->numplayers;
+		numplayers=0;
 		numcards=bet->range;
 		blinding_vendor_perm(bet->range);
 		b_key.priv=curve25519_keypair(&b_key.prod);
@@ -472,6 +472,7 @@ void* BET_clientbvv(void * _ptr)
 					}
 				 }
 		      }
+			printf("\n%s:%d:players:%d,numcards:%d",__FUNCTION__,__LINE__,numplayers,numcards);
 			while (1) 
 			{
 				char *buf = NULL;
