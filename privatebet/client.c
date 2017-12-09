@@ -473,6 +473,7 @@ void* BET_clientbvv(void * _ptr)
 					}
 				 }
 				}
+			printf("\n%s:%d",__FUNCTION__,__LINE__);
 			#if 1
 			while (flag) 
 			{
