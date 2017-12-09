@@ -390,12 +390,19 @@ void BET_clientloop(void *_ptr)
     }
 }
 
+char *enc_share_str(char hexstr [ 167 ],enc_share x)
+{
+    init_hexbytes_noT(hexstr,x.bytes,sizeof(x));
+    return(hexstr);
+}
+
+
 void* BET_clientplayer(void * _ptr)
 {
 		bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS];
 		int32_t permis[CARDS777_MAXCARDS],numcards,numplayers;
 		struct pair256 key;struct privatebet_info *bet = _ptr;
-		char str[65];
+		char str[65],share_str[167];
 
 		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp,*item;
 		numplayers=bet->numplayers;
@@ -444,9 +451,9 @@ void* BET_clientbvv(void * _ptr)
 	  	bits256 deckid,publickeys[CARDS777_MAXPLAYERS],playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindingvals[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 		int32_t numcards,numplayers,playerID,range,flag=1;
 		struct pair256 b_key,keys[CARDS777_MAXPLAYERS];struct privatebet_info *bet = _ptr;
-		char str[65];
+		char str[65],share_str[167];
 
-		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp,*item,*cjsonblindedcards,*cjsonfinalcards;
+		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp,*item,*cjsonblindedcards,*cjsonfinalcards,*cjsonshamirshards;
 		numplayers=0;
 		numcards=bet->range;
 		blinding_vendor_perm(bet->range);
@@ -505,8 +512,18 @@ void* BET_clientbvv(void * _ptr)
 							cJSON_AddItemToArray(cjsonblindedcards,cJSON_CreateString(bits256_str(str,blindedcards[i][j])));
 							}
 						}
-						char *rendered=cJSON_Print(gameInfo);
+						cJSON_AddItemToObject(gameInfo,"shamirshards",cjsonshamirshards=cJSON_CreateArray());
+						for(int playerid=0;playerid<numplayers;playerid++)
+						{
+							for (i=0; i<numcards; i++)
+					        {
+					            for (int j=0; j<numplayers; j++) {
+									cJSON_AddItemToArray(cjsonshamirshards,enc_share_str(share_str,g_shares[j*numplayers*numcards + (i*numplayers + playerid)]));
+					            }
+					        }
+						}
 						
+						char *rendered=cJSON_Print(gameInfo);
 						nn_send(bet->pubsock,rendered,strlen(rendered),0);
 						flag=0;
 					}
