@@ -446,8 +446,8 @@ int main(int argc,const char *argv[])
 
 	// for bvv
 	BET_bvv=calloc(1,sizeof(struct privatebet_info));
-    BET_bvv->pubsock = BET_nanosock(0,bindaddr,NN_PUB);
-    BET_bvv->pullsock = BET_nanosock(0,bindaddr1,NN_PULL);
+    BET_bvv->pubsock = BET_nanosock(1,bindaddr,NN_PUB);
+    BET_bvv->pullsock = BET_nanosock(1,bindaddr1,NN_PULL);
     BET_bvv->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
     BET_bvv->maxchips = CARDS777_MAXCHIPS;
     BET_bvv->chipsize = CARDS777_CHIPSIZE;
