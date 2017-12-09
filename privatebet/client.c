@@ -396,17 +396,29 @@ char *enc_share_str(char hexstr [ 167 ],struct enc_share x)
     return(hexstr);
 }
 
+struct enc_share get_API_enc_share(cJSON *obj)
+{
+    struct enc_share hash; char *str;
+    memset(hash.bytes,0,sizeof(hash));
+    if ( obj != 0 )
+    {
+        if ( is_cJSON_String(obj) != 0 && (str= obj->valuestring) != 0 && strlen(str) == 167 )
+            decode_hex(hash.bytes,sizeof(hash),str);
+    }
+    return(hash);
+}
 
 void* BET_clientplayer(void * _ptr)
 {
-		bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS];
+		bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS];
 		int32_t permis[CARDS777_MAXCARDS],numcards,numplayers;
 		struct pair256 key;struct privatebet_info *bet = _ptr;
 		char str[65],share_str[177];
-
-		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*temp,*item;
+		struct enc_share *g_shares=NULL;
+		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*cjsonblindedcards,*cjsonshamirshards,*temp,*item;
 		numplayers=bet->numplayers;
 		numcards=bet->range;
+		
 		if ( bet->subsock >= 0 && bet->pushsock >= 0 )
 		{
 			key = deckgen_player(playerprivs,playercards,permis,numcards);
@@ -433,6 +445,23 @@ void* BET_clientplayer(void * _ptr)
 					gameInfo=cJSON_Parse(buf);
 					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"decode")){
 						printf ("%s:%d :: %s:%d\n",__FUNCTION__,__LINE__,buf,bytes);
+						g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
+						cjsonblindedcards=cJSON_GetObjectItem(gameInfo,"blindedcards");
+						for(int i=0;i<numplayers;i++){
+							for(int j=0;j<numcards;j++){
+								blindedcards[i][j]=jbits256i(cjsonblindedcards,i*numcards+j);
+							}
+						}
+						cjsonshamirshards=cJSON_GetObjectItem(gameInfo,"shamirshards");
+						for(int playerid=0;playerid<numplayers;playerid++)
+						{
+							for (int i=0; i<numcards; i++)
+					        {
+					            for (int j=0; j<numplayers; j++) {
+									g_shares[j*numplayers*numcards + (i*numplayers + playerid)]=get_API_enc_share(cJSON_GetArrayItem(cjsonshamirshards,j*numplayers*numcards + (i*numplayers + playerid)));
+					            }
+					        }
+						}
 					}
 				}
 				sleep(5);
