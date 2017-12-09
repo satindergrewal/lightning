@@ -487,8 +487,10 @@ void* BET_clientbvv(void * _ptr)
 					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d")){
 						deckid=jbits256(gameInfo,"deckid");
 						cjsonfinalcards=cJSON_GetObjectItem(gameInfo,"finalcards");
-						for(int i=0;i<cJSON_GetArraySize(cjsonfinalcards);i++){
-								finalcards[playerID][i]=jbits256i(cjsonfinalcards,i);
+						for(int playerID=0;playerID<numplayers;playerID++){
+								for(int i=0;i<numcards;i++){
+									finalcards[playerID][i]=jbits256i(cjsonfinalcards,playerID*numcards+i);
+									}
 						}
 	         		    g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
 					    for (int playerid=0; playerid<numplayers; playerid++){
