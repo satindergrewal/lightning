@@ -507,6 +507,7 @@ void* BET_clientbvv(void * _ptr)
 						}
 						char *rendered=cJSON_Print(gameInfo);
 						printf("\n%s:%d:%s",__FUNCTION__,__LINE__,rendered);
+						printf("\n%s:%d:%d:%d",__FUNCTION__,__LINE__,numplayers,numcards);
 					}
 				}
 				sleep(5);
