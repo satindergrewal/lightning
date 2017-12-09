@@ -457,9 +457,9 @@ void* BET_clientbvv(void * _ptr)
 			printf("\n%s:%d:%d",__FUNCTION__,__LINE__,numplayers);
 			while(numplayers!=bet->numplayers)
 			  {
-			  	printf("\n%s:%d:%d",__FUNCTION__,__LINE__,numplayers);
-				char *buf=NULL;
+			  	char *buf=NULL;
 				int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
+				printf("\n%s:%d:%d,bytes received:%d",__FUNCTION__,__LINE__,numplayers,bytes);
 				if(bytes>0)
 				{
 					gameInfo=cJSON_Parse(buf);
@@ -474,6 +474,7 @@ void* BET_clientbvv(void * _ptr)
 						}
 					}
 				 }
+				sleep(5);
 		      }
 			printf("\n%s:%d:players:%d,numcards:%d",__FUNCTION__,__LINE__,numplayers,numcards);
 			#if 0
