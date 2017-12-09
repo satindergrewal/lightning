@@ -442,7 +442,7 @@ void* BET_clientbvv(void * _ptr)
 {
 	  
 	  	bits256 deckid,publickeys[CARDS777_MAXPLAYERS],playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],blindingvals[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
-		int32_t numcards,numplayers,playerID,range;
+		int32_t numcards,numplayers,playerID,range,flag=1;
 		struct pair256 b_key,keys[CARDS777_MAXPLAYERS];struct privatebet_info *bet = _ptr;
 		char str[65];
 
@@ -451,15 +451,12 @@ void* BET_clientbvv(void * _ptr)
 		numcards=bet->range;
 		blinding_vendor_perm(bet->range);
 		b_key.priv=curve25519_keypair(&b_key.prod);
-		printf("\n%s:%d:%d",__FUNCTION__,__LINE__,numplayers);
 		if ( bet->subsock >= 0 && bet->pushsock >= 0 )
 		{
-			printf("\n%s:%d:%d",__FUNCTION__,__LINE__,numplayers);
 			while(numplayers!=bet->numplayers)
 			  {
 			  	char *buf=NULL;
 				int bytes=nn_recv(bet->subsock,&buf,NN_MSG,0);
-				printf("\n%s:%d:%d,bytes received:%d",__FUNCTION__,__LINE__,numplayers,bytes);
 				if(bytes>0)
 				{
 					gameInfo=cJSON_Parse(buf);
@@ -475,9 +472,8 @@ void* BET_clientbvv(void * _ptr)
 					}
 				 }
 				}
-			printf("\n%s:%d:players:%d,numcards:%d",__FUNCTION__,__LINE__,numplayers,numcards);
 			#if 1
-			while (1) 
+			while (flag) 
 			{
 				char *buf = NULL;
 				int bytes = nn_recv (bet->subsock, &buf, NN_MSG, 0);
@@ -496,7 +492,6 @@ void* BET_clientbvv(void * _ptr)
 					    for (int playerid=0; playerid<numplayers; playerid++){
 					        sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
     					}
-						printf ("%s:%d :: %s:%d\n",__FUNCTION__,__LINE__,buf,bytes);
 						cJSON_Delete(gameInfo);
 						gameInfo=cJSON_CreateObject();
 						cJSON_AddStringToObject(gameInfo,"messageid","decode");
@@ -509,11 +504,10 @@ void* BET_clientbvv(void * _ptr)
 							}
 						}
 						char *rendered=cJSON_Print(gameInfo);
-						printf("\n%s:%d:%s",__FUNCTION__,__LINE__,rendered);
-						printf("\n%s:%d:%d:%d",__FUNCTION__,__LINE__,numplayers,numcards);
+						nn_send(bet->pubsock,rendered,strlen(rendered),0);
+						flag=0;
 					}
 				}
-				sleep(5);
 			}
 			#endif
 			nn_shutdown(bet->pushsock,0);
