@@ -410,7 +410,7 @@ struct enc_share get_API_enc_share(cJSON *obj)
 
 void* BET_clientplayer(void * _ptr)
 {
-		bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS];
+		bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 		int32_t permis[CARDS777_MAXCARDS],numcards,numplayers;
 		struct pair256 key;struct privatebet_info *bet = _ptr;
 		char str[65],share_str[177];
