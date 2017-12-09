@@ -390,7 +390,7 @@ void BET_clientloop(void *_ptr)
     }
 }
 
-char *enc_share_str(char hexstr [ 167 ],enc_share x)
+char *enc_share_str(char hexstr [ 167 ],struct enc_share x)
 {
     init_hexbytes_noT(hexstr,x.bytes,sizeof(x));
     return(hexstr);
