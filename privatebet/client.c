@@ -474,10 +474,9 @@ void* BET_clientbvv(void * _ptr)
 						}
 					}
 				 }
-				sleep(5);
-		      }
+				}
 			printf("\n%s:%d:players:%d,numcards:%d",__FUNCTION__,__LINE__,numplayers,numcards);
-			#if 0
+			#if 1
 			while (1) 
 			{
 				char *buf = NULL;
