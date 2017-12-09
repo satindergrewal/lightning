@@ -375,6 +375,7 @@ void* BET_hostdcv(void * _ptr)
 							playercards[playerID][i]=jbits256i(playerInfo,i);
 					}
 				}
+				bytes=nn_send(bet->pubsock,buf,strlen(buf),0);
 			 }
 	      }
 		  cJSON_Delete(gameInfo);

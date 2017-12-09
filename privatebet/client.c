@@ -452,13 +452,13 @@ void* BET_clientbvv(void * _ptr)
 		blinding_vendor_perm(bet->range);
 		b_key.priv=curve25519_keypair(&b_key.prod);
 		printf("\n%s:%d:%d",__FUNCTION__,__LINE__,numplayers);
-		if ( bet->pubsock >= 0 && bet->pullsock >= 0 )
+		if ( bet->subsock >= 0 && bet->pushsock >= 0 )
 		{
 			printf("\n%s:%d:%d",__FUNCTION__,__LINE__,numplayers);
 			while(numplayers!=bet->numplayers)
 			  {
 			  	char *buf=NULL;
-				int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
+				int bytes=nn_recv(bet->subsock,&buf,NN_MSG,0);
 				printf("\n%s:%d:%d,bytes received:%d",__FUNCTION__,__LINE__,numplayers,bytes);
 				if(bytes>0)
 				{
