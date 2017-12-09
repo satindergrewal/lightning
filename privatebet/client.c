@@ -515,7 +515,7 @@ void* BET_clientbvv(void * _ptr)
 						cJSON_AddItemToObject(gameInfo,"shamirshards",cjsonshamirshards=cJSON_CreateArray());
 						for(int playerid=0;playerid<numplayers;playerid++)
 						{
-							for (i=0; i<numcards; i++)
+							for (int i=0; i<numcards; i++)
 					        {
 					            for (int j=0; j<numplayers; j++) {
 									cJSON_AddItemToArray(cjsonshamirshards,enc_share_str(share_str,g_shares[j*numplayers*numcards + (i*numplayers + playerid)]));
