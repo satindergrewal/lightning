@@ -378,6 +378,7 @@ void* BET_hostdcv(void * _ptr)
 				}
 				bytes=nn_send(bet->pubsock,buf,strlen(buf),0);
 			 }
+			sleep(5);
 	      }
 		  cJSON_Delete(gameInfo);
 		  printf("\n%s:%d:DCV received all players:%d",__FUNCTION__,__LINE__,numplayers);
