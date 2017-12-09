@@ -519,7 +519,7 @@ void* BET_clientbvv(void * _ptr)
 							for (int i=0; i<numcards; i++)
 					        {
 					            for (int j=0; j<numplayers; j++) {
-									cJSON_AddItemToArray(cjsonshamirshards,enc_share_str(share_str,g_shares[j*numplayers*numcards + (i*numplayers + playerid)]));
+									cJSON_AddItemToArray(cjsonshamirshards,cJSON_CreateString(enc_share_str(share_str,g_shares[j*numplayers*numcards + (i*numplayers + playerid)])));
 					            }
 					        }
 						}
