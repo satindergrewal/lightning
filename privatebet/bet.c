@@ -819,7 +819,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
     int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 cardshares[CARDS777_MAXPLAYERS],basepoint,temp_hash[CARDS777_MAXCARDS];
-    
+    char str[65];
     struct enc_share temp;
 	
     
@@ -830,7 +830,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
     {
         blindings[i] = rand256(1);
         blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
-		printf("\n%s:%s:%s",blindedcards[i],finalcards[permis_b[i]],blindings[i]);
+		printf("\n%s:%s:%s",bits256_str(str,blindedcards[i]),bits256_str(str,finalcards[permis_b[i]]),bits256_str(str,blindings[i]));
 		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
     }
     M = (numplayers/2) + 1;
