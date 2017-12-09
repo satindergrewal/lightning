@@ -495,6 +495,7 @@ void* BET_clientbvv(void * _ptr)
 					        sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
     					}
 						printf ("%s:%d :: %s:%d\n",__FUNCTION__,__LINE__,buf,bytes);
+						cJSON_Delete(gameInfo);
 						gameInfo=cJSON_CreateObject();
 						cJSON_AddStringToObject(gameInfo,"messageid","decode");
 						cJSON_AddItemToObject(gameInfo,"blindedcards",cjsonblindedcards=cJSON_CreateArray());
