@@ -51,7 +51,7 @@ int32_t permis_d[CARDS777_MAXCARDS],permis_b[CARDS777_MAXCARDS];
 bits256 *allshares=NULL;
 uint8_t sharenrs[256];
 struct rpcrequest_info *LP_garbage_collector;
-struct enc_share { uint8_t share[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
+struct enc_share { uint8_t bytes[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
 struct enc_share *g_shares=NULL;
 //struct enc_share g_shares[CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS];
 
@@ -770,7 +770,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     {
         temp=g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)];
         recvlen = sizeof(temp);
-        if ( (ptr= BET_decrypt(decipher,sizeof(decipher),b_key.prod,keys[j].priv,temp.share,&recvlen)) == 0 )
+        if ( (ptr= BET_decrypt(decipher,sizeof(decipher),b_key.prod,keys[j].priv,temp.bytes,&recvlen)) == 0 )
             printf("decrypt error ");
         else
             memcpy(cardshares[j].bytes,ptr,recvlen);
@@ -841,8 +841,8 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-                BET_ciphercreate(b_key.priv,keys[j].prod,temp.share,cardshares[j].bytes,sizeof(cardshares[j]));
-			    memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].share,temp.share,sizeof(temp));
+                BET_ciphercreate(b_key.priv,keys[j].prod,temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
+			    memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
             }
         }
     // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c

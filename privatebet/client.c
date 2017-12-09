@@ -451,7 +451,8 @@ void* BET_clientbvv(void * _ptr)
 		numcards=bet->range;
 		blinding_vendor_perm(bet->range);
 		b_key.priv=curve25519_keypair(&b_key.prod);
-		if ( bet->subsock >= 0 && bet->pushsock >= 0 )
+		g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
+   		if ( bet->subsock >= 0 && bet->pushsock >= 0 )
 		{
 			while(numplayers!=bet->numplayers)
 			  {

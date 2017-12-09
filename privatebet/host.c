@@ -383,12 +383,6 @@ void* BET_hostdcv(void * _ptr)
 		  for (int playerid=0; playerid<numplayers; playerid++){
         		sg777_deckgen_vendor(playerid,cardprods[playerid],finalcards[playerid],range,playercards[playerid],deckid);
           }
-		  printf("\ncard prods:\n");
-		  for(int i=0;i<numplayers;i++){
-			for(int j=0;j<range;j++){
-				printf("\n%s",bits256_str(str,cardprods[i][j]));
-			}
-		  }
 		  gameInfo=cJSON_CreateObject();
 		  cJSON_AddStringToObject(gameInfo,"messageid","init_d");
 		  jaddbits256(gameInfo,"deckid",deckid);
