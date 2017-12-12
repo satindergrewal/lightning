@@ -464,7 +464,7 @@ void* BET_clientplayer(void * _ptr)
 						}
 						for(int i=0;i<numcards;i++){
 							for(int j=0;j<numcards;j++){
-								temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[playerid][i],cardprods[playerid][j])));
+								temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[i],cardprods[bet->myplayerid][j])));
 								vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 							}
 						}
