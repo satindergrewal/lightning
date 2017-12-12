@@ -410,12 +410,12 @@ struct enc_share get_API_enc_share(cJSON *obj)
 
 void* BET_clientplayer(void * _ptr)
 {
-		bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+		bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS],blindedcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 		int32_t permis[CARDS777_MAXCARDS],numcards,numplayers;
 		struct pair256 key;struct privatebet_info *bet = _ptr;
 		char str[65],share_str[177];
 		struct enc_share *g_shares=NULL;
-		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*cjsonblindedcards,*cjsonshamirshards,*temp,*item;
+		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*cjsonblindedcards,*cjsonshamirshards,*cjsoncardprods,*temp,*item;
 		numplayers=bet->numplayers;
 		numcards=bet->range;
 		
@@ -461,6 +461,18 @@ void* BET_clientplayer(void * _ptr)
 									g_shares[j*numplayers*numcards + (i*numplayers + playerid)]=get_API_enc_share(cJSON_GetArrayItem(cjsonshamirshards,j*numplayers*numcards + (i*numplayers + playerid)));
 					            }
 					        }
+						}
+						for(i=0;i<numcards;i++){
+							for(j=0;j<numcards;j++){
+								temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[playerid][i],cardprods[playerid][j])));
+								vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
+							}
+						}
+					}
+					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d")){
+						cjsoncardprods=cJSON_GetObjectItem(gameInfo,"cardprods");
+ 						for(int i=0;i<cJSON_GetArraySize(cjsoncardprods);i++){
+							cardprods[i]=jbits256i(cjsoncardprods,i);
 						}
 					}
 				}
