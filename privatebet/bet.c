@@ -754,6 +754,66 @@ struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256
     
     return key;
 }
+bits256 t_sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *keys,bits256 public_key_b,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t numcards)
+{
+    bits256 recover,decoded,tmp,xoverz,hash,fe,refval,basepoint,cardshares[CARDS777_MAXPLAYERS]; int32_t i,j,k,unpermi,M; char str[65];
+    struct enc_share temp;
+    uint8_t **shares,flag=0;
+    shares=calloc(numplayers,sizeof(uint8_t*));
+    for(i=0;i<numplayers;i++)
+        shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
+    
+    basepoint = curve25519_basepoint9();
+    uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
+    for (j=0; j<numplayers; j++)
+    {
+        temp=g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)];
+        recvlen = sizeof(temp);
+        if ( (ptr= BET_decrypt(decipher,sizeof(decipher),public_key_b,keys[j].priv,temp.bytes,&recvlen)) == 0 )
+            printf("decrypt error ");
+        else
+            memcpy(cardshares[j].bytes,ptr,recvlen);
+    }
+    M=(numplayers/2)+1;
+    for(i=0;i<M;i++) {
+        memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
+    }
+    gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
+    refval = fmul_donna(blindedcard,crecip_donna(recover));
+    #if 1
+    for (i=0; i<numcards; i++)
+    {
+        for (j=0; j<numcards; j++)
+        {
+        	if ( bits256_cmp(v_hash[i][j],g_hash[playerid][cardID]) == 0 ){
+	            tmp = curve25519(keys[playerid].priv,curve25519(playerprivs[i],cardprods[j]));
+	            xoverz = xoverz_donna(tmp);
+	            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+	            fe = crecip_donna(curve25519_fieldelement(hash));
+	            decoded = curve25519(fmul_donna(refval,fe),basepoint);
+	            if ( bits256_cmp(decoded,cardprods[j]) == 0 )
+	            {
+	                printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
+	                //return(playerprivs[i]);
+					tmp=playerprivs[i];
+					flag=1;
+					goto end;
+	            }
+        	}
+        }
+    }
+	#endif
+	end:
+   for(i=0;i<numplayers;i++){
+		free(shares[i]);
+	}
+	free(shares);
+	if(!flag){
+	memset(tmp.bytes,0,sizeof(tmp));
+	printf("couldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
+	}
+    return(tmp);
+}
 
 bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *keys,struct pair256 b_key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
