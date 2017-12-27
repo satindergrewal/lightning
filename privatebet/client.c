@@ -509,16 +509,16 @@ void* BET_clientplayer(void * _ptr)
 								vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 							}
 						}
-						#if 0
+						#if 1
 					   for(int i=0;i<numcards;i++){
-        				    decoded256 = t_sg777_player_decode(bet->myplayerid,i,numplayers,key,public_key_b,blindedcards[playerid][i],cardprods[playerid],playerprivs[playerid],numcards);
+        				    decoded256 = t_sg777_player_decode(bet->myplayerid,i,numplayers,key,public_key_b,blindedcards[bet->myplayerid][i],cardprods[bet->myplayerid],playerprivs[bet->myplayerid],numcards);
             	            if ( bits256_nonz(decoded256) == 0 )
                 				errs++;
             				else
             				{
 				                unpermi=-1;
 				                for(int k=0;k<numcards;k++){
-				                    if(permis[playerid][k]==decoded256.bytes[30]){
+				                    if(permis[bet->myplayerid][k]==decoded256.bytes[30]){
 				                        unpermi=k;
 				                        break;
 				                    }
