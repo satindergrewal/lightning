@@ -754,7 +754,7 @@ struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256
     
     return key;
 }
-bits256 t_sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *keys,bits256 public_key_b,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t numcards)
+bits256 t_sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 key,bits256 public_key_b,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t numcards)
 {
     bits256 recover,decoded,tmp,xoverz,hash,fe,refval,basepoint,cardshares[CARDS777_MAXPLAYERS]; int32_t i,j,k,unpermi,M; char str[65];
     struct enc_share temp;
@@ -765,7 +765,8 @@ bits256 t_sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,str
     
     basepoint = curve25519_basepoint9();
     uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
-    for (j=0; j<numplayers; j++)
+	#if 0
+	for (j=0; j<numplayers; j++)
     {
         temp=g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)];
         recvlen = sizeof(temp);
@@ -780,7 +781,8 @@ bits256 t_sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,str
     }
     gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
     refval = fmul_donna(blindedcard,crecip_donna(recover));
-    #if 1
+	#endif
+	#if 0
     for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)

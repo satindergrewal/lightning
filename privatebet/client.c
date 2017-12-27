@@ -511,19 +511,20 @@ void* BET_clientplayer(void * _ptr)
 						}
 						#if 1
 					   for(int i=0;i<numcards;i++){
-        				    decoded256 = t_sg777_player_decode(bet->myplayerid,i,numplayers,key,public_key_b,blindedcards[bet->myplayerid][i],cardprods[bet->myplayerid],playerprivs[bet->myplayerid],numcards);
+        				    decoded256 = t_sg777_player_decode(bet->myplayerid,i,numplayers,key,public_key_b,blindedcards[bet->myplayerid][i],cardprods[bet->myplayerid],playerprivs,numcards);
             	            if ( bits256_nonz(decoded256) == 0 )
                 				errs++;
             				else
             				{
+            					int k;
 				                unpermi=-1;
-				                for(int k=0;k<numcards;k++){
-				                    if(permis[bet->myplayerid][k]==decoded256.bytes[30]){
+				                for(k=0;k<numcards;k++){
+				                    if(permis[k]==decoded256.bytes[30]){
 				                        unpermi=k;
 				                        break;
 				                    }
 				                }
-				                decoded[playerid][i] = k;    	
+				                decoded[i] = k;    	
             				}
         			 }
         				decodebad += errs;
