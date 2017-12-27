@@ -390,6 +390,43 @@ void BET_clientloop(void *_ptr)
     }
 }
 
+void BET_request_share(int32_t cardID,int32_t playerID,struct privatebet_info *bet)
+{
+	cJSON *shareInfo=NULL;
+	shareInfo=cJSON_CreateObject();
+	cJSON_AddStringToObject(shareInfo,"messageID","request_share");
+	cJSON_AddNumberToObject(shareInfo,"ofCardID",cardID);
+	cJSON_AddNumberToObject(shareInfo,"ofPlayerID",playerID);
+	cJSON_AddNumberToObject(shareInfo,"forPlayerID",bet->myplayerid);
+	char *rendered=cJSON_Print(shareInfo);
+	int bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
+	printf("\n%s %d: Bytes Sent:%d",__FUNCTION__,__LINE__,bytes);
+}
+
+bits256 BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_public_key,struct pair256 player_key)
+{
+	int32_t cardID,playerID;
+	struct enc_share temp;
+	char str[65];
+	bits256 share;
+	uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
+	cardID=jint(shareInfo,"cardID");
+	playerID=jint(shareInfo,"playerID");
+
+	/*if(playerID==bet->myplayerid)*/if(1){
+        temp=g_shares[playerID*bet->numplayers*bet->range + (cardID*bet->numplayers + playerID)];
+        recvlen = sizeof(temp);
+        if ( (ptr= BET_decrypt(decipher,sizeof(decipher),bvv_public_key,player_key.priv,temp.bytes,&recvlen)) == 0 )
+            printf("decrypt error ");
+        else
+            memcpy(share.bytes,ptr,recvlen);
+
+		printf("\n%s %d: card share: %s",__FUNCTION__,__LINE__,bits256_str(str,share));
+	}
+	return share;
+	
+}
+
 char *enc_share_str(char hexstr [ 167 ],struct enc_share x)
 {
     init_hexbytes_noT(hexstr,x.bytes,sizeof(x));
@@ -472,7 +509,7 @@ void* BET_clientplayer(void * _ptr)
 								vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 							}
 						}
-						#if 0
+						#if 1
 					   for(int i=0;i<numcards;i++){
         				    decoded256 = t_sg777_player_decode(bet->myplayerid,i,numplayers,key,public_key_b,blindedcards[playerid][i],cardprods[playerid],playerprivs[playerid],numcards);
             	            if ( bits256_nonz(decoded256) == 0 )
@@ -480,7 +517,7 @@ void* BET_clientplayer(void * _ptr)
             				else
             				{
 				                unpermi=-1;
-				                for(k=0;k<numcards;k++){
+				                for(int k=0;k<numcards;k++){
 				                    if(permis[playerid][k]==decoded256.bytes[30]){
 				                        unpermi=k;
 				                        break;
