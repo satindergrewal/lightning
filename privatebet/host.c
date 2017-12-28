@@ -377,6 +377,7 @@ void* BET_hostdcv(void * _ptr)
 				}
 				bytes=nn_send(bet->pubsock,buf,strlen(buf),0);
 			 }
+			printf("\n%s:%d:%d:%d",__FUNCTION__,__LINE__,numplayers,bet->numplayers);
 			sleep(5);
 	      }
 		  cJSON_Delete(gameInfo);
