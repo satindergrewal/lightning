@@ -402,7 +402,7 @@ void* BET_hostdcv(void * _ptr)
 		  }	
 		  char *rendered=cJSON_Print(gameInfo);
 		  bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
-		  while(1){
+		  while(0){
 		  	char *buf=NULL;
 		  	int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
 			if(bytes>0)
