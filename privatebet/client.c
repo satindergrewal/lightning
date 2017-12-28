@@ -410,9 +410,10 @@ bits256 BET_request_share(int32_t cardID,int32_t playerID,struct privatebet_info
 	cJSON_Delete(shareInfo);
 	shareInfo=cJSON_CreateObject();
 	bytes=0;
-
+	buf=NULL;
 	while(bytes==0){
 		bytes=nn_recv(bet->subsock,&buf,NN_MSG,0);
+		printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 		if(bytes>0){
 			shareInfo=cJSON_Parse(buf);
 			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"response_share")){
