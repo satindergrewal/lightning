@@ -402,6 +402,7 @@ void* BET_hostdcv(void * _ptr)
 		  char *rendered=cJSON_Print(gameInfo);
 		  bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
 		  while(1){
+		  	char *buf=NULL;
 		  	int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
 			bytes=nn_send(bet->pubsock,buf,strlen(buf),0);
 		  	printf("\n%d Bytes relayed by DCV",bytes);
