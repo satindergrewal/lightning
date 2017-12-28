@@ -509,7 +509,17 @@ void* BET_clientplayer(void * _ptr)
 								vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 							}
 						}
+						printf("\nRequesting shares:\n");
 						#if 1
+						for(int i=0;i<numcards;i++)
+						{
+							for(int j=0;j<numplayers;j++)
+							{
+								BET_request_share(i,j,bet);
+							}
+						}	
+						#endif
+						#if 0
 					   for(int i=0;i<numcards;i++){
         				    decoded256 = t_sg777_player_decode(bet->myplayerid,i,numplayers,key,public_key_b,blindedcards[bet->myplayerid][i],cardprods[bet->myplayerid],playerprivs,numcards);
             	            if ( bits256_nonz(decoded256) == 0 )
