@@ -549,7 +549,7 @@ void* BET_clientplayer(void * _ptr)
 					}
 					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share")){
 						printf("\n%s:%d",__FUNCTION__,__LINE__);
-						//BET_give_share(gameInfo,bet,public_key_b,key);
+						BET_give_share(gameInfo,bet,public_key_b,key);
 					}
 				}
 				sleep(5);

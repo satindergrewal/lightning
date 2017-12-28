@@ -405,8 +405,10 @@ void* BET_hostdcv(void * _ptr)
 		  	char *buf=NULL;
 		  	int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
 			if(bytes>0)
+			{
 				bytes=nn_send(bet->pubsock,buf,strlen(buf),0);
-		  	printf("\n%d Bytes relayed by DCV:%s",bytes,buf);
+		  	
+			}
 			sleep(5);
 		  }
 		  nn_shutdown(bet->pullsock,0);
