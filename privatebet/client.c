@@ -412,8 +412,8 @@ bits256 BET_request_share(int32_t cardID,int32_t playerID,struct privatebet_info
 	buf=NULL;
 	while(1){
 		bytes=nn_recv(bet->subsock,&buf,NN_MSG,0);
-		printf("\n%s:%d:%d",__FUNCTION__,__LINE__,bytes);
 		if(bytes>0){
+			printf("\n%s:%d:%d:%s",__FUNCTION__,__LINE__,bytes,buf);
 			shareInfo=cJSON_Parse(buf);
 			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"response_share")){
 						share=jbits256(shareInfo,"share");
@@ -423,6 +423,7 @@ bits256 BET_request_share(int32_t cardID,int32_t playerID,struct privatebet_info
 		}
 		sleep(5);
 	}
+	printf("\n%s:%d:out of loop",__FUNCTION__,__LINE__);
 	return share;
 }
 
