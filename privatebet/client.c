@@ -399,7 +399,7 @@ bits256 BET_request_share(int32_t cardID,int32_t playerID,struct privatebet_info
 	int bytes;
 	
 	shareInfo=cJSON_CreateObject();
-	cJSON_AddStringToObject(shareInfo,"messageID","request_share");
+	cJSON_AddStringToObject(shareInfo,"messageid","request_share");
 	cJSON_AddNumberToObject(shareInfo,"ofCardID",cardID);
 	cJSON_AddNumberToObject(shareInfo,"ofPlayerID",playerID);
 	cJSON_AddNumberToObject(shareInfo,"forPlayerID",bet->myplayerid);
@@ -417,7 +417,7 @@ bits256 BET_request_share(int32_t cardID,int32_t playerID,struct privatebet_info
 			shareInfo=cJSON_Parse(buf);
 			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"response_share")){
 						share=jbits256(shareInfo,"share");
-						printf("\nShare received:%s",bits256_str(str,share));
+						printf("\n%s:%d:Share received:%s",__FUNCTION__,__LINE__,bits256_str(str,share));
 			}
 		}
 		sleep(5);
