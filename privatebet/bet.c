@@ -754,17 +754,20 @@ struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256
     
     return key;
 }
-bits256 t_sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 key,bits256 public_key_b,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t numcards)
+bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int numplayers,struct pair256 key,bits256 public_key_b,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t numcards)
 {
     bits256 recover,decoded,tmp,xoverz,hash,fe,refval,basepoint,cardshares[CARDS777_MAXPLAYERS]; int32_t i,j,k,unpermi,M; char str[65];
     struct enc_share temp;
     uint8_t **shares,flag=0;
+	uint32_t playerid;
     shares=calloc(numplayers,sizeof(uint8_t*));
     for(i=0;i<numplayers;i++)
         shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
     
     basepoint = curve25519_basepoint9();
     uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
+	BET_request_share(0,0,bet);
+	playerid=bet->myplayerid;
 	#if 0
 	for (j=0; j<numplayers; j++)
     {

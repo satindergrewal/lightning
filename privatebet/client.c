@@ -390,26 +390,49 @@ void BET_clientloop(void *_ptr)
     }
 }
 
-void BET_request_share(int32_t cardID,int32_t playerID,struct privatebet_info *bet)
+bits256 BET_request_share(int32_t cardID,int32_t playerID,struct privatebet_info *bet)
 {
 	cJSON *shareInfo=NULL;
+	bits256 share;
+	char *buf=NULL;
+	char str[65];
+	int bytes;
+	
 	shareInfo=cJSON_CreateObject();
 	cJSON_AddStringToObject(shareInfo,"messageID","request_share");
 	cJSON_AddNumberToObject(shareInfo,"ofCardID",cardID);
 	cJSON_AddNumberToObject(shareInfo,"ofPlayerID",playerID);
 	cJSON_AddNumberToObject(shareInfo,"forPlayerID",bet->myplayerid);
-	char *rendered=cJSON_Print(shareInfo);
-	int bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
-	printf("\n%s %d: Bytes Sent:%d:%s",__FUNCTION__,__LINE__,bytes,rendered);
+	buf=cJSON_Print(shareInfo);
+
+	bytes=nn_send(bet->pushsock,buf,strlen(buf),0);
+	printf("\n%s %d: Bytes Sent:%d:%s",__FUNCTION__,__LINE__,bytes,buf);
+	cJSON_Delete(shareInfo);
+	shareInfo=cJSON_CreateObject();
+	bytes=0;
+
+	while(bytes==0){
+		bytes=nn_recv(bet->subsock,&buf,NN_MSG,0);
+		if(bytes>0){
+			shareInfo=cJSON_Parse(buf);
+			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"response_share")){
+						share=jbits256(shareInfo,"share");
+						printf("\nShare received:%s",bits256_str(str,share));
+			}
+		}
+		sleep(5);
+	}
+	return share;
 }
 
-bits256 BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_public_key,struct pair256 player_key)
+void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_public_key,struct pair256 player_key)
 {
 	int32_t ofCardID,ofPlayerID,forPlayerID;
 	struct enc_share temp;
 	char str[65];
 	bits256 share;
 	uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
+	cJSON *shareInfo=NULL;
 	ofCardID=jint(shareInfo,"ofCardID");
 	ofPlayerID=jint(shareInfo,"ofPlayerID");
 	forPlayerID=jint(shareInfo,"forPlayerID");
@@ -420,11 +443,24 @@ bits256 BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_
         if ( (ptr= BET_decrypt(decipher,sizeof(decipher),bvv_public_key,player_key.priv,temp.bytes,&recvlen)) == 0 )
             printf("decrypt error ");
         else
-            memcpy(share.bytes,ptr,recvlen);
-
-		printf("\n%s %d: card share: %s",__FUNCTION__,__LINE__,bits256_str(str,share));
+        {
+        	memcpy(share.bytes,ptr,recvlen);
+			shareInfo=cJSON_CreateObject();
+			cJSON_AddStringToObject(shareInfo,"messageid","response_share");
+			cJSON_AddNumberToObject(shareInfo,"ofCardID",ofCardID);
+			cJSON_AddNumberToObject(shareInfo,"ofPlayerID",ofPlayerID);
+			cJSON_AddNumberToObject(shareInfo,"forPlayerID",forPlayerID);
+			
+			jaddbits256(shareInfo,"share",share);
+        }
+		if(bet->pushsock>=0){
+			char *buf=NULL;
+			buf=cJSON_Print(shareInfo);
+			nn_send(bet->pushsock,shareInfo,strlen(shareInfo),0);
+		}	
 	}
-	return share;
+	
+
 	
 }
 
@@ -510,15 +546,9 @@ void* BET_clientplayer(void * _ptr)
 								vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 							}
 						}
-						printf("\nRequesting shares:\n");
 						#if 1
-						
-						BET_request_share(0,0,bet);
-							
-						#endif
-						#if 0
 					   for(int i=0;i<numcards;i++){
-        				    decoded256 = t_sg777_player_decode(bet->myplayerid,i,numplayers,key,public_key_b,blindedcards[bet->myplayerid][i],cardprods[bet->myplayerid],playerprivs,numcards);
+        				    decoded256 = t_sg777_player_decode(bet,i,numplayers,key,public_key_b,blindedcards[bet->myplayerid][i],cardprods[bet->myplayerid],playerprivs,numcards);
             	            if ( bits256_nonz(decoded256) == 0 )
                 				errs++;
             				else
@@ -551,6 +581,11 @@ void* BET_clientplayer(void * _ptr)
 					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share")){
 						printf("\n%s:%d",__FUNCTION__,__LINE__);
 						BET_give_share(gameInfo,bet,public_key_b,key);
+					}
+					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"response_share")){
+						bits256 share;
+						share=jbits256(gameInfo,"response_share");
+						printf("\nShare received:%s",bits256_str(str,share));
 					}
 				}
 				sleep(5);
