@@ -458,7 +458,7 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 			char *buf=NULL;
 			buf=cJSON_Print(shareInfo);
 			int bytes=nn_send(bet->pushsock,buf,strlen(buf),0);
-			printf("\n%s:%d:%s:%d",__FUNCTION__,__LINE__,bytes,buf);
+			printf("\n%s:%d:%d:%s",__FUNCTION__,__LINE__,bytes,buf);
 		}	
 	}
 	
