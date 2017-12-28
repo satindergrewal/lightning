@@ -413,7 +413,7 @@ bits256 BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_
 	ofCardID=jint(shareInfo,"ofCardID");
 	ofPlayerID=jint(shareInfo,"ofPlayerID");
 	forPlayerID=jint(shareInfo,"forPlayerID");
-
+	printf("\n%s:%d:%d:%d",__FUNCTION__,__LINE__,ofPlayerID,bet->myplayerid);
 	if(ofPlayerID==bet->myplayerid){
         temp=g_shares[ofPlayerID*bet->numplayers*bet->range + (ofCardID*bet->numplayers + ofPlayerID)];
         recvlen = sizeof(temp);
