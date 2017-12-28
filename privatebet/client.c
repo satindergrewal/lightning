@@ -405,16 +405,17 @@ void BET_request_share(int32_t cardID,int32_t playerID,struct privatebet_info *b
 
 bits256 BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_public_key,struct pair256 player_key)
 {
-	int32_t cardID,playerID;
+	int32_t ofCardID,ofPlayerID,forPlayerID;
 	struct enc_share temp;
 	char str[65];
 	bits256 share;
 	uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
-	cardID=jint(shareInfo,"cardID");
-	playerID=jint(shareInfo,"playerID");
+	ofCardID=jint(shareInfo,"ofCardID");
+	ofPlayerID=jint(shareInfo,"ofPlayerID");
+	forPlayerID=jint(shareInfo,"forPlayerID");
 
-	/*if(playerID==bet->myplayerid)*/if(1){
-        temp=g_shares[playerID*bet->numplayers*bet->range + (cardID*bet->numplayers + playerID)];
+	if(ofPlayerID==bet->myplayerid){
+        temp=g_shares[ofPlayerID*bet->numplayers*bet->range + (ofCardID*bet->numplayers + ofPlayerID)];
         recvlen = sizeof(temp);
         if ( (ptr= BET_decrypt(decipher,sizeof(decipher),bvv_public_key,player_key.priv,temp.bytes,&recvlen)) == 0 )
             printf("decrypt error ");
@@ -552,7 +553,7 @@ void* BET_clientplayer(void * _ptr)
 						}
 					}
 					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share")){
-						printf("\n%s:%d:share request received",__FUNCTION__,__LINE__);
+						BET_give_share(gameInfo,bet,public_key_b,key);
 					}
 				}
 				sleep(5);
