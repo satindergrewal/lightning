@@ -512,6 +512,7 @@ void* BET_clientplayer(void * _ptr)
 						}
 						printf("\nRequesting shares:\n");
 						#if 1
+						
 						BET_request_share(0,0,bet);
 							
 						#endif
