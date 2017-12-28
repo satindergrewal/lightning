@@ -512,13 +512,8 @@ void* BET_clientplayer(void * _ptr)
 						}
 						printf("\nRequesting shares:\n");
 						#if 1
-						for(int i=0;i<numcards;i++)
-						{
-							for(int j=0;j<numplayers;j++)
-							{
-								BET_request_share(i,j,bet);
-							}
-						}	
+						BET_request_share(0,0,bet);
+							
 						#endif
 						#if 0
 					   for(int i=0;i<numcards;i++){
@@ -554,7 +549,7 @@ void* BET_clientplayer(void * _ptr)
 					}
 					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share")){
 						printf("\n%s:%d",__FUNCTION__,__LINE__);
-						BET_give_share(gameInfo,bet,public_key_b,key);
+						//BET_give_share(gameInfo,bet,public_key_b,key);
 					}
 				}
 				sleep(5);
