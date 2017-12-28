@@ -585,11 +585,11 @@ void* BET_clientplayer(void * _ptr)
 						printf("\n%s:%d",__FUNCTION__,__LINE__);
 						BET_give_share(gameInfo,bet,public_key_b,key);
 					}
-					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"response_share")){
+					/*else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"response_share")){
 						bits256 share;
 						share=jbits256(gameInfo,"response_share");
 						printf("\nShare received:%s",bits256_str(str,share));
-					}
+					}*/
 				}
 				sleep(5);
 			}
