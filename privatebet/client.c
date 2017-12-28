@@ -445,6 +445,7 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
         else
         {
         	memcpy(share.bytes,ptr,recvlen);
+			cJSON_Delete(shareInfo);
 			shareInfo=cJSON_CreateObject();
 			cJSON_AddStringToObject(shareInfo,"messageid","response_share");
 			cJSON_AddNumberToObject(shareInfo,"ofCardID",ofCardID);
