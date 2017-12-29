@@ -768,8 +768,8 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
 
 	for(i=0;i<numplayers;i++){
-		temp=BET_request_share(0,0,bet,public_key_b,key);
-		printf("\n%s:%d:share:%s",__FUNCTION__,__LINE__,bits256_str(str,temp));
+		tmp=BET_request_share(0,0,bet,public_key_b,key);
+		printf("\n%s:%d:share:%s",__FUNCTION__,__LINE__,bits256_str(str,tmp));
 	}
 	
 
