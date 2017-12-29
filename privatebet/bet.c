@@ -787,7 +787,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 		memcpy(cardshares[i].bytes,tmp.bytes,strlen(tmp.bytes));
 	}
 
-	printf("\nAll the shares are:\n");
+	printf("\nAll the shares of cardID:%d\n",cardID);
 	for(i=0;i<numplayers;i++){
 		printf("\n%s:%d:thread id:%02x:%s",__FUNCTION__,__LINE__,pthread_self(),bits256_str(str,cardshares[i]));
 	}
@@ -931,7 +931,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-				printf("\n%s:%d:thread id:%02x:share:%s",__FUNCTION__,__LINE__,pthread_self(),bits256_str(str,cardshares[j]));
+				printf("\n%s:%d:thread id:%02x:card id:%d:share:%s",__FUNCTION__,__LINE__,pthread_self(),i,bits256_str(str,cardshares[j]));
                 BET_ciphercreate(b_key.priv,keys[j].prod,temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
 			    memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
             }
