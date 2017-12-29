@@ -390,7 +390,7 @@ void BET_clientloop(void *_ptr)
     }
 }
 
-bits256 BET_request_share(int32_t cardID,int32_t playerID,struct privatebet_info *bet)
+bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_info *bet)
 {
 	cJSON *shareInfo=NULL;
 	bits256 share;
@@ -400,11 +400,10 @@ bits256 BET_request_share(int32_t cardID,int32_t playerID,struct privatebet_info
 	
 	shareInfo=cJSON_CreateObject();
 	cJSON_AddStringToObject(shareInfo,"messageid","request_share");
-	cJSON_AddNumberToObject(shareInfo,"ofCardID",cardID);
-	cJSON_AddNumberToObject(shareInfo,"ofPlayerID",playerID);
+	cJSON_AddNumberToObject(shareInfo,"ofCardID",ofCardID);
+	cJSON_AddNumberToObject(shareInfo,"ofPlayerID",ofPlayerID);
 	cJSON_AddNumberToObject(shareInfo,"forPlayerID",bet->myplayerid);
 	buf=cJSON_Print(shareInfo);
-
 	bytes=nn_send(bet->pushsock,buf,strlen(buf),0);
 	cJSON_Delete(shareInfo);
 	shareInfo=cJSON_CreateObject();
@@ -421,14 +420,15 @@ bits256 BET_request_share(int32_t cardID,int32_t playerID,struct privatebet_info
 						break;
 			}
 			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"request_share")){
-						printf("\n%s:%d",__FUNCTION__,__LINE__);
-						break;
+						printf("\n%s:%d do nothing",__FUNCTION__,__LINE__);
+					
 			}
 		}
 		sleep(5);
 	}
 	printf("\n%s:%d:out of loop",__FUNCTION__,__LINE__);
 	return share;
+	
 }
 
 void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_public_key,struct pair256 player_key)
@@ -442,7 +442,7 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 	ofCardID=jint(shareInfo,"ofCardID");
 	ofPlayerID=jint(shareInfo,"ofPlayerID");
 	forPlayerID=jint(shareInfo,"forPlayerID");
-	if(ofPlayerID==bet->myplayerid){
+	if((ofPlayerID==bet->myplayerid)&&(forPlayerID!=bet->myplayerid)){
         temp=g_shares[ofPlayerID*bet->numplayers*bet->range + (ofCardID*bet->numplayers + ofPlayerID)];
         recvlen = sizeof(temp);
         if ( (ptr= BET_decrypt(decipher,sizeof(decipher),bvv_public_key,player_key.priv,temp.bytes,&recvlen)) == 0 )
@@ -554,7 +554,7 @@ void* BET_clientplayer(void * _ptr)
 							}
 						}
 						#if 1
-					   for(int i=0;i<1/*numcards*/;i++){
+					   for(int i=0;i<numcards;i++){
         				    decoded256 = t_sg777_player_decode(bet,i,numplayers,key,public_key_b,blindedcards[bet->myplayerid][i],cardprods[bet->myplayerid],playerprivs,numcards);
             	            if ( bits256_nonz(decoded256) == 0 )
                 				errs++;

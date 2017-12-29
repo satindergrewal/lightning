@@ -766,7 +766,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     
     basepoint = curve25519_basepoint9();
     uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
-	BET_request_share(0,0,bet);
+	BET_request_share(0,1,bet);
 	playerid=bet->myplayerid;
 	#if 0
 	for (j=0; j<numplayers; j++)
