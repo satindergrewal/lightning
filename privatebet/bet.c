@@ -760,6 +760,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     struct enc_share temp;
     uint8_t **shares,flag=0;
 	uint32_t playerid;
+
     shares=calloc(numplayers,sizeof(uint8_t*));
     for(i=0;i<numplayers;i++)
         shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
@@ -771,6 +772,17 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 		if(i!=bet->myplayerid){
 			tmp=BET_request_share(cardID,i,bet,public_key_b,key);
 			printf("\n%s:%d:share:%s",__FUNCTION__,__LINE__,bits256_str(str,tmp));
+		}
+		else{
+			tmp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardID*bet->numplayers + bet->myplayerid)];
+        	recvlen = sizeof(temp);
+        	if ( (ptr= BET_decrypt(decipher,sizeof(decipher),public_key_b,key.priv,temp.bytes,&recvlen)) == 0 )
+            	printf("decrypt error ");
+        	else
+        	{
+        		memcpy(tmp.bytes,ptr,recvlen);
+				printf("\n%s:%d:share:%s",__FUNCTION__,__LINE__,bits256_str(str,tmp));
+        	}
 		}
 	}
 	
