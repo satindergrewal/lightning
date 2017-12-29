@@ -426,8 +426,8 @@ int main(int argc,const char *argv[])
 	struct privatebet_info **BET_players,*BET_dcv,*BET_bvv;
 	pthread_t players_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
 			
-	numplayers=2;
-	range=2;
+	numplayers=3;
+	range=3;
 
 	// for dcv
 	BET_dcv=calloc(1,sizeof(struct privatebet_info));
