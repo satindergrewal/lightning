@@ -413,26 +413,21 @@ bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_
 	while(1){
 		bytes=nn_recv(bet->subsock,&buf,NN_MSG,0);
 		if(bytes>0){
-			printf("\n%s:%d:%d:%s",__FUNCTION__,__LINE__,bytes,buf);
 			shareInfo=cJSON_Parse(buf);
 			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"response_share")){
 						share=jbits256(shareInfo,"share");
-						printf("\n%s:%d:Share received:%s",__FUNCTION__,__LINE__,bits256_str(str,share));
 						break;
 			}
 			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"request_share")){
-						printf("\n%s:%d do nothing",__FUNCTION__,__LINE__);
 						forPlayerID=jint(shareInfo,"forPlayerID");
 						if(forPlayerID!=bet->myplayerid){
 							BET_give_share(shareInfo,bet,bvv_public_key,player_key);
-							printf("\n%s:%d",__FUNCTION__,__LINE__);
 						}
 					
 			}
 		}
 		sleep(5);
 	}
-	printf("\n%s:%d:out of loop",__FUNCTION__,__LINE__);
 	return share;
 	
 }
@@ -469,7 +464,6 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 			char *buf=NULL;
 			buf=cJSON_Print(shareInfo);
 			int bytes=nn_send(bet->pushsock,buf,strlen(buf),0);
-			printf("\n%s:%d:%d:%s",__FUNCTION__,__LINE__,bytes,buf);
 		}	
 	}
 	
@@ -592,7 +586,6 @@ void* BET_clientplayer(void * _ptr)
 						}
 					}
 					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share")){
-						printf("\n%s:%d",__FUNCTION__,__LINE__);
 						BET_give_share(gameInfo,bet,public_key_b,key);
 					}
 					/*else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"response_share")){
