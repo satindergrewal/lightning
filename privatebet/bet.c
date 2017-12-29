@@ -784,8 +784,17 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 				printf("\n%s:%d:share:%s",__FUNCTION__,__LINE__,bits256_str(str,tmp));
         	}
 		}
+		memcpy(cardshares[i].bytes,tmp.bytes,strlen(tmp.bytes));
 	}
-	
+
+	M=(numplayers/2)+1;
+    for(i=0;i<M;i++) {
+        memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
+    }
+    gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
+    refval = fmul_donna(blindedcard,crecip_donna(recover));
+
+	printf("\n%s:%d:%s",__FUNCTION__,__LINE__,bits256_str(str,refval));	
 
 	playerid=bet->myplayerid;
 	#if 0
@@ -916,6 +925,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
         blindings[i] = rand256(1);
         blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
 		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
+		printf("\n%s:%d:%s",__FUNCTION__,__LINE__,bits256_str(str,blindings[i]));
     }
     M = (numplayers/2) + 1;
     
@@ -926,7 +936,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-				printf("\nshare:%s",bits256_str(str,cardshares[j]));
+				//printf("\nshare:%s",bits256_str(str,cardshares[j]));
                 BET_ciphercreate(b_key.priv,keys[j].prod,temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
 			    memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
             }
