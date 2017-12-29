@@ -390,14 +390,15 @@ void BET_clientloop(void *_ptr)
     }
 }
 
-bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_info *bet)
+bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_info *bet,bits256 bvv_public_key,struct pair256 player_key)
 {
 	cJSON *shareInfo=NULL;
 	bits256 share;
 	char *buf=NULL;
 	char str[65];
 	int bytes;
-	
+	int32_t forPlayerID;
+
 	shareInfo=cJSON_CreateObject();
 	cJSON_AddStringToObject(shareInfo,"messageid","request_share");
 	cJSON_AddNumberToObject(shareInfo,"ofCardID",ofCardID);
@@ -421,6 +422,11 @@ bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_
 			}
 			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"request_share")){
 						printf("\n%s:%d do nothing",__FUNCTION__,__LINE__);
+						forPlayerID=jint(shareInfo,"forPlayerID");
+						if(forPlayerID!=bet->myplayerid){
+							BET_give_share(shareInfo,bet,bvv_public_key,player_key);
+							printf("\n%s:%d",__FUNCTION__,__LINE__);
+						}
 					
 			}
 		}
