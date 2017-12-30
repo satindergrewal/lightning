@@ -160,7 +160,7 @@ void randombytes_buf(void * const buf, const size_t size)
 
 int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
 void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
-#if 0
+#if 1
 int main(int argc,const char *argv[])
 {
     uint16_t tmp,rpcport = 7797,port = 7797+1;
@@ -312,7 +312,7 @@ int main(int argc,const char *argv[])
     {
         
 		
-		#if 1 //using threads
+		#if 0 //using threads
 			cJSON *gameInfo=NULL;
 			pthread_t player_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
 			uint32_t values[CARDS777_MAXPLAYERS];
@@ -370,11 +370,11 @@ int main(int argc,const char *argv[])
 			*/
 	
 		#endif
-		testmode=1;
+		testmode=0;
 	
 		while ( testmode != 1 )
         {
-            
+            testmode=1;
             OS_randombytes((uint8_t *)&range,sizeof(range));
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
             range = (range % 52) + 1;
@@ -416,6 +416,7 @@ int main(int argc,const char *argv[])
     return 0;
 }
 #endif
+#if 0
 int main(int argc,const char *argv[])
 {
     uint16_t tmp,rpcport = 7797,port = 7797+1;
@@ -498,7 +499,7 @@ int main(int argc,const char *argv[])
     return 0;
 }
 
-
+#endif
 bits256 curve25519_fieldelement(bits256 hash)
 {
     hash.bytes[0] &= 0xf8, hash.bytes[31] &= 0x7f, hash.bytes[31] |= 0x40;
