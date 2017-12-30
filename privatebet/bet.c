@@ -924,7 +924,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
     int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 cardshares[CARDS777_MAXPLAYERS],basepoint,temp_hash[CARDS777_MAXCARDS];
     char str[65];
     struct enc_share temp;
-
+	libgfshare_init();
 	printf("\n%s:%d:deckid:%s",__FUNCTION__,__LINE__,bits256_str(str,deckid));
     
 	for (i=0; i<numcards; i++){
