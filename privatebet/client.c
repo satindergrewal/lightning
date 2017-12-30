@@ -560,7 +560,6 @@ void* BET_clientplayer(void * _ptr)
 					        {
 					            for (int j=0; j<numplayers; j++) {
 									g_shares[j*numplayers*numcards + (i*numplayers + playerid)]=get_API_enc_share(cJSON_GetArrayItem(cjsonshamirshards,j*numplayers*numcards + (i*numplayers + playerid)));
-									printf("\n%s:%d:%s",__FUNCTION__,__LINE__,enc_share_str(share_str,g_shares[j*numplayers*numcards + (i*numplayers + playerid)]));
 					            }
 					        }
 						}
