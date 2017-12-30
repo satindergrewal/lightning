@@ -491,8 +491,10 @@ struct enc_share get_API_enc_share(cJSON *obj)
     memset(hash.bytes,0,sizeof(hash));
     if ( obj != 0 )
     {
-        if ( is_cJSON_String(obj) != 0 && (str= obj->valuestring) != 0 && strlen(str) == 167 )
+        if ( is_cJSON_String(obj) != 0 && (str= obj->valuestring) != 0 && strlen(str) == 167 ){
             decode_hex(hash.bytes,sizeof(hash),str);
+			printf("\n%s:%d:%s",__FUNCTION__,__LINE__,str);	
+        }
     }
     return(hash);
 }
