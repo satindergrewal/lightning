@@ -393,7 +393,6 @@ void BET_clientloop(void *_ptr)
 char *enc_share_str(char hexstr[177],struct enc_share x)
 {
     int bytes=init_hexbytes_noT(hexstr,x.bytes,sizeof(x));
-	printf("\nBytes returned:%d:%d",bytes,sizeof(x));
     return(hexstr);
 }
 
@@ -496,10 +495,10 @@ struct enc_share get_API_enc_share(cJSON *obj)
         if ( is_cJSON_String(obj) != 0 && (str= obj->valuestring) != 0 && strlen(str) == 176 ){
 			
 			decode_hex(hash.bytes,sizeof(hash),str);
-			printf("\n%s:%d:%s",__FUNCTION__,__LINE__,str);	
+
         }
     }   
-	printf("\n%s:%d:%s",__FUNCTION__,__LINE__, enc_share_str(hexstr,hash));
+
     return(hash);
 }
 
@@ -561,9 +560,7 @@ void* BET_clientplayer(void * _ptr)
 					        {
 					            for (int j=0; j<numplayers; j++) {
 									g_shares[j*numplayers*numcards + (i*numplayers + playerid)]=get_API_enc_share(cJSON_GetArrayItem(cjsonshamirshards,j*numplayers*numcards + (i*numplayers + playerid)));
-									cJSON *t=cJSON_GetArrayItem(cjsonshamirshards,j*numplayers*numcards + (i*numplayers + playerid));
-									char *x=cJSON_Print(t);
-									printf("\n%s:%d:%s",__FUNCTION__,__LINE__,x);
+									printf("\n%s:%d:%s",__FUNCTION__,__LINE__,enc_share_str(share_str,g_shares[j*numplayers*numcards + (i*numplayers + playerid)]));
 					            }
 					        }
 						}
