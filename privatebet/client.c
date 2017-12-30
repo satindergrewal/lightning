@@ -390,6 +390,12 @@ void BET_clientloop(void *_ptr)
     }
 }
 
+char *enc_share_str(char hexstr [ 167 ],struct enc_share x)
+{
+    init_hexbytes_noT(hexstr,x.bytes,sizeof(x));
+    return(hexstr);
+}
+
 bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_info *bet,bits256 bvv_public_key,struct pair256 player_key)
 {
 	cJSON *shareInfo=NULL;
@@ -478,11 +484,6 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 	
 }
 
-char *enc_share_str(char hexstr [ 167 ],struct enc_share x)
-{
-    init_hexbytes_noT(hexstr,x.bytes,sizeof(x));
-    return(hexstr);
-}
 
 struct enc_share get_API_enc_share(cJSON *obj)
 {
