@@ -411,7 +411,7 @@ bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_
 	cJSON_AddNumberToObject(shareInfo,"ofPlayerID",ofPlayerID);
 	cJSON_AddNumberToObject(shareInfo,"forPlayerID",bet->myplayerid);
 	buf=cJSON_Print(shareInfo);
-	printf("%s:thread id:%02x, %s",__FUNCTION__,pthread_self(),buf);
+	
 	bytes=nn_send(bet->pushsock,buf,strlen(buf),0);
 	cJSON_Delete(shareInfo);
 
@@ -430,7 +430,7 @@ bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_
 			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"request_share")){
 						forPlayerID=jint(shareInfo,"forPlayerID");
 						if(forPlayerID!=bet->myplayerid){
-							printf("\n%s:%d:thread id:%02x",__FUNCTION__,__LINE__,pthread_self());
+							
 							BET_give_share(shareInfo,bet,bvv_public_key,player_key);
 						}
 					
@@ -458,7 +458,7 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
         temp=g_shares[ofPlayerID*bet->numplayers*bet->range + (ofCardID*bet->numplayers + ofPlayerID)];
         recvlen = sizeof(temp);
 		
-		printf("\n%s: thread id:%02x, share:%s",__FUNCTION__,pthread_self(),enc_share_str(enc_str,temp));
+	
         if ( (ptr= BET_decrypt(decipher,sizeof(decipher),bvv_public_key,player_key.priv,temp.bytes,&recvlen)) == 0 )
             printf("decrypt error ");
         else
