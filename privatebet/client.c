@@ -552,7 +552,6 @@ void* BET_clientplayer(void * _ptr)
 							}
 						}
 						cjsonshamirshards=cJSON_GetObjectItem(gameInfo,"shamirshards");
-						printf("%s:%d:thread id:%02x\n",__FUNCTION__,__LINE__,pthread_self());
 						cJSON_Print(cjsonshamirshards);	
 						for(int playerid=0;playerid<numplayers;playerid++)
 						{
