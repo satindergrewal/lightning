@@ -160,7 +160,7 @@ void randombytes_buf(void * const buf, const size_t size)
 
 int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
 void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
-#if 1
+#if 0
 int main(int argc,const char *argv[])
 {
     uint16_t tmp,rpcport = 7797,port = 7797+1;
@@ -418,7 +418,7 @@ int main(int argc,const char *argv[])
     return 0;
 }
 #endif
-#if 0
+#if 1
 int main(int argc,const char *argv[])
 {
     uint16_t tmp,rpcport = 7797,port = 7797+1;
