@@ -798,7 +798,8 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 			}
 			gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 			refval = fmul_donna(blindedcard,crecip_donna(recover));
-			printf("\nThe blinding value of card ID:%d:%s",cardID,bits256_str(str,refval));
+			printf("\nThe blinding value of card ID:%d:%s",cardID,bits256_str(str,recover));
+			printf("\n%s",bits256_str(str,blindedcard));
 			
 
 	#if 0
