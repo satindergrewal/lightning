@@ -392,7 +392,8 @@ void BET_clientloop(void *_ptr)
 
 char *enc_share_str(char hexstr [ 167 ],struct enc_share x)
 {
-    init_hexbytes_noT(hexstr,x.bytes,sizeof(x));
+    int bytes=init_hexbytes_noT(hexstr,x.bytes,sizeof(x));
+	printf("\nBytes returned:%d:%d",bytes,sizeof(x));
     return(hexstr);
 }
 
