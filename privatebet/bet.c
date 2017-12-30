@@ -794,10 +794,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	for(i=0;i<numplayers;i++){
 		printf("\n%s:%d:::::%s",__FUNCTION__,__LINE__,bits256_str(str,cardshares[i]));
 	}
-	printf("\nsharenrs\n");
-	for(i=0;i<numplayers;i++){
-		printf("%02x ",sharenrs[i]);
-	}
+	
 		M=(numplayers/2)+1;
 			for(i=0;i<M;i++) {
 				memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
@@ -937,15 +934,12 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
         blindings[i] = rand256(1);
         blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
 		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
-		printf("\n%s:%d:thread id:%02x:%s",__FUNCTION__,__LINE__,pthread_self(),bits256_str(str,blindings[i]));
+		printf("\n%s:%d:blinding value::::::%s",__FUNCTION__,__LINE__,bits256_str(str,blindings[i]));
     }
     M = (numplayers/2) + 1;
     
     gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
-	printf("\n%s:%d:::sharenrs\n",__FUNCTION__,__LINE__);
-	for(i=0;i<numplayers;i++){
-		printf("%02x ",sharenrs[i]);
-	}
+	
         for (i=0; i<numcards; i++)
         {
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
