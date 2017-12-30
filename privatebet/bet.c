@@ -772,9 +772,9 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
 
 	for(i=0;i<numplayers;i++){
-		if((i!=bet->myplayerid)&&(0)){
+		if(i!=bet->myplayerid){
 			tmp=BET_request_share(cardID,i,bet,public_key_b,key);
-			printf("\n%s:%d:thread id:%02x,share:%s",__FUNCTION__,__LINE__,pthread_self(),bits256_str(str,tmp));
+			//printf("\n%s:%d:thread id:%02x,share:%s",__FUNCTION__,__LINE__,pthread_self(),bits256_str(str,tmp));
 		}
 		else{
 			temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardID*bet->numplayers + bet->myplayerid)];
@@ -925,8 +925,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
     char str[65];
     struct enc_share temp;
 	libgfshare_init();
-	printf("\n%s:%d:deckid:%s",__FUNCTION__,__LINE__,bits256_str(str,deckid));
-    
+	
 	for (i=0; i<numcards; i++){
 		temp_hash[i]=g_hash[playerid][i];
 	}
