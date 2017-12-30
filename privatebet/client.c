@@ -508,6 +508,7 @@ void* BET_clientplayer(void * _ptr)
 		char str[65],share_str[177];
 		//struct enc_share *g_shares=NULL;
 		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*cjsonblindedcards,*cjsonshamirshards,*cjsoncardprods,*item;
+
 		numplayers=bet->numplayers;
 		numcards=bet->range;
 		
@@ -552,6 +553,7 @@ void* BET_clientplayer(void * _ptr)
 					        {
 					            for (int j=0; j<numplayers; j++) {
 									g_shares[j*numplayers*numcards + (i*numplayers + playerid)]=get_API_enc_share(cJSON_GetArrayItem(cjsonshamirshards,j*numplayers*numcards + (i*numplayers + playerid)));
+									printf("\n:%s:thread id:%02x,%s",__FUNCTION__,pthread_self(),enc_share_str(share_str,g_shares[j*numplayers*numcards + (i*numplayers + playerid)]));
 					            }
 					        }
 						}
