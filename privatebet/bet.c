@@ -767,7 +767,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     
     basepoint = curve25519_basepoint9();
     uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
-
+	/*
 	for(i=0;i<numplayers;i++){
 		if((i!=bet->myplayerid)&&(0)){
 			tmp=BET_request_share(cardID,i,bet,public_key_b,key);
@@ -791,13 +791,13 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	for(i=0;i<numplayers;i++){
 		printf("\n%s:%d:thread id:%02x:%s",__FUNCTION__,__LINE__,pthread_self(),bits256_str(str,cardshares[i]));
 	}
-
-	#if 0
+*/
+	#if 1
 	for (j=0; j<numplayers; j++)
     {
         temp=g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)];
         recvlen = sizeof(temp);
-        if ( (ptr= BET_decrypt(decipher,sizeof(decipher),public_key_b,keys[j].priv,temp.bytes,&recvlen)) == 0 )
+        if ( (ptr= BET_decrypt(decipher,sizeof(decipher),public_key_b,key.priv,temp.bytes,&recvlen)) == 0 )
             printf("decrypt error ");
         else
             memcpy(cardshares[j].bytes,ptr,recvlen);
@@ -808,6 +808,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     }
     gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
     refval = fmul_donna(blindedcard,crecip_donna(recover));
+	printf("\nThe blinding value of card ID:%d:%s",cardID,bits256_str(str,refval));
 	#endif
 	#if 0
     for (i=0; i<numcards; i++)
