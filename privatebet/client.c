@@ -405,7 +405,7 @@ bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_
 	cJSON_AddNumberToObject(shareInfo,"ofPlayerID",ofPlayerID);
 	cJSON_AddNumberToObject(shareInfo,"forPlayerID",bet->myplayerid);
 	buf=cJSON_Print(shareInfo);
-	printf("%s:%s",__FUNCTION__,buf);
+	printf("%s:thread id:%02x, %s",__FUNCTION__,pthread_self(),buf);
 	bytes=nn_send(bet->pushsock,buf,strlen(buf),0);
 	cJSON_Delete(shareInfo);
 
