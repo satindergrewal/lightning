@@ -489,7 +489,7 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 struct enc_share get_API_enc_share(cJSON *obj)
 {
     struct enc_share hash; char *str;
-	char hexstr [167];
+	char hexstr[167];
     memset(hash.bytes,0,sizeof(hash));
     str=cJSON_Print(obj);	
     if(strlen(str)==167){
