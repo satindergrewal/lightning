@@ -459,6 +459,7 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 	if((ofPlayerID==bet->myplayerid)&&(forPlayerID!=bet->myplayerid)){
         temp=g_shares[forPlayerID*bet->numplayers*bet->range + (ofCardID*bet->numplayers + forPlayerID)];
         recvlen = sizeof(temp);
+		printf("\n%s:%d:%d:enc_share:%s",__FUNCTION__,__LINE__,bet->myplayerid,enc_share_str(enc_str,temp));	
 	    if ( (ptr= BET_decrypt(decipher,sizeof(decipher),bvv_public_key,player_key.priv,temp.bytes,&recvlen)) == 0 )
             printf("decrypt error ");
         else
