@@ -459,7 +459,8 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 	if((ofPlayerID==bet->myplayerid)&&(forPlayerID!=bet->myplayerid)){
         temp=g_shares[forPlayerID*bet->numplayers*bet->range + (ofCardID*bet->numplayers + forPlayerID)];
         recvlen = sizeof(temp);
-		printf("\n%s:%d:t_id:%d:player_id:%d:%s",__FUNCTION__,__LINE__,pthread_self(),ofPlayerID,enc_share_str(enc_str,temp));	
+		printf("\n%s:%d:p_id:%d:%s",__FUNCTION__,__LINE__,bet->myplayerid,enc_share_str(enc_str,temp));
+		printf("\n%s::::%s",bits256_str(str,player_key.priv),bits256_str(str,player_key.prod));
         if ( (ptr= BET_decrypt(decipher,sizeof(decipher),bvv_public_key,player_key.priv,temp.bytes,&recvlen)) == 0 )
             printf("decrypt error ");
         else
@@ -544,7 +545,7 @@ void* BET_clientplayer(void * _ptr)
 					gameInfo=cJSON_Parse(buf);
 					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"decode")){
 						public_key_b=jbits256(gameInfo,"public_key_b");
-						printf("\n%s:%d:%d:key:%s",__FUNCTION__,__LINE__,bet->myplayerid,bits256_str(str,public_key_b));
+						printf("\n%s:%d:%d:key:%s",__FUNCTION__,__LINE__,bet->myplayerid,buf);
 						g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
 						cjsonblindedcards=cJSON_GetObjectItem(gameInfo,"blindedcards");
 						for(int i=0;i<numplayers;i++){

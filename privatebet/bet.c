@@ -945,7 +945,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-				printf("\n%s:%d::::%s",__FUNCTION__,__LINE__,bits256_str(str,cardshares[j]));
+				printf("\n%s:%d::::%s::::%s",__FUNCTION__,__LINE__,bits256_str(str,cardshares[j]),bits256_str(str,keys[j].prod));
 				BET_ciphercreate(b_key.priv,keys[j].prod,temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
 				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,enc_share_str(share_str,temp));
 			    memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
