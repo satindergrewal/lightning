@@ -553,6 +553,7 @@ void* BET_clientplayer(void * _ptr)
 						}
 						cjsonshamirshards=cJSON_GetObjectItem(gameInfo,"shamirshards");
 						cJSON_Print(cjsonshamirshards);	
+						printf("\n%s",buf);
 						int k=0;
 						for(int playerid=0;playerid<numplayers;playerid++)
 						{
@@ -565,7 +566,9 @@ void* BET_clientplayer(void * _ptr)
 					            }
 					        }
 						}
-						
+						for(int i=0;i<k;i++){
+							printf("\nlocation:%d, share:%s",i,enc_share_str(share_str,g_shares[i]));
+						}
 						for(int i=0;i<numcards;i++){
 							for(int j=0;j<numcards;j++){
 								temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[i],cardprods[bet->myplayerid][j])));
