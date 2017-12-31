@@ -789,18 +789,12 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 		memcpy(cardshares[i].bytes,tmp.bytes,strlen(tmp.bytes));
 	}
 	
-	printf("\nAll the shares of cardID:%d:thread id:%02x",cardID,pthread_self());
-	for(i=0;i<numplayers;i++){
-		printf("\n%s:%d:::::%s",__FUNCTION__,__LINE__,bits256_str(str,cardshares[i]));
-	}
-	
 		M=(numplayers/2)+1;
 			for(i=0;i<M;i++) {
 				memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
 			}
 			gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 			refval = fmul_donna(blindedcard,crecip_donna(recover));
-			printf("\n%s:%d:thread id:%02x:card ID:%d::::::blinding value:%s",__FUNCTION__,__LINE__,pthread_self(),cardID,bits256_str(str,recover));
 			
 			
 
@@ -844,7 +838,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	            decoded = curve25519(fmul_donna(refval,fe),basepoint);
 	            if ( bits256_cmp(decoded,cardprods[j]) == 0 )
 	            {
-	                printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
+	                printf("\nplayer.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
 	                //return(playerprivs[i]);
 					tmp=playerprivs[i];
 					flag=1;
@@ -940,8 +934,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 	for (i=0; i<numcards; i++)
     {
         blindings[i] = rand256(1);
-		printf("\n%s:%d:%s",__FUNCTION__,__LINE__,bits256_str(str,blindings[i]));
-        blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
+		blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
 		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
 		}
     M = (numplayers/2) + 1;
