@@ -451,7 +451,6 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 	char str[65],enc_str[177];
 	bits256 share;
 	uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
-	printf("\n%s:%d:%d:pub:%s",__FUNCTION__,__LINE__,bet->myplayerid,bits256_str(str,player_key.prod));
 	ofCardID=jint(shareInfo,"ofCardID");
 	ofPlayerID=jint(shareInfo,"ofPlayerID");
 	forPlayerID=jint(shareInfo,"forPlayerID");
@@ -459,8 +458,7 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 	if((ofPlayerID==bet->myplayerid)&&(forPlayerID!=bet->myplayerid)){
         temp=g_shares[ofPlayerID*bet->numplayers*bet->range + (ofCardID*bet->numplayers + forPlayerID)];
         recvlen = sizeof(temp);
-		printf("\n%s:%d:%d::::location:%d,enc_share:%s",__FUNCTION__,__LINE__,bet->myplayerid,(ofPlayerID*bet->numplayers*bet->range + (ofCardID*bet->numplayers + forPlayerID)),enc_share_str(enc_str,temp));	
-	    if ( (ptr= BET_decrypt(decipher,sizeof(decipher),bvv_public_key,player_key.priv,temp.bytes,&recvlen)) == 0 )
+		if ( (ptr= BET_decrypt(decipher,sizeof(decipher),bvv_public_key,player_key.priv,temp.bytes,&recvlen)) == 0 )
             printf("decrypt error ");
         else
         {
@@ -521,7 +519,6 @@ void* BET_clientplayer(void * _ptr)
 		if ( bet->subsock >= 0 && bet->pushsock >= 0 )
 		{
 			key = deckgen_player(playerprivs,playercards,permis,numcards);
-			printf("\n%s:%d:p_id:%d:pub:%s",__FUNCTION__,__LINE__,bet->myplayerid,bits256_str(str,key.prod));
 			playerInfo=cJSON_CreateObject();
 			cJSON_AddStringToObject(playerInfo,"messageid","init");
 			cJSON_AddNumberToObject(playerInfo,"playerid",bet->myplayerid);
@@ -553,7 +550,7 @@ void* BET_clientplayer(void * _ptr)
 						}
 						cjsonshamirshards=cJSON_GetObjectItem(gameInfo,"shamirshards");
 						cJSON_Print(cjsonshamirshards);	
-						printf("\n%s",buf);
+					
 						int k=0;
 						for(int playerid=0;playerid<numplayers;playerid++)
 						{
@@ -565,9 +562,6 @@ void* BET_clientplayer(void * _ptr)
 									//j*numplayers*numcards + (i*numplayers + playerid)
 					            }
 					        }
-						}
-						for(int i=0;i<k;i++){
-							printf("\nlocation:%d, share:%s",i,enc_share_str(share_str,g_shares[i]));
 						}
 						for(int i=0;i<numcards;i++){
 							for(int j=0;j<numcards;j++){
@@ -608,7 +602,6 @@ void* BET_clientplayer(void * _ptr)
 						}
 					}
 					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share")){
-						printf("\n%s:%d:%d:pub:%s",__FUNCTION__,__LINE__,bet->myplayerid,bits256_str(str,key.prod));
 						BET_give_share(gameInfo,bet,public_key_b,key);
 					}
 					/*else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"response_share")){
