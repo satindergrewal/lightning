@@ -428,11 +428,13 @@ bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_
 						break;
 			}
 			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"request_share")){
+
 						forPlayerID=jint(shareInfo,"forPlayerID");
 						if(forPlayerID!=bet->myplayerid){
 							
 							BET_give_share(shareInfo,bet,bvv_public_key,player_key);
 						}
+						
 					
 			}
 		}
@@ -568,7 +570,7 @@ void* BET_clientplayer(void * _ptr)
 							}
 						}
 						#if 1
-					   for(int i=0;i<1/*numcards*/;i++){
+					   for(int i=0;((i<1/*numcards*/) && (bet->myplayerid==0));i++){
         				    decoded256 = t_sg777_player_decode(bet,i,numplayers,key,public_key_b,blindedcards[bet->myplayerid][i],cardprods[bet->myplayerid],playerprivs,numcards);
             	            if ( bits256_nonz(decoded256) == 0 )
                 				errs++;
