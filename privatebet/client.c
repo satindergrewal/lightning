@@ -553,7 +553,7 @@ void* BET_clientplayer(void * _ptr)
 						}
 						cjsonshamirshards=cJSON_GetObjectItem(gameInfo,"shamirshards");
 						cJSON_Print(cjsonshamirshards);	
-						for(int playerid=0;playerid<numplayers;playerid++)
+						/*for(int playerid=0;playerid<numplayers;playerid++)
 						{
 							for (int i=0; i<numcards; i++)
 					        {
@@ -561,7 +561,7 @@ void* BET_clientplayer(void * _ptr)
 									g_shares[j*numplayers*numcards + (i*numplayers + playerid)]=get_API_enc_share(cJSON_GetArrayItem(cjsonshamirshards,j*numplayers*numcards + (i*numplayers + playerid)));
 					            }
 					        }
-						}
+						}*/
 						for(int i=0;i<numcards;i++){
 							for(int j=0;j<numcards;j++){
 								temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[i],cardprods[bet->myplayerid][j])));
