@@ -822,6 +822,14 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     refval = fmul_donna(blindedcard,crecip_donna(recover));
 	printf("\nThe blinding value of card ID:%d:%s",cardID,bits256_str(str,refval));
 	#endif
+	for(i=0;i<numcards;i++){
+			for(j=0;j<numcards;j++){
+				temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[playerid][i],cardprods[playerid][j])));
+				vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
+				
+	            
+			}
+		}
 	#if 1
     for (i=0; i<numcards; i++)
     {
