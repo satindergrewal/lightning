@@ -471,6 +471,7 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 			cJSON_AddNumberToObject(shareInfo,"forPlayerID",forPlayerID);
 			
 			jaddbits256(shareInfo,"share",share);
+			printf("\n%s:%d:giving share:%s",__FUNCTION__,__LINE__,bits256_str(str,share));
         }
 		if(bet->pushsock>=0){
 			char *buf=NULL;
