@@ -425,7 +425,6 @@ bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_
 			shareInfo=cJSON_Parse(buf);
 			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"response_share")){
 						share=jbits256(shareInfo,"share");
-						printf("\n%s:%d:giving share2:%s",__FUNCTION__,__LINE__,bits256_str(str,share));
 						break;
 			}
 			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"request_share")){
@@ -472,7 +471,7 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 			cJSON_AddNumberToObject(shareInfo,"forPlayerID",forPlayerID);
 			
 			jaddbits256(shareInfo,"share",share);
-			printf("\n%s:%d:giving share:%s",__FUNCTION__,__LINE__,bits256_str(str,share));
+		
         }
 		if(bet->pushsock>=0){
 			char *buf=NULL;
@@ -572,7 +571,7 @@ void* BET_clientplayer(void * _ptr)
 							}
 						}
 						#if 1
-					   for(int i=0;((i<numcards) && (bet->myplayerid==0));i++){
+					   for(int i=0;i<numcards;i++){
         				    decoded256 = t_sg777_player_decode(bet,i,numplayers,key,public_key_b,blindedcards[bet->myplayerid][i],cardprods[bet->myplayerid],playerprivs,numcards);
             	            if ( bits256_nonz(decoded256) == 0 )
                 				errs++;
