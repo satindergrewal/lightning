@@ -830,6 +830,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	            
 			}
 		}
+	playerid=bet->myplayerid;
 	#if 1
     for (i=0; i<numcards; i++)
     {
