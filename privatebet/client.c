@@ -696,12 +696,13 @@ void* BET_clientbvv(void * _ptr)
 						}
 						#if 1
 						cJSON_AddItemToObject(gameInfo,"shamirshards",cjsonshamirshards=cJSON_CreateArray());
+						int k=0;
 						for(int playerid=0;playerid<numplayers;playerid++)
 						{
 							for (int i=0; i<numcards; i++)
 					        {
 					            for (int j=0; j<numplayers; j++) {
-									cJSON_AddItemToArray(cjsonshamirshards,cJSON_CreateString(enc_share_str(share_str,g_shares[j*numplayers*numcards + (i*numplayers + playerid)])));
+									cJSON_AddItemToArray(cjsonshamirshards,cJSON_CreateString(enc_share_str(share_str,g_shares[k++])));
 					            }
 					        }
 						}
