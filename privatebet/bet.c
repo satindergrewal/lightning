@@ -430,7 +430,7 @@ int main(int argc,const char *argv[])
 	pthread_t players_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
 			
 	numplayers=2;
-	range=2;
+	range=10;
 
 	// for dcv
 	BET_dcv=calloc(1,sizeof(struct privatebet_info));
