@@ -425,6 +425,7 @@ bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_
 			shareInfo=cJSON_Parse(buf);
 			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"response_share")){
 						share=jbits256(shareInfo,"share");
+						printf("\n%s:%d:giving share2:%s",__FUNCION__,__LINE__,bits256_str(str,share));
 						break;
 			}
 			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"request_share")){
