@@ -522,6 +522,7 @@ void* BET_clientplayer(void * _ptr)
 		if ( bet->subsock >= 0 && bet->pushsock >= 0 )
 		{
 			key = deckgen_player(playerprivs,playercards,permis,numcards);
+			printf("\n%s:%d:p_id:%d:pub:%s",__FUNCTION__,__LINE__,bet->myplayerid,bits256_str(str,key.prod));
 			playerInfo=cJSON_CreateObject();
 			cJSON_AddStringToObject(playerInfo,"messageid","init");
 			cJSON_AddNumberToObject(playerInfo,"playerid",bet->myplayerid);
