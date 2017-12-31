@@ -778,6 +778,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 		else{
 			temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardID*bet->numplayers + bet->myplayerid)];
         	recvlen = sizeof(temp);
+			printf("\n%s:%d:p_id:%d,pub:%s",__FUNCTION__,__LINE__,bet->myplayerid,bits256_str(str,key.prod));
         	if ( (ptr= BET_decrypt(decipher,sizeof(decipher),public_key_b,key.priv,temp.bytes,&recvlen)) == 0 )
             	printf("decrypt error ");
         	else
