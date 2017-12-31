@@ -795,7 +795,8 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 			}
 			gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 			refval = fmul_donna(blindedcard,crecip_donna(recover));
-			
+
+			printf("\n%s:%d: Blinding Value:%s",__FUNCTION__,__LINE__,bits256_str(str,refval));
 			
 
 	#if 0
@@ -934,6 +935,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 	for (i=0; i<numcards; i++)
     {
         blindings[i] = rand256(1);
+		printf("\n%s:%d:Blinding_value:%s",__FUNCTION__,__LINE__,bits256_str(str,blindings[i]));
 		blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
 		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
 		}
