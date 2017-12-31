@@ -774,7 +774,6 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	for(i=0;i<numplayers;i++){
 		if(i!=bet->myplayerid){
 			tmp=BET_request_share(cardID,i,bet,public_key_b,key);
-			printf("\n%s:%d:player id:%d,share:%s",__FUNCTION__,__LINE__,bet->myplayerid,bits256_str(str,tmp));
 		}
 		else{
 			temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardID*bet->numplayers + bet->myplayerid)];
@@ -784,7 +783,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
         	else
         	{
         		memcpy(tmp.bytes,ptr,recvlen);
-				printf("\n%s:%d:player id:%d,share:%s",__FUNCTION__,__LINE__,bet->myplayerid,bits256_str(str,tmp));
+				
         	}
 		}
 		memcpy(cardshares[i].bytes,tmp.bytes,strlen(tmp.bytes));
@@ -934,8 +933,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
         blindings[i] = rand256(1);
         blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
 		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
-		printf("\n%s:%d:blinding value::::::%s",__FUNCTION__,__LINE__,bits256_str(str,blindings[i]));
-    }
+		}
     M = (numplayers/2) + 1;
     
     gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
@@ -945,10 +943,8 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-				printf("\n%s:%d::::%s::::%s",__FUNCTION__,__LINE__,bits256_str(str,cardshares[j]),bits256_str(str,keys[j].prod));
 				BET_ciphercreate(b_key.priv,keys[j].prod,temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
-				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,enc_share_str(share_str,temp));
-			    memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
+				memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
             }
         }
     // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
