@@ -561,6 +561,7 @@ void* BET_clientplayer(void * _ptr)
 					            for (int j=0; j<numplayers; j++) {
 									g_shares[k]=get_API_enc_share(cJSON_GetArrayItem(cjsonshamirshards,k));
 									k++;
+									//j*numplayers*numcards + (i*numplayers + playerid)
 					            }
 					        }
 						}
