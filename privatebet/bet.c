@@ -824,7 +824,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	#endif
 	for(i=0;i<numcards;i++){
 			for(j=0;j<numcards;j++){
-				temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[i],cardprods[j])));
+				bits256 temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[i],cardprods[j])));
 				vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 				
 	            
