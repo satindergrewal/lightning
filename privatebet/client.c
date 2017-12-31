@@ -602,6 +602,7 @@ void* BET_clientplayer(void * _ptr)
 						}
 					}
 					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share")){
+						printf("\n%s:%d:%d:pub:%s",__FUNCTION__,__LINE__,bet->myplayerid,bits256_str(str,key.prod));
 						BET_give_share(gameInfo,bet,public_key_b,key);
 					}
 					/*else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"response_share")){
