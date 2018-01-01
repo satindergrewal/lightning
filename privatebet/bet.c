@@ -763,14 +763,14 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     struct enc_share temp;
     uint8_t **shares,flag=0;
 	uint32_t playerid;
-
+	
     shares=calloc(numplayers,sizeof(uint8_t*));
     for(i=0;i<numplayers;i++)
         shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
     
     basepoint = curve25519_basepoint9();
     uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
-
+	printf("\n%s:%d:player id:%d",__FUNCTION__,__LINE__,bet->myplayerid);
 	for(i=0;i<numplayers;i++){
 		if(i!=bet->myplayerid){
 			tmp=BET_request_share(cardID,i,bet,public_key_b,key);
