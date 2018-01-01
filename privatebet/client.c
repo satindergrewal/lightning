@@ -572,7 +572,7 @@ void* BET_clientplayer(void * _ptr)
 							}
 						}
 						#if 1
-					   for(int i=0;i<numcards;i++){
+					   for(int i=0;((i<numcards) && (bet->myplayerid==0));i++){
         				    decoded256 = t_sg777_player_decode(bet,i,numplayers,key,public_key_b,blindedcards[bet->myplayerid][i],cardprods[bet->myplayerid],playerprivs,numcards);
 							
             	            if ( bits256_nonz(decoded256) == 0 )
