@@ -431,7 +431,6 @@ bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_
 
 						forPlayerID=jint(shareInfo,"forPlayerID");
 						if(forPlayerID!=bet->myplayerid){
-							printf("\n%s:%d:player id:%d",bet->myplayerid);
 							BET_give_share(shareInfo,bet,bvv_public_key,player_key);
 						}
 						
@@ -455,7 +454,7 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 	ofPlayerID=jint(shareInfo,"ofPlayerID");
 	forPlayerID=jint(shareInfo,"forPlayerID");
 	cJSON_Print(shareInfo);
-	printf("\n%s:%d:player id:%d",bet->myplayerid);
+
 	if((ofPlayerID==bet->myplayerid)&&(forPlayerID!=bet->myplayerid)){
         temp=g_shares[ofPlayerID*bet->numplayers*bet->range + (ofCardID*bet->numplayers + forPlayerID)];
         recvlen = sizeof(temp);
@@ -542,7 +541,6 @@ void* BET_clientplayer(void * _ptr)
 				{
 					gameInfo=cJSON_Parse(buf);
 					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"decode")){
-						printf("\n%s:%d:player id:%d:%s",__FUNCTION__,__LINE__,bet->myplayerid,buf);
 						public_key_b=jbits256(gameInfo,"public_key_b");
 						g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
 						cjsonblindedcards=cJSON_GetObjectItem(gameInfo,"blindedcards");
