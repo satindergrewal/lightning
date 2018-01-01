@@ -790,7 +790,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	}
 	printf("\nThe shares are:");
 	for(i=0;i<numplayers;i++){
-		printf("\n%s:%d:cardID:%d,share:%s",__FUNCTION__,__LINE__,cardID,bits256_str(str,cardshares[i]));
+		printf("\n%s:%d:player id:%d:cardID:%d,share:%s",__FUNCTION__,__LINE__,bet->myplayerid,cardID,bits256_str(str,cardshares[i]));
 	}
 		M=(numplayers/2)+1;
 			for(i=0;i<M;i++) {
