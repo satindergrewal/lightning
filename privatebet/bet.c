@@ -51,7 +51,7 @@ int32_t permis_d[CARDS777_MAXCARDS],permis_b[CARDS777_MAXCARDS];
 bits256 *allshares=NULL;
 uint8_t sharenrs[256];
 struct rpcrequest_info *LP_garbage_collector;
-struct enc_share { uint8_t share[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
+struct enc_share { uint8_t bytes[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
 struct enc_share *g_shares=NULL;
 //struct enc_share g_shares[CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS];
 
@@ -160,10 +160,7 @@ void randombytes_buf(void * const buf, const size_t size)
 
 int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
 void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid);
-
-struct pair256 { bits256 priv,prod; };
-
-
+#if 0
 int main(int argc,const char *argv[])
 {
     uint16_t tmp,rpcport = 7797,port = 7797+1;
@@ -180,6 +177,7 @@ int main(int argc,const char *argv[])
     sleep(1);
     if ( argc > 1 )
     {
+    	
         if ( (infojson= chipsln_getinfo()) != 0 )
         {
             if ( (LN_idstr= clonestr(jstr(infojson,"id"))) == 0 || strlen(LN_idstr) != 66 )
@@ -189,8 +187,10 @@ int main(int argc,const char *argv[])
         } else printf("need to have CHIPS and lightning running\n"), exit(-1);
         printf("help.(%s)\n",jprint(chipsln_help(),1));
         printf("LN_idstr.(%s)\n",LN_idstr);
-        if ( (argjson= cJSON_Parse(argv[1])) != 0 )
+        
+		if ( (argjson= cJSON_Parse(argv[1])) != 0 )
         {
+            
             hostip = jstr(argjson,"hostip");
             if ( (tmp= juint(argjson,"hostport")) != 0 )
                 port = tmp;
@@ -201,10 +201,13 @@ int main(int argc,const char *argv[])
                 printf("error launching stats rpcloop for port.%u\n",port);
                 exit(-1);
             }
+            
+
             if ( (modestr= jstr(argjson,"mode")) != 0 )
             {
                 if ( strcmp(modestr,"host") == 0 )
                 {
+                 
                     if ( hostip == 0 && system("curl -s4 checkip.amazonaws.com > /tmp/myipaddr") == 0 )
                     {
                         if ( (hostip= OS_filestr(&fsize,"/tmp/myipaddr")) != 0 && hostip[0] != 0 )
@@ -214,6 +217,7 @@ int main(int argc,const char *argv[])
                                 hostip[--n] = 0;
                         } else printf("error getting myipaddr\n");
                     }
+				
                     BET_transportname(1,bindaddr,hostip,port);
                     pubsock = BET_nanosock(1,bindaddr,NN_PUB);
                     BET_transportname(1,bindaddr,hostip,port+1);
@@ -306,14 +310,77 @@ int main(int argc,const char *argv[])
     }
     else
     {
-        printf("no argjson, default to testmode\n");
+        
+		
+		#if 0 //using threads
+			cJSON *gameInfo=NULL;
+			pthread_t player_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
+			uint32_t values[CARDS777_MAXPLAYERS];
+			OS_randombytes((uint8_t *)&range,sizeof(range));
+			OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
+			range = (range % 52) + 1;
+			numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
+
+			gameInfo=cJSON_CreateObject();
+			cJSON_AddNumberToObject(gameInfo,"numplayers",numplayers);
+			cJSON_AddNumberToObject(gameInfo,"range",range);
+			cJSON_AddNumberToObject(gameInfo,"maxnumplayers",CARDS777_MAXPLAYERS);
+			cJSON_AddNumberToObject(gameInfo,"maxrange",CARDS777_MAXCARDS);
+
+			char *rendered=cJSON_Print(gameInfo);
+			
+			printf("\nnumplayers=%d",jint(gameInfo,"numplayers"));
+			printf("\n%s",rendered);
+			numplayers=1;
+			for(i=0;i<numplayers;i++){
+				values[i]=i;
+				if ( OS_thread_create(&player_t[i],NULL,(void *)BET_player,(void *)rendered) != 0 )
+				{
+					printf("error launching BET_clientloop\n");
+					exit(-1);
+				}
+			}
+					
+			if ( OS_thread_create(&dcv_t,NULL,(void *)BET_dcv,(void *)rendered) != 0 )
+			{
+				printf("error launching BET_clientloop\n");
+				exit(-1);
+			}
+			/*
+			if ( OS_thread_create(&bvv_t,NULL,(void *)BET_bvv,(void *)BET) != 0 )
+			{
+				printf("error launching BET_clientloop\n");
+				exit(-1);
+			}
+			*/
+			for(i=0;i<numplayers;i++){
+				if(pthread_join(player_t[i],NULL)){
+					printf("\nError in joining the main thread for player thread %d",i);
+				}
+			}
+			
+			if(pthread_join(dcv_t,NULL)){
+				printf("\nError in joining the main thread for dcv");
+			}
+			/*
+			if(pthread_join(bvv_t,NULL)){
+				printf("\nError in joining the main thread for bvv");
+			}
+	
+			*/
+	
+		#endif
+		testmode=0;
+	
 		while ( testmode != 1 )
         {
-            
+            testmode=1;
             OS_randombytes((uint8_t *)&range,sizeof(range));
             OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
             range = (range % 52) + 1;
             numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
+			numplayers=2;
+			range=2;
 			printf("\nnumplayers=%d, numcards=%d\n",numplayers,range);
 			sg777_players_init(numplayers,range,rand256(0));
             continue;
@@ -350,8 +417,104 @@ int main(int argc,const char *argv[])
     sleep(1);
     return 0;
 }
+#endif
+#if 1
+int main(int argc,const char *argv[])
+{
+    uint16_t tmp,rpcport = 7797,port = 7797+1;
+    char connectaddr[128],bindaddr[128]="ipc:///tmp/bet.ipc",bindaddr1[128]="ipc:///tmp/bet1.ipc",smartaddr[64],randphrase[32],*modestr,*hostip,*passphrase=0,*retstr; 
+	cJSON *infojson,*argjson,*reqjson,*deckjson; 
+	uint64_t randvals; bits256 privkey,pubkey,pubkeys[64],privkeys[64]; 
+	uint8_t pubkey33[33],taddr=0,pubtype=60; uint32_t i,n,range,numplayers; int32_t testmode=0,pubsock=-1,subsock=-1,pullsock=-1,pushsock=-1; long fsize; 
+	struct privatebet_info **BET_players,*BET_dcv,*BET_bvv;
+	pthread_t players_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
+	
+	
+    OS_init();
+	libgfshare_init();
+	OS_randombytes((uint8_t *)&range,sizeof(range));
+    OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
 
+	range = (range % 52) + 1;
+	numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
+	printf("%s:%d, range:%d, numplayers:%d\n",__FUNCTION__,__LINE__,range,numplayers);
 
+	// for dcv
+	BET_dcv=calloc(1,sizeof(struct privatebet_info));
+    BET_dcv->pubsock = BET_nanosock(1,bindaddr,NN_PUB);
+    BET_dcv->pullsock = BET_nanosock(1,bindaddr1,NN_PULL);
+    BET_dcv->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
+    BET_dcv->maxchips = CARDS777_MAXCHIPS;
+    BET_dcv->chipsize = CARDS777_CHIPSIZE;
+	BET_dcv->numplayers=numplayers;
+    BET_betinfo_set(BET_dcv,"demo",range,0,Maxplayers);
+    if ( OS_thread_create(&dcv_t,NULL,(void *)BET_hostdcv,(void *)BET_dcv) != 0 )
+    {
+        printf("error launching BET_hostloop for pub.%d pull.%d\n",BET_dcv->pubsock,BET_dcv->pullsock);
+        exit(-1);
+    }
+
+	// for bvv
+	BET_bvv=calloc(1,sizeof(struct privatebet_info));
+    BET_bvv->subsock = BET_nanosock(0,bindaddr,NN_SUB);
+    BET_bvv->pushsock = BET_nanosock(0,bindaddr1,NN_PUSH);
+    BET_bvv->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
+    BET_bvv->maxchips = CARDS777_MAXCHIPS;
+    BET_bvv->chipsize = CARDS777_CHIPSIZE;
+	BET_bvv->numplayers=numplayers;
+	BET_bvv->myplayerid=0;
+    BET_betinfo_set(BET_bvv,"demo",range,0,Maxplayers);
+    if ( OS_thread_create(&bvv_t,NULL,(void *)BET_clientbvv,(void *)BET_bvv) != 0 )
+    {
+        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_bvv->subsock,BET_bvv->pushsock);
+        exit(-1);
+    }
+
+	// for players
+	BET_players=calloc(numplayers,sizeof(struct privatebet_info*));
+	for(int i=0;i<numplayers;i++)
+	{
+		BET_players[i]=calloc(1,sizeof(struct privatebet_info));
+	}
+    
+	for(int i=0;i<numplayers;i++)
+	{
+		BET_players[i]->subsock = BET_nanosock(0,bindaddr,NN_SUB);
+	    BET_players[i]->pushsock = BET_nanosock(0,bindaddr1,NN_PUSH);
+	    BET_players[i]->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
+	    BET_players[i]->maxchips = CARDS777_MAXCHIPS;
+	    BET_players[i]->chipsize = CARDS777_CHIPSIZE;
+		BET_players[i]->numplayers=numplayers;
+		BET_players[i]->myplayerid=i;
+	    BET_betinfo_set(BET_players[i],"demo",range,0,Maxplayers);
+	    if (OS_thread_create(&players_t[i],NULL,(void *)BET_clientplayer,(void *)BET_players[i]) != 0 )
+	    {
+	        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_players[i]->subsock,BET_players[i]->pushsock);
+	        exit(-1);
+	    }	
+	}
+
+	if(pthread_join(dcv_t,NULL))
+	{
+		printf("\nError in joining the main thread for dcv");
+	}
+
+	if(pthread_join(bvv_t,NULL))
+	{
+		printf("\nError in joining the main thread for bvvv");
+	}
+
+	for(int i=0;i<numplayers;i++)
+	{
+		if(pthread_join(players_t[i],NULL))
+		{
+			printf("\nError in joining the main thread for player %d",i);
+		}
+	}
+    return 0;
+}
+
+#endif
 bits256 curve25519_fieldelement(bits256 hash)
 {
     hash.bytes[0] &= 0xf8, hash.bytes[31] &= 0x7f, hash.bytes[31] |= 0x40;
@@ -607,6 +770,86 @@ struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256
     
     return key;
 }
+bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int numplayers,struct pair256 key,bits256 public_key_b,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t numcards)
+{
+    bits256 recover,decoded,tmp,xoverz,hash,fe,refval,basepoint,cardshares[CARDS777_MAXPLAYERS]; int32_t i,j,k,unpermi,M; char str[65];
+    struct enc_share temp;
+    uint8_t **shares,flag=0;
+	uint32_t playerid;
+	char share_str[177];
+    shares=calloc(numplayers,sizeof(uint8_t*));
+    for(i=0;i<numplayers;i++)
+        shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
+    
+    basepoint = curve25519_basepoint9();
+    uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
+	for(i=0;i<numplayers;i++){
+		if(i!=bet->myplayerid){
+			tmp=BET_request_share(cardID,i,bet,public_key_b,key);
+		}
+		else{
+			temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardID*bet->numplayers + bet->myplayerid)];
+			recvlen = sizeof(temp);
+			if ( (ptr= BET_decrypt(decipher,sizeof(decipher),public_key_b,key.priv,temp.bytes,&recvlen)) == 0 )
+            	printf("decrypt error ");
+        	else
+        	{
+        		memcpy(tmp.bytes,ptr,recvlen);
+	       	}
+		}
+		memcpy(cardshares[i].bytes,tmp.bytes,sizeof(bits256));
+	}
+	M=(numplayers/2)+1;
+	for(i=0;i<M;i++) 
+	{
+		memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
+	}
+	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
+	refval = fmul_donna(blindedcard,crecip_donna(recover));
+	for(i=0;i<numcards;i++)
+	{
+		for(j=0;j<numcards;j++)
+		{
+			bits256 temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[i],cardprods[j])));
+			vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
+		}
+	}
+	playerid=bet->myplayerid;
+	for (i=0; i<numcards; i++)
+    {
+        for (j=0; j<numcards; j++)
+        {
+        	if ( bits256_cmp(v_hash[i][j],g_hash[playerid][cardID]) == 0 )
+			{
+	            tmp = curve25519(key.priv,curve25519(playerprivs[i],cardprods[j]));
+	            xoverz = xoverz_donna(tmp);
+	            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+	            fe = crecip_donna(curve25519_fieldelement(hash));
+	            decoded = curve25519(fmul_donna(refval,fe),basepoint);
+	            if ( bits256_cmp(decoded,cardprods[j]) == 0 )
+	            {
+	                printf("\nplayer.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
+	        		tmp=playerprivs[i];
+					flag=1;
+					goto end;
+	            }
+        	}
+        }
+    }
+	
+	end:
+   for(i=0;i<numplayers;i++)
+   {
+	  free(shares[i]);
+   }
+	free(shares);
+	if(!flag)
+	{
+		memset(tmp.bytes,0,sizeof(tmp));
+		printf("\ncouldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
+	}
+    return(tmp);
+}
 
 bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struct pair256 *keys,struct pair256 b_key,bits256 blindingval,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t *permis,int32_t numcards)
 {
@@ -623,7 +866,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     {
         temp=g_shares[j*numplayers*numcards + (cardID*numplayers + playerid)];
         recvlen = sizeof(temp);
-        if ( (ptr= BET_decrypt(decipher,sizeof(decipher),b_key.prod,keys[j].priv,temp.share,&recvlen)) == 0 )
+        if ( (ptr= BET_decrypt(decipher,sizeof(decipher),b_key.prod,keys[j].priv,temp.bytes,&recvlen)) == 0 )
             printf("decrypt error ");
         else
             memcpy(cardshares[j].bytes,ptr,recvlen);
@@ -634,7 +877,6 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     }
     gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
     refval = fmul_donna(blindedcard,crecip_donna(recover));
-    #if 1
     for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
@@ -648,7 +890,6 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 	            if ( bits256_cmp(decoded,cardprods[j]) == 0 )
 	            {
 	                printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
-	                //return(playerprivs[i]);
 					tmp=playerprivs[i];
 					flag=1;
 					goto end;
@@ -656,7 +897,6 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
         	}
         }
     }
-	#endif
 	end:
    for(i=0;i<numplayers;i++){
 		free(shares[i]);
@@ -672,20 +912,19 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
     int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 cardshares[CARDS777_MAXPLAYERS],basepoint,temp_hash[CARDS777_MAXCARDS];
-    
+    char str[65],share_str[177];
     struct enc_share temp;
+	//libgfshare_init();
 	
-    
 	for (i=0; i<numcards; i++){
 		temp_hash[i]=g_hash[playerid][i];
 	}
-
 	for (i=0; i<numcards; i++)
     {
         blindings[i] = rand256(1);
-        blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
+		blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
 		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
-    }
+		}
     M = (numplayers/2) + 1;
     
     gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
@@ -695,13 +934,14 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-                BET_ciphercreate(b_key.priv,keys[j].prod,temp.share,cardshares[j].bytes,sizeof(cardshares[j]));
-			    memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].share,temp.share,sizeof(temp));
-            }
+				BET_ciphercreate(b_key.priv,keys[j].prod,temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
+				memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
+			}
         }
     // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
     return b_key;
 }
+
 
 void sg777_players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
 {
