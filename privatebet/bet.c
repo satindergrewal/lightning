@@ -429,10 +429,15 @@ int main(int argc,const char *argv[])
 	struct privatebet_info **BET_players,*BET_dcv,*BET_bvv;
 	pthread_t players_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
 	
-	libgfshare_init();
+	
     OS_init();
+	libgfshare_init();
 	OS_randombytes((uint8_t *)&range,sizeof(range));
     OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
+	
+	range = (range % CARDS777_MAXCARDS) + 1;
+	numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
+	printf("\n%s:%d:numplayers:%d:range:%d",numplayers,range);
 	// for dcv
 	BET_dcv=calloc(1,sizeof(struct privatebet_info));
     BET_dcv->pubsock = BET_nanosock(1,bindaddr,NN_PUB);
