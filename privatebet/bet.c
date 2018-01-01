@@ -435,9 +435,9 @@ int main(int argc,const char *argv[])
 	OS_randombytes((uint8_t *)&range,sizeof(range));
     OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
 
-	range = (range % CARDS777_MAXCARDS) + 1;
+	range = (range % 52) + 1;
 	numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
-	printf("\n%s:%d, range:%d, numplayers:%d",__FUNCTION__,__LINE__,range,numplayers);
+	printf("%s:%d, range:%d, numplayers:%d\n",__FUNCTION__,__LINE__,range,numplayers);
 
 	// for dcv
 	BET_dcv=calloc(1,sizeof(struct privatebet_info));
