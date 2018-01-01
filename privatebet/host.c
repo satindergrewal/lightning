@@ -377,8 +377,8 @@ void* BET_hostdcv(void * _ptr)
 				}
 				bytes=nn_send(bet->pubsock,buf,strlen(buf),0);
 			 }
-			printf("\n%s:%d:%d:%d",__FUNCTION__,__LINE__,numplayers,bet->numplayers);
-			sleep(5);
+		//	printf("\n%s:%d:%d:%d",__FUNCTION__,__LINE__,numplayers,bet->numplayers);
+			//sleep(5);
 	      }
 		  cJSON_Delete(gameInfo);
 		  printf("\n%s:%d:DCV received all players:%d",__FUNCTION__,__LINE__,numplayers);
@@ -410,7 +410,7 @@ void* BET_hostdcv(void * _ptr)
 				bytes=nn_send(bet->pubsock,buf,strlen(buf),0);
 		  	
 			}
-			sleep(5);
+			//sleep(5);
 		  }
 		  nn_shutdown(bet->pullsock,0);
 		  nn_shutdown(bet->pubsock,0);

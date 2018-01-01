@@ -437,7 +437,9 @@ int main(int argc,const char *argv[])
 	
 	range = (range % CARDS777_MAXCARDS) + 1;
 	numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
-
+	//range=2;
+	//numplayers=2;
+	printf("\n%s:%d, range:%d, numplayers:%d",__FUNCTION__,__LINE__,range,numplayers);
 	// for dcv
 	BET_dcv=calloc(1,sizeof(struct privatebet_info));
     BET_dcv->pubsock = BET_nanosock(1,bindaddr,NN_PUB);
