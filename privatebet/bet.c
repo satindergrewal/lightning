@@ -770,14 +770,16 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     
     basepoint = curve25519_basepoint9();
     uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
-	printf("\n%s:%d:player id:%d",__FUNCTION__,__LINE__,bet->myplayerid);
+	if(bet->myplayerid==0) //xyz
+		printf("\n%s:%d:player id:%d",__FUNCTION__,__LINE__,bet->myplayerid);
 	for(i=0;i<numplayers;i++){
 		if(i!=bet->myplayerid){
 			tmp=BET_request_share(cardID,i,bet,public_key_b,key);
 		}
 		else{
 			temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardID*bet->numplayers + bet->myplayerid)];
-			printf("\n%s:%d:player id:%d:cardID:%d,%s",__FUNCTION__,__LINE__,bet->myplayerid,cardID,enc_share_str(share_str,temp));
+			if(bet->myplayerid==0) //xyz		
+				printf("\n%s:%d:player id:%d:cardID:%d,%s",__FUNCTION__,__LINE__,bet->myplayerid,cardID,enc_share_str(share_str,temp));
         	recvlen = sizeof(temp);
 			if ( (ptr= BET_decrypt(decipher,sizeof(decipher),public_key_b,key.priv,temp.bytes,&recvlen)) == 0 )
             	printf("decrypt error ");
@@ -788,7 +790,8 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
         	}
 		}
 		memcpy(cardshares[i].bytes,tmp.bytes,sizeof(bits256));
-		printf("\n%s:%d:player id:%d:cardID:%d,share:%s",__FUNCTION__,__LINE__,bet->myplayerid,cardID,bits256_str(str,cardshares[i]));
+		if(bet->myplayerid==0) //xyz
+			printf("\n%s:%d:player id:%d:cardID:%d,share:%s",__FUNCTION__,__LINE__,bet->myplayerid,cardID,bits256_str(str,cardshares[i]));
 	}
 	/*
 	printf("\nThe shares are:");
@@ -802,8 +805,8 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 			}
 			gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 			refval = fmul_donna(blindedcard,crecip_donna(recover));
-
-			printf("\n%s:%d: player id:%d: Blinding Value:%s",__FUNCTION__,__LINE__,bet->myplayerid,bits256_str(str,recover));
+			if(bet->myplayerid==0) //xyz
+				printf("\n%s:%d: player id:%d: Blinding Value:%s",__FUNCTION__,__LINE__,bet->myplayerid,bits256_str(str,recover));
 			
 
 	#if 0
@@ -926,7 +929,8 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 	for (i=0; i<numcards; i++)
     {
         blindings[i] = rand256(1);
-		printf("\n%s:%d:Blinding_value:%s",__FUNCTION__,__LINE__,bits256_str(str,blindings[i]));
+		if(playerid==0)   //xyz
+			printf("\n%s:%d:Blinding_value:%s",__FUNCTION__,__LINE__,bits256_str(str,blindings[i]));
 		blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
 		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
 		}
@@ -939,10 +943,12 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-				printf("\n%s:%d:player id:%d:card id:%d:%s",__FUNCTION__,__LINE__,playerid,i,bits256_str(str,cardshares[j]));
+				if(playerid==0)   //xyz
+					printf("\n%s:%d:player id:%d:card id:%d:%s",__FUNCTION__,__LINE__,playerid,i,bits256_str(str,cardshares[j]));
 				BET_ciphercreate(b_key.priv,keys[j].prod,temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
 				memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
-				printf("\n%s",enc_share_str(share_str,temp));
+				if(playerid==0)   //xyz
+					printf("\n%s",enc_share_str(share_str,temp));
 			}
         }
     // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
