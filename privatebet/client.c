@@ -541,6 +541,7 @@ void* BET_clientplayer(void * _ptr)
 				{
 					gameInfo=cJSON_Parse(buf);
 					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"decode")){
+						printf("\n%s:%d:player id:%d:%s",__FUNCTION__,__LINE__,bet->myplayerid,buf);
 						public_key_b=jbits256(gameInfo,"public_key_b");
 						g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
 						cjsonblindedcards=cJSON_GetObjectItem(gameInfo,"blindedcards");
