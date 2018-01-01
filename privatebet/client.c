@@ -411,36 +411,34 @@ bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_
 	cJSON_AddNumberToObject(shareInfo,"ofPlayerID",ofPlayerID);
 	cJSON_AddNumberToObject(shareInfo,"forPlayerID",bet->myplayerid);
 	buf=cJSON_Print(shareInfo);
-	
 	bytes=nn_send(bet->pushsock,buf,strlen(buf),0);
 	cJSON_Delete(shareInfo);
-
-
 	shareInfo=cJSON_CreateObject();
 	bytes=0;
 	buf=NULL;
-	while(1){
+	while(1)
+	{
 		bytes=nn_recv(bet->subsock,&buf,NN_MSG,0);
-		if(bytes>0){
+		if(bytes>0)
+		{
 			shareInfo=cJSON_Parse(buf);
-			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"response_share")){
-						share=jbits256(shareInfo,"share");
-						break;
-			}
-			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"request_share")){
-
-						forPlayerID=jint(shareInfo,"forPlayerID");
-						if(forPlayerID!=bet->myplayerid){
-							BET_give_share(shareInfo,bet,bvv_public_key,player_key);
-						}
-						
-					
+			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"response_share"))
+			{
+				share=jbits256(shareInfo,"share");
+				break;
+        	}
+			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"request_share"))
+			{
+				forPlayerID=jint(shareInfo,"forPlayerID");
+				if(forPlayerID!=bet->myplayerid)
+				{
+					BET_give_share(shareInfo,bet,bvv_public_key,player_key);
+				}
 			}
 		}
 		sleep(5);
 	}
 	return share;
-	
 }
 
 void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_public_key,struct pair256 player_key)
@@ -455,7 +453,8 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 	forPlayerID=jint(shareInfo,"forPlayerID");
 	cJSON_Print(shareInfo);
 
-	if((ofPlayerID==bet->myplayerid)&&(forPlayerID!=bet->myplayerid)){
+	if((ofPlayerID==bet->myplayerid)&&(forPlayerID!=bet->myplayerid))
+	{
         temp=g_shares[ofPlayerID*bet->numplayers*bet->range + (ofCardID*bet->numplayers + forPlayerID)];
 	    recvlen = sizeof(temp);
 		if ( (ptr= BET_decrypt(decipher,sizeof(decipher),bvv_public_key,player_key.priv,temp.bytes,&recvlen)) == 0 )
@@ -469,19 +468,14 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
 			cJSON_AddNumberToObject(shareInfo,"ofCardID",ofCardID);
 			cJSON_AddNumberToObject(shareInfo,"ofPlayerID",ofPlayerID);
 			cJSON_AddNumberToObject(shareInfo,"forPlayerID",forPlayerID);
-			
 			jaddbits256(shareInfo,"share",share);
-		
-        }
+	   }
 		if(bet->pushsock>=0){
 			char *buf=NULL;
 			buf=cJSON_Print(shareInfo);
 			int bytes=nn_send(bet->pushsock,buf,strlen(buf),0);
 		}	
 	}
-	
-
-	
 }
 
 
@@ -511,7 +505,6 @@ void* BET_clientplayer(void * _ptr)
 		int32_t permis[CARDS777_MAXCARDS],numcards,numplayers;
 		struct pair256 key;struct privatebet_info *bet = _ptr;
 		char str[65],share_str[177];
-		//struct enc_share *g_shares=NULL;
 		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*cjsonblindedcards,*cjsonshamirshards,*cjsoncardprods,*item;
 
 		numplayers=bet->numplayers;
@@ -526,7 +519,7 @@ void* BET_clientplayer(void * _ptr)
 			cJSON_AddNumberToObject(playerInfo,"range",bet->range);
 			jaddbits256(playerInfo,"publickey",key.prod);
 			cJSON_AddItemToObject(playerInfo,"playercards",cjsonplayercards=cJSON_CreateArray());
-			for(int i=0;i<numcards;i++)
+			for(int i=0;i<numcards;i++) 
 			{
 				cJSON_AddItemToArray(cjsonplayercards,cJSON_CreateString(bits256_str(str,playercards[i])));
 			}
@@ -540,12 +533,15 @@ void* BET_clientplayer(void * _ptr)
 				if(bytes>0)
 				{
 					gameInfo=cJSON_Parse(buf);
-					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"decode")){
+					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"decode"))
+					{
 						public_key_b=jbits256(gameInfo,"public_key_b");
 						g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
 						cjsonblindedcards=cJSON_GetObjectItem(gameInfo,"blindedcards");
-						for(int i=0;i<numplayers;i++){
-							for(int j=0;j<numcards;j++){
+						for(int i=0;i<numplayers;i++)
+						{
+							for(int j=0;j<numcards;j++)
+							{
 								blindedcards[i][j]=jbits256i(cjsonblindedcards,i*numcards+j);
 							}
 						}
@@ -557,21 +553,23 @@ void* BET_clientplayer(void * _ptr)
 						{
 							for (int i=0; i<numcards; i++)
 					        {
-					            for (int j=0; j<numplayers; j++) {
+					            for (int j=0; j<numplayers; j++) 
+								{
 									g_shares[k]=get_API_enc_share(cJSON_GetArrayItem(cjsonshamirshards,k));
 									k++;
-									//j*numplayers*numcards + (i*numplayers + playerid)
 					            }
 					        }
 						}
-						for(int i=0;i<numcards;i++){
-							for(int j=0;j<numcards;j++){
+						for(int i=0;i<numcards;i++)
+						{
+							for(int j=0;j<numcards;j++)
+							{
 								temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[i],cardprods[bet->myplayerid][j])));
 								vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 							}
 						}
-						#if 1
-					   for(int i=0;(i<numcards && (bet->myplayerid==0));i++){
+					   for(int i=0;(i<numcards && (bet->myplayerid==0));i++)
+					   {
         				    decoded256 = t_sg777_player_decode(bet,i,numplayers,key,public_key_b,blindedcards[bet->myplayerid][i],cardprods[bet->myplayerid],playerprivs,numcards);
             	            if ( bits256_nonz(decoded256) == 0 )
                 				errs++;
@@ -579,8 +577,10 @@ void* BET_clientplayer(void * _ptr)
             				{
             					int k;
 				                unpermi=-1;
-				                for(k=0;k<numcards;k++){
-				                    if(permis[k]==decoded256.bytes[30]){
+				                for(k=0;k<numcards;k++)
+								{
+				                    if(permis[k]==decoded256.bytes[30])
+									{
 				                        unpermi=k;
 				                        break;
 				                    }
@@ -588,30 +588,25 @@ void* BET_clientplayer(void * _ptr)
 				                decoded[i] = k;    	
             				}
         			 }
-        				decodebad += errs;
-        				decodegood+= (numcards - errs);
-					#endif
-		
-						
-					}
-					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d")){
+    				decodebad += errs;
+    				decodegood+= (numcards - errs);
+     				}
+					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d"))
+					{
 						cjsoncardprods=cJSON_GetObjectItem(gameInfo,"cardprods");
-						for(int i=0;i<numplayers;i++){
-							for(int j=0;j<numcards;j++){
+						for(int i=0;i<numplayers;i++)
+						{
+							for(int j=0;j<numcards;j++)
+							{
 								cardprods[i][j]=jbits256i(cjsoncardprods,i*numcards+j);
 							}
 						}
 					}
-					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share")){
+					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share"))
+					{
 						BET_give_share(gameInfo,bet,public_key_b,key);
 					}
-					/*else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"response_share")){
-						bits256 share;
-						share=jbits256(gameInfo,"response_share");
-						printf("\nShare received:%s",bits256_str(str,share));
-					}*/
 				}
-				//sleep(5);
 			}
 			nn_shutdown(bet->pushsock,0);
 			nn_shutdown(bet->subsock,0);
@@ -635,28 +630,27 @@ void* BET_clientbvv(void * _ptr)
 		blinding_vendor_perm(bet->range);
 		b_key.priv=curve25519_keypair(&b_key.prod);
 		g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
-   		if ( bet->subsock >= 0 && bet->pushsock >= 0 )
+   		if ( bet->subsock >= 0 && bet->pushsock >= 0 ) 
 		{
-			while(numplayers!=bet->numplayers)
-			  {
+			while(numplayers!=bet->numplayers) {
 			  	char *buf=NULL;
 				int bytes=nn_recv(bet->subsock,&buf,NN_MSG,0);
-				if(bytes>0)
-				{
+				if(bytes>0)	{
 					gameInfo=cJSON_Parse(buf);
-					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init")){
+					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init"))
+					{
 						numplayers++;
 						playerID=jint(gameInfo,"playerid");
 						range=jint(gameInfo,"range");
 						keys[playerID].prod=jbits256(gameInfo,"publickey");
 						playerInfo=cJSON_GetObjectItem(gameInfo,"playercards");
-						for(int i=0;i<cJSON_GetArraySize(playerInfo);i++){
+						for(int i=0;i<cJSON_GetArraySize(playerInfo);i++) 
+						{
 								playercards[playerID][i]=jbits256i(playerInfo,i);
 						}
 					}
 				 }
 				}
-			#if 1
 			while (flag) 
 			{
 				char *buf = NULL;
@@ -664,16 +658,20 @@ void* BET_clientbvv(void * _ptr)
 				if(bytes>0)
 				{
 					gameInfo=cJSON_Parse(buf);
-					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d")){
+					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d")) 
+					{
 						deckid=jbits256(gameInfo,"deckid");
 						cjsonfinalcards=cJSON_GetObjectItem(gameInfo,"finalcards");
-						for(int playerID=0;playerID<numplayers;playerID++){
-								for(int i=0;i<numcards;i++){
+						for(int playerID=0;playerID<numplayers;playerID++) 
+						{
+								for(int i=0;i<numcards;i++) 
+								{
 									finalcards[playerID][i]=jbits256i(cjsonfinalcards,playerID*numcards+i);
-									}
+								}
 						}
 	         		    g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
-					    for (int playerid=0; playerid<numplayers; playerid++){
+					    for (int playerid=0; playerid<numplayers; playerid++)
+						{
 					        sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
     					}
 						cJSON_Delete(gameInfo);
@@ -681,20 +679,21 @@ void* BET_clientbvv(void * _ptr)
 						cJSON_AddStringToObject(gameInfo,"messageid","decode");
 						jaddbits256(gameInfo,"public_key_b",b_key.prod);
 						cJSON_AddItemToObject(gameInfo,"blindedcards",cjsonblindedcards=cJSON_CreateArray());
-						for(int i=0;i<numplayers;i++)
+						for(int i=0;i<numplayers;i++) 
 						{
-							for(int j=0;j<numcards;j++)
+							for(int j=0;j<numcards;j++) 
 							{
 							cJSON_AddItemToArray(cjsonblindedcards,cJSON_CreateString(bits256_str(str,blindedcards[i][j])));
 							}
 						}
 						cJSON_AddItemToObject(gameInfo,"shamirshards",cjsonshamirshards=cJSON_CreateArray());
 						int k=0;
-						for(int playerid=0;playerid<numplayers;playerid++)
+						for(int playerid=0;playerid<numplayers;playerid++) 
 						{
 							for (int i=0; i<numcards; i++)
-					        {
-					            for (int j=0; j<numplayers; j++) {
+							{
+					            for (int j=0; j<numplayers; j++) 
+								{
 									cJSON_AddItemToArray(cjsonshamirshards,cJSON_CreateString(enc_share_str(share_str,g_shares[k++])));
 					            }
 					        }
@@ -705,7 +704,6 @@ void* BET_clientbvv(void * _ptr)
 					}
 				}
 			}
-			#endif
 			nn_shutdown(bet->pushsock,0);
 			nn_shutdown(bet->subsock,0);
 		

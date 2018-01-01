@@ -434,12 +434,11 @@ int main(int argc,const char *argv[])
 	libgfshare_init();
 	OS_randombytes((uint8_t *)&range,sizeof(range));
     OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
-	
+
 	range = (range % CARDS777_MAXCARDS) + 1;
 	numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
-	//range=2;
-	//numplayers=2;
 	printf("\n%s:%d, range:%d, numplayers:%d",__FUNCTION__,__LINE__,range,numplayers);
+
 	// for dcv
 	BET_dcv=calloc(1,sizeof(struct privatebet_info));
     BET_dcv->pubsock = BET_nanosock(1,bindaddr,NN_PUB);
@@ -473,11 +472,13 @@ int main(int argc,const char *argv[])
 
 	// for players
 	BET_players=calloc(numplayers,sizeof(struct privatebet_info*));
-	for(int i=0;i<numplayers;i++){
+	for(int i=0;i<numplayers;i++)
+	{
 		BET_players[i]=calloc(1,sizeof(struct privatebet_info));
 	}
     
-	for(int i=0;i<numplayers;i++){
+	for(int i=0;i<numplayers;i++)
+	{
 		BET_players[i]->subsock = BET_nanosock(0,bindaddr,NN_SUB);
 	    BET_players[i]->pushsock = BET_nanosock(0,bindaddr1,NN_PUSH);
 	    BET_players[i]->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
@@ -493,18 +494,22 @@ int main(int argc,const char *argv[])
 	    }	
 	}
 
-	if(pthread_join(dcv_t,NULL)){
+	if(pthread_join(dcv_t,NULL))
+	{
 		printf("\nError in joining the main thread for dcv");
 	}
 
-	if(pthread_join(bvv_t,NULL)){
+	if(pthread_join(bvv_t,NULL))
+	{
 		printf("\nError in joining the main thread for bvvv");
 	}
 
-	for(int i=0;i<numplayers;i++){
-		if(pthread_join(players_t[i],NULL)){
-		printf("\nError in joining the main thread for player %d",i);
-	}
+	for(int i=0;i<numplayers;i++)
+	{
+		if(pthread_join(players_t[i],NULL))
+		{
+			printf("\nError in joining the main thread for player %d",i);
+		}
 	}
     return 0;
 }
@@ -790,37 +795,32 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
         	else
         	{
         		memcpy(tmp.bytes,ptr,recvlen);
-				
-        	}
+	       	}
 		}
 		memcpy(cardshares[i].bytes,tmp.bytes,sizeof(bits256));
 	}
-	/*
-	printf("\nThe shares are:");
-	for(i=0;i<numplayers;i++){
-		printf("\n%s:%d:player id:%d:cardID:%d,share:%s",__FUNCTION__,__LINE__,bet->myplayerid,cardID,bits256_str(str,cardshares[i]));
+	M=(numplayers/2)+1;
+	for(i=0;i<M;i++) 
+	{
+		memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
 	}
-	*/
-		M=(numplayers/2)+1;
-			for(i=0;i<M;i++) {
-				memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
-			}
-			gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
-			refval = fmul_donna(blindedcard,crecip_donna(recover));
-
-	for(i=0;i<numcards;i++){
-			for(j=0;j<numcards;j++){
-				bits256 temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[i],cardprods[j])));
-				vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
-			}
+	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
+	refval = fmul_donna(blindedcard,crecip_donna(recover));
+	for(i=0;i<numcards;i++)
+	{
+		for(j=0;j<numcards;j++)
+		{
+			bits256 temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[i],cardprods[j])));
+			vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 		}
+	}
 	playerid=bet->myplayerid;
-	
-    for (i=0; i<numcards; i++)
+	for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
         {
-        	if ( bits256_cmp(v_hash[i][j],g_hash[playerid][cardID]) == 0 ){
+        	if ( bits256_cmp(v_hash[i][j],g_hash[playerid][cardID]) == 0 )
+			{
 	            tmp = curve25519(key.priv,curve25519(playerprivs[i],cardprods[j]));
 	            xoverz = xoverz_donna(tmp);
 	            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
@@ -829,8 +829,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	            if ( bits256_cmp(decoded,cardprods[j]) == 0 )
 	            {
 	                printf("\nplayer.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
-	                //return(playerprivs[i]);
-					tmp=playerprivs[i];
+	        		tmp=playerprivs[i];
 					flag=1;
 					goto end;
 	            }
@@ -839,13 +838,15 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     }
 	
 	end:
-   for(i=0;i<numplayers;i++){
-		free(shares[i]);
-	}
+   for(i=0;i<numplayers;i++)
+   {
+	  free(shares[i]);
+   }
 	free(shares);
-	if(!flag){
-	memset(tmp.bytes,0,sizeof(tmp));
-	printf("\ncouldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
+	if(!flag)
+	{
+		memset(tmp.bytes,0,sizeof(tmp));
+		printf("\ncouldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
 	}
     return(tmp);
 }
@@ -876,7 +877,6 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     }
     gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
     refval = fmul_donna(blindedcard,crecip_donna(recover));
-    #if 1
     for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
@@ -890,7 +890,6 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
 	            if ( bits256_cmp(decoded,cardprods[j]) == 0 )
 	            {
 	                printf("player.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
-	                //return(playerprivs[i]);
 					tmp=playerprivs[i];
 					flag=1;
 					goto end;
@@ -898,7 +897,6 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
         	}
         }
     }
-	#endif
 	end:
    for(i=0;i<numplayers;i++){
 		free(shares[i]);
