@@ -574,7 +574,7 @@ void* BET_clientplayer(void * _ptr)
 						#if 1
 					   for(int i=0;((i<numcards) && (bet->myplayerid==0));i++){
         				    decoded256 = t_sg777_player_decode(bet,i,numplayers,key,public_key_b,blindedcards[bet->myplayerid][i],cardprods[bet->myplayerid],playerprivs,numcards);
-							
+							printf("\n");
             	            if ( bits256_nonz(decoded256) == 0 )
                 				errs++;
             				else
@@ -707,7 +707,7 @@ void* BET_clientbvv(void * _ptr)
 						char *rendered=cJSON_Print(gameInfo);
 						nn_send(bet->pubsock,rendered,strlen(rendered),0);
 						flag=0;
-						
+						sleep(5);
 						#endif
 						}
 					}
