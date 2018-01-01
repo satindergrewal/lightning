@@ -428,10 +428,11 @@ int main(int argc,const char *argv[])
 	uint8_t pubkey33[33],taddr=0,pubtype=60; uint32_t i,n,range,numplayers; int32_t testmode=0,pubsock=-1,subsock=-1,pullsock=-1,pushsock=-1; long fsize; 
 	struct privatebet_info **BET_players,*BET_dcv,*BET_bvv;
 	pthread_t players_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
-			
-	numplayers=2;
-	range=2;
-
+	
+	libgfshare_init();
+    OS_init();
+	OS_randombytes((uint8_t *)&range,sizeof(range));
+    OS_randombytes((uint8_t *)&numplayers,sizeof(numplayers));
 	// for dcv
 	BET_dcv=calloc(1,sizeof(struct privatebet_info));
     BET_dcv->pubsock = BET_nanosock(1,bindaddr,NN_PUB);
@@ -915,7 +916,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
     int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 cardshares[CARDS777_MAXPLAYERS],basepoint,temp_hash[CARDS777_MAXCARDS];
     char str[65],share_str[177];
     struct enc_share temp;
-	libgfshare_init();
+	//libgfshare_init();
 	
 	for (i=0; i<numcards; i++){
 		temp_hash[i]=g_hash[playerid][i];
