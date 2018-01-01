@@ -419,7 +419,7 @@ int main(int argc,const char *argv[])
 }
 #endif
 #if 1
-int main(int argc,const char *argv[])
+corpse int main(int argc,const char *argv[])
 {
     uint16_t tmp,rpcport = 7797,port = 7797+1;
     char connectaddr[128],bindaddr[128]="ipc:///tmp/bet.ipc",bindaddr1[128]="ipc:///tmp/bet1.ipc",smartaddr[64],randphrase[32],*modestr,*hostip,*passphrase=0,*retstr; 
@@ -788,10 +788,10 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 		}
 		memcpy(cardshares[i].bytes,tmp.bytes,sizeof(bits256));
 	}
-	/*printf("\nThe shares are:\n");
+	printf("\nThe shares are:\n");
 	for(i=0;i<numplayers;i++){
 		printf("\n%s:%d:cardID:%d,share:%s",__FUNCTION__,__LINE__,cardID,bits256_str(str,cardshares[i]));
-	}*/
+	}
 		M=(numplayers/2)+1;
 			for(i=0;i<M;i++) {
 				memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
@@ -799,7 +799,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 			gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 			refval = fmul_donna(blindedcard,crecip_donna(recover));
 
-			printf("\n%s:%d: Blinding Value:%s",__FUNCTION__,__LINE__,bits256_str(str,recover));
+			printf("\n%s:%d: player_id:%d:Blinding Value:%s",__FUNCTION__,__LINE__,bet->myplayerid,bits256_str(str,recover));
 			
 
 	#if 0
@@ -820,6 +820,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     refval = fmul_donna(blindedcard,crecip_donna(recover));
 	printf("\nThe blinding value of card ID:%d:%s",cardID,bits256_str(str,refval));
 	#endif
+	#if 0
 	for(i=0;i<numcards;i++){
 			for(j=0;j<numcards;j++){
 				bits256 temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[i],cardprods[j])));
@@ -861,6 +862,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	memset(tmp.bytes,0,sizeof(tmp));
 	printf("\ncouldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
 	}
+	#endif
     return(tmp);
 }
 
