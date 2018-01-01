@@ -377,7 +377,7 @@ void* BET_hostdcv(void * _ptr)
 							playercards[playerID][i]=jbits256i(playerInfo,i);
 					}
 				}
-				bytes=nn_send(bet->pubsock,buf,bytes,0);
+				bytes=nn_send(bet->pubsock,buf,strlen(buf),0);
 			 }
 	      }
 		  cJSON_Delete(gameInfo);
@@ -413,7 +413,7 @@ void* BET_hostdcv(void * _ptr)
 	  		  	int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
 	  			if(bytes>0)
 	  			{
-	  				bytes=nn_send(bet->pubsock,buf,bytes,0);
+	  				bytes=nn_send(bet->pubsock,buf,strlen(buf),0);
 	  			}
            }
 		  nn_shutdown(bet->pullsock,0);
