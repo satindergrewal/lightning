@@ -429,7 +429,7 @@ int main(int argc,const char *argv[])
 	struct privatebet_info **BET_players,*BET_dcv,*BET_bvv;
 	pthread_t players_t[CARDS777_MAXPLAYERS],dcv_t,bvv_t;
 	
-	
+	#if 0
     OS_init();
 	libgfshare_init();
 	OS_randombytes((uint8_t *)&range,sizeof(range));
@@ -504,6 +504,7 @@ int main(int argc,const char *argv[])
 		printf("\nError in joining the main thread for player %d",i);
 	}
 	}
+	#endif
     return 0;
 }
 
