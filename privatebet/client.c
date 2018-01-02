@@ -396,6 +396,23 @@ char *enc_share_str(char hexstr[177],struct enc_share x)
     return(hexstr);
 }
 
+bits256 BET_request()
+{
+	printf("\n%s:%d",__FUNCTION__,__LINE__);
+}
+
+bits256 BET_response()
+{
+	printf("\n%s:%d",__FUNCTION__,__LINE__);
+}
+
+bits256 BET_receive()
+{
+	printf("\n%s:%d",__FUNCTION__,__LINE__);
+
+}
+
+
 bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_info *bet,bits256 bvv_public_key,struct pair256 player_key)
 {
 	cJSON *shareInfo=NULL;

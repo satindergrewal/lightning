@@ -812,6 +812,37 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     uint8_t **shares,flag=0;
 	uint32_t playerid;
 	char share_str[177];
+	pthread_t t_req,t_rcv,t_res;
+
+	if ( OS_thread_create(&t_req,NULL,(void *)BET_request(),NULL) != 0 )
+    {
+        printf("error launching BET_request thread");
+        exit(-1);
+    }
+	if ( OS_thread_create(&t_res,NULL,(void *)BET_response(),NULL) != 0 )
+    {
+        printf("error launching BET_response thread");
+        exit(-1);
+    }
+	if ( OS_thread_create(&t_rcv,NULL,(void *)BET_receive(),NULL) != 0 )
+    {
+        printf("error launching BET_receive thread");
+        exit(-1);
+    }
+	
+	if(pthread_join(t_req,NULL))
+	{
+		printf("\nError in joining the main thread for t_req");
+	}
+	if(pthread_join(t_res,NULL))
+	{
+		printf("\nError in joining the main thread for t_res");
+	}
+	if(pthread_join(t_rcv,NULL))
+	{
+		printf("\nError in joining the main thread for t_rcv");
+	}
+	 
     shares=calloc(numplayers,sizeof(uint8_t*));
     for(i=0;i<numplayers;i++)
         shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
