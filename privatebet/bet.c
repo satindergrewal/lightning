@@ -522,9 +522,9 @@ int main(int argc,const char *argv[])
 	else
 	{
 		printf("\nInvalid Usage");
-		printf("\nFor DCV: .\bet dcv");
-		printf("\nFor BVV: .\bet bvv");
-		printf("\nFor Player: .\bet player player_id");
+		printf("\nFor DCV: .\\bet dcv");
+		printf("\nFor BVV: .\\bet bvv");
+		printf("\nFor Player: .\\bet player player_id");
 	}
 	#if 0
 	if(pthread_join(dcv_t,NULL))
