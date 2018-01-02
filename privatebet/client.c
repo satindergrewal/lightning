@@ -526,6 +526,7 @@ void* BET_clientplayer(void * _ptr)
 			
 			char *rendered=cJSON_Print(playerInfo);
 			int bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
+			printf("\n%s:%d:bytes:%d,buf:%s",__FUNCTION__,__LINE__,bytes,rendered);
 			while (1) 
 			{
 				char *buf = NULL;
