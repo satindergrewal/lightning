@@ -490,6 +490,7 @@ int main(int argc,const char *argv[])
 	else if((argc==3)&&(strcmp(argv[1],"player")==0)) 
 	{
 		char *ptr;
+		i=0;
 		BET_players=calloc(numplayers,sizeof(struct privatebet_info*));
 		//for(int i=0;i<numplayers;i++)
 			BET_players[i]=calloc(1,sizeof(struct privatebet_info));
@@ -503,7 +504,7 @@ int main(int argc,const char *argv[])
 		    BET_players[i]->maxchips = CARDS777_MAXCHIPS;
 		    BET_players[i]->chipsize = CARDS777_CHIPSIZE;
 			BET_players[i]->numplayers=numplayers;
-			BET_players[i]->myplayerid=strtoul(argv[2],&ptr,10);;
+			BET_players[i]->myplayerid=atoi(argv[2]);
 		    BET_betinfo_set(BET_players[i],"demo",range,0,Maxplayers);
 		    if (OS_thread_create(&players_t[i],NULL,(void *)BET_clientplayer,(void *)BET_players[i]) != 0 )
 		    {
