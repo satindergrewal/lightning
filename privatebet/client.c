@@ -470,6 +470,7 @@ void* BET_response(void* _ptr)
 							char *buf=NULL;
 							buf=cJSON_Print(share_res);
 							int bytes=nn_send(share_info->pushsock,buf,strlen(buf),0);
+							printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 						}	
 					}
 	
