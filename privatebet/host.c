@@ -363,6 +363,7 @@ void* BET_hostdcv(void * _ptr)
 		  {
 			char *buf=NULL;
 			int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
+			printf("\n%s:%d, buf:%s",__FUNCTION__,__LINE__,buf);
 			if(bytes>0)
 			{
 				gameInfo=cJSON_Parse(buf);
