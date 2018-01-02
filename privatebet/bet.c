@@ -812,13 +812,22 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	uint32_t playerid;
 	char share_str[177];
 	pthread_t t_req,t_rcv,t_res;
+	struct privatebet_share *share_info=NULL;
+
+	share_info=calloc(1,sizeof(struct privatebet_share));
+	share_info->bvv_public_key=public_key_b;
+	share_info->player_key=key;
+	share_info->subsock=bet->subsock;
+	share_info->myplayerid=bet->myplayerid;
+	share_info->range=bet->range;
+	share_info->numplayers=bet->numplayers;
 
 	if ( OS_thread_create(&t_req,NULL,(void *)BET_request,bet) != 0 )
     {
         printf("error launching BET_request thread");
         exit(-1);
     }
-	if ( OS_thread_create(&t_res,NULL,(void *)BET_response,bet) != 0 )
+	if ( OS_thread_create(&t_res,NULL,(void *)BET_response,share_info) != 0 )
     {
         printf("error launching BET_response thread");
         exit(-1);
