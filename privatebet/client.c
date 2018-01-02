@@ -487,7 +487,7 @@ void* BET_receive(void* _ptr)
 	char *buf = NULL;
 	struct privatebet_info *bet = _ptr;
 	cJSON *share_rcv;
-	while(1)
+	while(0)
 	{
 		int bytes = nn_recv (bet->subsock, &buf, NN_MSG, 0);
 		if(bytes>0)
