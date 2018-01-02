@@ -418,6 +418,7 @@ void* BET_request(void* _ptr)
 				cJSON_AddNumberToObject(shareInfo,"forPlayerID",bet->myplayerid);
 				buf=cJSON_Print(shareInfo);
 				bytes=nn_send(bet->pushsock,buf,strlen(buf),0);
+				printf("\nMyplayerid:%d",bet->myplayerid);
 				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 				cJSON_Delete(shareInfo);
 			}
