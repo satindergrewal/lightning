@@ -398,18 +398,46 @@ char *enc_share_str(char hexstr[177],struct enc_share x)
 
 void* BET_request(void* _ptr)
 {
+	char bindaddr[128]="ipc:///tmp/bet.ipc";
 	struct privatebet_info *bet = _ptr;
-	printf("\n%s:%d:player_id:%d",__FUNCTION__,__LINE__,bet->myplayerid);
+	
+	cJSON *shareInfo=NULL;
+	char *buf=NULL,str[65];
+	int bytes;
+
+	for(int i=0;i<bet->range;i++)
+	{
+		for(int j=0;j<bet->numplayers;j++)
+		{
+			if(j!=bet->myplayerid)
+			{
+				shareInfo=cJSON_CreateObject();
+				cJSON_AddStringToObject(shareInfo,"messageid","request_share");
+				cJSON_AddNumberToObject(shareInfo,"ofCardID",i);
+				cJSON_AddNumberToObject(shareInfo,"ofPlayerID",j);
+				cJSON_AddNumberToObject(shareInfo,"forPlayerID",bet->myplayerid);
+				buf=cJSON_Print(shareInfo);
+				bytes=nn_send(bet->pushsock,buf,strlen(buf),0);
+				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
+				cJSON_Delete(shareInfo);
+			}
+		}
+	}
 }
 
 void* BET_response(void* _ptr)
 {
+	char bindaddr[128]="ipc:///tmp/bet.ipc",bindaddr1[128]="ipc:///tmp/bet1.ipc";
 	printf("\n%s:%d",__FUNCTION__,__LINE__);
 }
 
 void* BET_receive(void* _ptr)
 {
-	printf("\n%s:%d",__FUNCTION__,__LINE__);
+	char bindaddr[128]="ipc:///tmp/bet.ipc",bindaddr1[128]="ipc:///tmp/bet1.ipc";
+	char *buf = NULL;
+	struct privatebet_info *bet = _ptr;
+	int bytes = nn_recv (bet->subsock, &buf, NN_MSG, 0);
+	printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 
 }
 

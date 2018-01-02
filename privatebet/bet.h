@@ -276,7 +276,6 @@ struct privatebet_info
     uint32_t timestamp;
     char peerids[CARDS777_MAXPLAYERS+1][67];
 };
-
 struct privatebet_rawpeerln
 {
     uint64_t msatoshi_to_us,msatoshi_total;

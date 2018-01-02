@@ -53,7 +53,6 @@ uint8_t sharenrs[256];
 struct rpcrequest_info *LP_garbage_collector;
 struct enc_share { uint8_t bytes[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
 struct enc_share *g_shares=NULL;
-//struct enc_share g_shares[CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS];
 
 bits256 v_hash[CARDS777_MAXCARDS][CARDS777_MAXCARDS];
 bits256 g_hash[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
