@@ -814,17 +814,17 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	char share_str[177];
 	pthread_t t_req,t_rcv,t_res;
 
-	if ( OS_thread_create(&t_req,NULL,(void *)BET_request,NULL) != 0 )
+	if ( OS_thread_create(&t_req,NULL,(void *)BET_request,bet) != 0 )
     {
         printf("error launching BET_request thread");
         exit(-1);
     }
-	if ( OS_thread_create(&t_res,NULL,(void *)BET_response,NULL) != 0 )
+	if ( OS_thread_create(&t_res,NULL,(void *)BET_response,bet) != 0 )
     {
         printf("error launching BET_response thread");
         exit(-1);
     }
-	if ( OS_thread_create(&t_rcv,NULL,(void *)BET_receive,NULL) != 0 )
+	if ( OS_thread_create(&t_rcv,NULL,(void *)BET_receive,bet) != 0 )
     {
         printf("error launching BET_receive thread");
         exit(-1);

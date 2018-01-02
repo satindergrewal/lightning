@@ -398,7 +398,8 @@ char *enc_share_str(char hexstr[177],struct enc_share x)
 
 void* BET_request(void* _ptr)
 {
-	printf("\n%s:%d",__FUNCTION__,__LINE__);
+	struct privatebet_info *bet = _ptr;
+	printf("\n%s:%d:player_id:%d",__FUNCTION__,__LINE__,bet->myplayerid);
 }
 
 void* BET_response(void* _ptr)
