@@ -396,17 +396,17 @@ char *enc_share_str(char hexstr[177],struct enc_share x)
     return(hexstr);
 }
 
-bits256 BET_request()
+void* BET_request(void* _ptr)
 {
 	printf("\n%s:%d",__FUNCTION__,__LINE__);
 }
 
-bits256 BET_response()
+void* BET_response(void* _ptr)
 {
 	printf("\n%s:%d",__FUNCTION__,__LINE__);
 }
 
-bits256 BET_receive()
+void* BET_receive(void* _ptr)
 {
 	printf("\n%s:%d",__FUNCTION__,__LINE__);
 
