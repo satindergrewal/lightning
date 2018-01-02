@@ -821,6 +821,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	share_info->myplayerid=bet->myplayerid;
 	share_info->range=bet->range;
 	share_info->numplayers=bet->numplayers;
+	share_info->pushsock=bet->pushsock;
 
 	if ( OS_thread_create(&t_req,NULL,(void *)BET_request,bet) != 0 )
     {
