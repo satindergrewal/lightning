@@ -370,7 +370,6 @@ void* BET_hostdcv(void * _ptr)
 				if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init"))
 				{
 					numplayers++;
-					printf("\n%d:%d",numplayers,bet->numplayers);
 					playerID=jint(gameInfo,"playerid");
 					range=jint(gameInfo,"range");
 					playerInfo=cJSON_GetObjectItem(gameInfo,"playercards");
