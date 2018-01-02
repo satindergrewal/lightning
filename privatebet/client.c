@@ -453,7 +453,7 @@ void* BET_response(void* _ptr)
 				ofCardID=jint(share_res,"ofCardID");
 				ofPlayerID=jint(share_res,"ofPlayerID");
 				forPlayerID=jint(share_res,"forPlayerID");
-				printf("\n%s:%d:player id:%d",__FUNCTION__,__LINE__,share_info->myplayerid);
+				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 				if((ofPlayerID==share_info->myplayerid)&&(forPlayerID!=share_info->myplayerid))
 					{
 						printf("\n%s:%d:player id:%d",__FUNCTION__,__LINE__,share_info->myplayerid);
