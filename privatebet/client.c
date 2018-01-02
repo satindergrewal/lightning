@@ -703,7 +703,7 @@ void* BET_clientbvv(void * _ptr)
 					        }
 						}
 						char *rendered=cJSON_Print(gameInfo);
-						nn_send(bet->pubsock,rendered,strlen(rendered),0);
+						nn_send(bet->pushsock,rendered,strlen(rendered),0);
 						flag=0;
 					}
 				}
