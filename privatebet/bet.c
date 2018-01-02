@@ -455,6 +455,10 @@ int main(int argc,const char *argv[])
 	        printf("error launching BET_hostloop for pub.%d pull.%d\n",BET_dcv->pubsock,BET_dcv->pullsock);
 	        exit(-1);
 	    }
+		if(pthread_join(dcv_t,NULL))
+		{
+			printf("\nError in joining the main thread for dcv");
+		}
 	}
 
 	// for bvv
@@ -474,6 +478,10 @@ int main(int argc,const char *argv[])
 	        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_bvv->subsock,BET_bvv->pushsock);
 	        exit(-1);
 	    }
+		if(pthread_join(bvv_t,NULL))
+		{
+			printf("\nError in joining the main thread for bvvv");
+		}
 	}
 
 	// for players
@@ -501,6 +509,13 @@ int main(int argc,const char *argv[])
 		        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_players[i]->subsock,BET_players[i]->pushsock);
 		        exit(-1);
 		    }	
+		}
+		for(int i=0;i<numplayers;i++)
+		{
+			if(pthread_join(players_t[i],NULL))
+			{
+				printf("\nError in joining the main thread for player %d",i);
+			}
 		}
 	}
 	#if 0
