@@ -435,7 +435,7 @@ void* BET_response(void* _ptr)
 	uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
 	struct privatebet_share *share_info=_ptr;
 	cJSON *share_res;
-	char bindaddr[128]="ipc:///tmp/bet.ipc",bindaddr1[128]="ipc:///tmp/bet.ipc";
+	char bindaddr[128]="ipc:///tmp/bet.ipc",bindaddr1[128]="ipc:///tmp/bet1.ipc";
 	subsock=BET_nanosock(0,bindaddr,NN_SUB);
 	pushsock=BET_nanosock(0,bindaddr1,NN_PUSH);
 	if((subsock>=0)&&(pushsock>=0)){
