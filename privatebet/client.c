@@ -492,6 +492,7 @@ void* BET_receive(void* _ptr)
 		int bytes = nn_recv (bet->subsock, &buf, NN_MSG, 0);
 		if(bytes>0)
 		{
+			printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 			share_rcv=cJSON_Parse(buf);
 			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(share_rcv,"messageid")),"receive_share"))
 			{
