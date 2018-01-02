@@ -365,7 +365,7 @@ void* BET_hostdcv(void * _ptr)
 			int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
 			if(bytes>0)
 			{
-				printf("\n%s:%d, buf:%s",__FUNCTION__,__LINE__,buf);
+				printf("\n%s:%d, players initialized:%d, max players:%d,buf:%s",__FUNCTION__,__LINE__,numplayers,bet->numplayers,buf);
 				gameInfo=cJSON_Parse(buf);
 				if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init"))
 				{
