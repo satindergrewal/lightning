@@ -695,6 +695,10 @@ void* BET_clientplayer(void * _ptr)
 					   for(int i=0;i<numcards;i++)
 					   {
         				    decoded256 = t_sg777_player_decode(bet,i,numplayers,key,public_key_b,blindedcards[bet->myplayerid][i],cardprods[bet->myplayerid],playerprivs,numcards);
+							while(1)
+								{
+								sleep(5);
+								}
             	            if ( bits256_nonz(decoded256) == 0 )
                 				errs++;
             				else
@@ -726,10 +730,10 @@ void* BET_clientplayer(void * _ptr)
 							}
 						}
 					}
-					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share"))
+					/*else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share"))
 					{
 						BET_give_share(gameInfo,bet,public_key_b,key);
-					}
+					}*/
 				}
 			}
 			nn_shutdown(bet->pushsock,0);
