@@ -437,11 +437,13 @@ void* BET_receive(void* _ptr)
 	char bindaddr[128]="ipc:///tmp/bet.ipc",bindaddr1[128]="ipc:///tmp/bet1.ipc";
 	char *buf = NULL;
 	struct privatebet_info *bet = _ptr;
-	//int bytes = nn_recv (bet->subsock, &buf, NN_MSG, 0);
-	//printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 	while(1)
 	{
-		sleep(5);
+		int bytes = nn_recv (bet->subsock, &buf, NN_MSG, 0);
+		if(bytes>0)
+			printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
+		sleep(1);
+	
 	}
 
 }
