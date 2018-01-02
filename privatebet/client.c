@@ -453,9 +453,10 @@ void* BET_response(void* _ptr)
 				ofCardID=jint(share_res,"ofCardID");
 				ofPlayerID=jint(share_res,"ofPlayerID");
 				forPlayerID=jint(share_res,"forPlayerID");
-				
+				printf("\n%s:%d:player id:%d",__FUNCTION__,__LINE__,share_info->myplayerid);
 				if((ofPlayerID==share_info->myplayerid)&&(forPlayerID!=share_info->myplayerid))
 					{
+						printf("\n%s:%d:player id:%d",__FUNCTION__,__LINE__,share_info->myplayerid);
 						temp=g_shares[ofPlayerID*share_info->numplayers*share_info->range + (ofCardID*share_info->numplayers + forPlayerID)];
 						recvlen = sizeof(temp);
 						if ( (ptr= BET_decrypt(decipher,sizeof(decipher),share_info->bvv_public_key,share_info->player_key.priv,temp.bytes,&recvlen)) == 0 )
