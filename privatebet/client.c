@@ -446,7 +446,7 @@ void* BET_response(void* _ptr)
 		int bytes = nn_recv (subsock, &buf, NN_MSG, 0);
 		if(bytes>0)
 		{
-			printf("\n%s:%d,%s",__FUNCTION__,__LINE__,buf);	
+			
 		    share_res=cJSON_Parse(buf);
 			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(share_res,"messageid")),"request_share"))
 			{
@@ -475,7 +475,7 @@ void* BET_response(void* _ptr)
 							char *buf=NULL;
 							buf=cJSON_Print(share_res);
 							int bytes=nn_send(pushsock,buf,strlen(buf),0);
-							printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
+							
 						}	
 					}
 	
