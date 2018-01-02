@@ -435,19 +435,19 @@ void* BET_response(void* _ptr)
 	bits256 share;
 	uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
 	struct privatebet_share *share_info=_ptr;
-	cJSON *temp;
+	cJSON *share_res;
 	while(1)
 	{
 		int bytes = nn_recv (share_info->subsock, &buf, NN_MSG, 0);
 		if(bytes>0)
 		{
 			printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
-		    temp=cJSON_Parse(buf);
-			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(temp,"messageid")),"request_share"))
+		    share_res=cJSON_Parse(buf);
+			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(share_res,"messageid")),"request_share"))
 			{
-				ofCardID=jint(temp,"ofCardID");
-				ofPlayerID=jint(temp,"ofPlayerID");
-				forPlayerID=jint(temp,"forPlayerID");
+				ofCardID=jint(share_res,"ofCardID");
+				ofPlayerID=jint(share_res,"ofPlayerID");
+				forPlayerID=jint(share_res,"forPlayerID");
 				
 				if((ofPlayerID==share_info->myplayerid)&&(forPlayerID!=share_info->myplayerid))
 					{
@@ -458,17 +458,17 @@ void* BET_response(void* _ptr)
 						else
 						{
 							memcpy(share.bytes,ptr,recvlen);
-							cJSON_Delete(temp);
-							temp=cJSON_CreateObject();
-							cJSON_AddStringToObject(temp,"messageid","response_share");
-							cJSON_AddNumberToObject(temp,"ofCardID",ofCardID);
-							cJSON_AddNumberToObject(temp,"ofPlayerID",ofPlayerID);
-							cJSON_AddNumberToObject(temp,"forPlayerID",forPlayerID);
-							jaddbits256(temp,"share",share);
+							cJSON_Delete(share_res);
+							share_res=cJSON_CreateObject();
+							cJSON_AddStringToObject(share_res,"messageid","response_share");
+							cJSON_AddNumberToObject(share_res,"ofCardID",ofCardID);
+							cJSON_AddNumberToObject(share_res,"ofPlayerID",ofPlayerID);
+							cJSON_AddNumberToObject(share_res,"forPlayerID",forPlayerID);
+							jaddbits256(share_res,"share",share);
 					   }
 						if(share_info->pushsock>=0){
 							char *buf=NULL;
-							buf=cJSON_Print(temp);
+							buf=cJSON_Print(share_res);
 							int bytes=nn_send(share_info->pushsock,buf,strlen(buf),0);
 						}	
 					}

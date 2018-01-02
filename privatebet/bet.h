@@ -277,13 +277,6 @@ struct privatebet_info
     char peerids[CARDS777_MAXPLAYERS+1][67];
 };
 
-struct privatebet_share
-{
-	int32_t numplayers,range,myplayerid;
-	int32_t pullsock,pubsock,subsock,pushsock;
-	bits256 bvv_public_key;
-	struct pair256 player_key;
-};
 struct privatebet_rawpeerln
 {
     uint64_t msatoshi_to_us,msatoshi_total;
@@ -308,6 +301,15 @@ struct privatebet_vars
 };
 
 struct pair256 { bits256 priv,prod; };
+
+struct privatebet_share
+{
+	int32_t numplayers,range,myplayerid;
+	int32_t pullsock,pubsock,subsock,pushsock;
+	bits256 bvv_public_key;
+	struct pair256 player_key;
+};
+
 
 bits256 *BET_process_packet(bits256 *cardpubs,bits256 *deckidp,bits256 senderpub,bits256 mypriv,uint8_t *decoded,int32_t maxsize,bits256 mypub,uint8_t *sendbuf,int32_t size,int32_t checkplayers,int32_t range);
 cJSON *BET_hostrhashes(struct privatebet_info *bet);
