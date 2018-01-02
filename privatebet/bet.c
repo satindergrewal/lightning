@@ -841,7 +841,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	{
 		printf("\nError in joining the main thread for t_rcv");
 	}
-	 
+	#if 0 
     shares=calloc(numplayers,sizeof(uint8_t*));
     for(i=0;i<numplayers;i++)
         shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
@@ -907,7 +907,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
         	}
         }
     }
-	
+	#endif
 	end:
    for(i=0;i<numplayers;i++)
    {
