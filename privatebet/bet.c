@@ -823,22 +823,23 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	share_info->numplayers=bet->numplayers;
 	share_info->pushsock=bet->pushsock;
 
-	if ( OS_thread_create(&t_req,NULL,(void *)BET_request,bet) != 0 )
-    {
-        printf("error launching BET_request thread");
-        exit(-1);
-    }
+	
 	if ( OS_thread_create(&t_res,NULL,(void *)BET_response,share_info) != 0 )
     {
         printf("error launching BET_response thread");
         exit(-1);
     }
+	sleep(5);
 	if ( OS_thread_create(&t_rcv,NULL,(void *)BET_receive,bet) != 0 )
     {
         printf("error launching BET_receive thread");
         exit(-1);
     }
-	
+	if ( OS_thread_create(&t_req,NULL,(void *)BET_request,bet) != 0 )
+    {
+        printf("error launching BET_request thread");
+        exit(-1);
+    }
 	if(pthread_join(t_req,NULL))
 	{
 		printf("\nError in joining the main thread for t_req");
