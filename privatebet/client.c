@@ -504,7 +504,7 @@ void* BET_response(void* _ptr)
 			}
 			
 		}
-		/*for(int i=0;i<share_info->range;i++)
+		for(int i=0;i<share_info->range;i++)
 		{
 			for(int j=0;j<share_info->numplayers;j++)
 			{
@@ -517,7 +517,7 @@ void* BET_response(void* _ptr)
 			}
 			if(flag)
 				break;	
-		}*/
+		}
 		sleep(1);
 	
 	}
