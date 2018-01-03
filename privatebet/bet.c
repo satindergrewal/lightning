@@ -56,6 +56,10 @@ struct enc_share *g_shares=NULL;
 
 bits256 v_hash[CARDS777_MAXCARDS][CARDS777_MAXCARDS];
 bits256 g_hash[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+
+int32_t sharesflag[CARDS777_MAXCARDS][CARDS777_MAXPLAYERS];
+bits256 playershares[CARDS777_MAXCARDS][CARDS777_MAXPLAYERS];
+
 uint32_t LP_rand()
 {
     uint32_t retval;
@@ -852,6 +856,8 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	{
 		printf("\nError in joining the main thread for t_rcv");
 	}
+	printf("\n%s:%d",__FUNCTION__,__LINE__);
+	
 	#if 0 
     shares=calloc(numplayers,sizeof(uint8_t*));
     for(i=0;i<numplayers;i++)

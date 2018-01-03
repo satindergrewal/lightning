@@ -409,8 +409,16 @@ void* BET_request(void* _ptr)
 	{
 		for(int j=0;j<bet->numplayers;j++)
 		{
-			if(j!=bet->myplayerid)
-			{
+			sharesflag[i][j]=0;
+		}
+	}
+
+	for(int i=0;i<bet->range;i++)
+	{
+		for(int j=0;j<bet->numplayers;j++)
+		{
+			if((j!=bet->myplayerid) && (sharesflag[i][j]==0))
+			{				
 				shareInfo=cJSON_CreateObject();
 				cJSON_AddStringToObject(shareInfo,"messageid","request_share");
 				cJSON_AddNumberToObject(shareInfo,"ofCardID",i);
@@ -421,6 +429,8 @@ void* BET_request(void* _ptr)
 				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 				cJSON_Delete(shareInfo);
 			}
+			else if((j==bet->myplayerid) && (sharesflag[i][j]==0))
+				sharesflag[i][j]==1;
 		}
 	}
 }
@@ -441,8 +451,10 @@ void* BET_response(void* _ptr)
 	if((subsock>=0)&&(pushsock>=0)){
 		printf("\n%s:%d:socket creation is done",__FUNCTION__,__LINE__);
 	}
-	while(1)
+	int flag=1;
+	while(flag)
 	{
+		flag=0;
 		int bytes = nn_recv (subsock, &buf, NN_MSG, 0);
 		if(bytes>0)
 		{
@@ -483,11 +495,28 @@ void* BET_response(void* _ptr)
 			}
 			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(share_res,"messageid")),"receive_share"))
 			{
+				ofCardID=jint(share_res,"ofCardID");
+				ofPlayerID=jint(share_res,"ofPlayerID");
+				sharesflag[ofCardID][ofPlayerID]=1;
+				playershares=jbits256(share_res,"share");
 				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);	
 			}
 			
 		}
-		
+		for(int i=0;i<share_info->range;i++)
+		{
+			for(int j=0;j<share_info->numplayers;j++)
+			{
+				if(sharesflag[i][j]==0)
+				{
+					flag=1;
+					break;
+				}
+				
+			}
+			if(flag)
+				break;	
+		}
 		sleep(1);
 	
 	}
