@@ -453,7 +453,7 @@ void* BET_response(void* _ptr)
 		printf("\n%s:%d:socket creation is done",__FUNCTION__,__LINE__);
 	}
 	int flag=1;
-	while(flag)
+	while(1)
 	{
 		flag=0;
 		int bytes = nn_recv (subsock, &buf, NN_MSG, 0);
