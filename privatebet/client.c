@@ -498,7 +498,7 @@ void* BET_response(void* _ptr)
 				ofCardID=jint(share_res,"ofCardID");
 				ofPlayerID=jint(share_res,"ofPlayerID");
 				sharesflag[ofCardID][ofPlayerID]=1;
-				playershares=jbits256(share_res,"share");
+				playershares[ofCardID][ofPlayerID]=jbits256(share_res,"share");
 				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);	
 			}
 			
