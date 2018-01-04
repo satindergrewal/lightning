@@ -937,7 +937,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
         	}
         }
     }
-	#endif
+	
 	end:
    for(i=0;i<numplayers;i++)
    {
@@ -949,6 +949,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 		memset(tmp.bytes,0,sizeof(tmp));
 		printf("\ncouldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
 	}
+	#endif
     return(tmp);
 }
 
