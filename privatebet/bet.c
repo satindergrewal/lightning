@@ -880,7 +880,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 				}
 		}
 
-
+	printf("\nDone");
 	#if 0 
     shares=calloc(numplayers,sizeof(uint8_t*));
     for(i=0;i<numplayers;i++)
