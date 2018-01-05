@@ -430,7 +430,7 @@ void* BET_request(void* _ptr)
 				cJSON_Delete(shareInfo);
 			}
 			else if((j==bet->myplayerid) && (sharesflag[i][j]==0)) {
-				sharesflag[i][j]==1;
+				sharesflag[i][j]=1;
 				printf("\n%d %d ::%d",i,j,sharesflag[i][j]);
 			}
 		}
