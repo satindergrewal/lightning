@@ -748,6 +748,7 @@ void* BET_clientplayer(void * _ptr)
      				}
 					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d"))
 					{
+						deckid=jbits256(gameInfo,"deckid");
 						cjsoncardprods=cJSON_GetObjectItem(gameInfo,"cardprods");
 						for(int i=0;i<numplayers;i++)
 						{

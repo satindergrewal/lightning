@@ -59,7 +59,7 @@ bits256 g_hash[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 
 int32_t sharesflag[CARDS777_MAXCARDS][CARDS777_MAXPLAYERS];
 bits256 playershares[CARDS777_MAXCARDS][CARDS777_MAXPLAYERS];
-
+bits256 deckid;
 uint32_t LP_rand()
 {
     uint32_t retval;
@@ -904,10 +904,13 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 		memcpy(shares[i],playershares[cardID][i].bytes,sizeof(bits256));
 		printf("\n%s",bits256_str(str,playershares[cardID][i]));
 	}
+	gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
+	printf("\nsharenrs values are:\n");
 	for(i=0;i<numplayers;i++)
 	{
 		printf("\t %d",sharenrs[i]);
 	}
+	
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 	refval = fmul_donna(blindedcard,crecip_donna(recover));
 	printf("\n%s:%d:cardID:%d, Blinding Value:%s", __FUNCTION__,__LINE__,cardID,bits256_str(str,recover));
@@ -1033,7 +1036,10 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
 		}
     M = (numplayers/2) + 1;
-    
+    printf("\nsharenrs values are:\n");
+	for(i=0;i<numplayers;i++){
+		printf("\n%d\t",sharenrs[i]);
+	}
     gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
 	
         for (i=0; i<numcards; i++)
