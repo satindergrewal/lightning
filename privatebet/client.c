@@ -828,7 +828,7 @@ void* BET_clientbvv(void * _ptr)
 								for(int i=0;i<numcards;i++) 
 								{
 									finalcards[playerID][i]=jbits256i(cjsonfinalcards,playerID*numcards+i);
-									printf("\ncardID:%d:%s",i,bits256_str(str,bits256 finalcards[playerID][i]));
+									printf("\ncardID:%d:%s",i,bits256_str(str,finalcards[playerID][i]));
 								}
 						}
 	         		    g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
