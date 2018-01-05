@@ -429,8 +429,10 @@ void* BET_request(void* _ptr)
 				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 				cJSON_Delete(shareInfo);
 			}
-			else if((j==bet->myplayerid) && (sharesflag[i][j]==0))
+			else if((j==bet->myplayerid) && (sharesflag[i][j]==0)) {
 				sharesflag[i][j]==1;
+				printf("\n%d %d ::%d",i,j,sharesflag[i][j]);
+			}
 		}
 	}
 
