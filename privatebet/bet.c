@@ -902,6 +902,11 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	for(i=0;i<M;i++) 
 	{
 		memcpy(shares[i],playershares[cardID][i].bytes,sizeof(bits256));
+		printf("\n%s",bits256_str(str,shares[i]));
+	}
+	for(i=0;i<numplayers;i++)
+	{
+		printf("\t %d",sharenrs[i]);
 	}
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 	refval = fmul_donna(blindedcard,crecip_donna(recover));
