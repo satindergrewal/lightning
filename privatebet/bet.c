@@ -876,40 +876,13 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     
     basepoint = curve25519_basepoint9();
     uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
-
-	/*for(i=0;i<numplayers;i++){
-		if(i!=bet->myplayerid){
-			tmp=BET_request_share(cardID,i,bet,public_key_b,key);
-		}
-		else{
-			temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardID*bet->numplayers + bet->myplayerid)];
-			recvlen = sizeof(temp);
-			if ( (ptr= BET_decrypt(decipher,sizeof(decipher),public_key_b,key.priv,temp.bytes,&recvlen)) == 0 )
-            	printf("decrypt error ");
-        	else
-        	{
-        		memcpy(tmp.bytes,ptr,recvlen);
-	       	}
-		}
-		memcpy(cardshares[i].bytes,tmp.bytes,sizeof(bits256));
-	}
-	printf("\nThe shares are:\n");
-	for(i=0;i<numplayers;i++)
-	{
-		printf("\n%s:%d:share:%s",__FUNCTION__,__LINE__,bits256_str(str,cardshares[i]));
-	}*/
+	
 	M=(numplayers/2)+1;
 	for(i=0;i<M;i++) 
 	{
 		memcpy(shares[i],playershares[cardID][i].bytes,sizeof(bits256));
-		printf("\n%s",bits256_str(str,playershares[cardID][i]));
 	}
 	gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
-	printf("\nsharenrs values are:\n");
-	for(i=0;i<numplayers;i++)
-	{
-		printf("\t %d",sharenrs[i]);
-	}
 	
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 	refval = fmul_donna(blindedcard,crecip_donna(recover));
@@ -1036,10 +1009,7 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
 		}
     M = (numplayers/2) + 1;
-    printf("\nsharenrs values are:\n");
-	for(i=0;i<numplayers;i++){
-		printf("\n%d\t",sharenrs[i]);
-	}
+    
     gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
 	
         for (i=0; i<numcards; i++)
