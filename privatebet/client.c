@@ -404,7 +404,7 @@ void* BET_request(void* _ptr)
 	struct privatebet_share *shareInfo=_ptr;
 	int32_t ofCardID,ofPlayerID,forPlayerID;
 	cJSON *shareReq=NULL;
-	char *buf=NULL,str[65];
+	char *buf=NULL,str[65],enc_str[177];
 	int bytes;
 
 	for(int i=0;i<shareInfo->range;i++)
@@ -438,7 +438,7 @@ void* BET_request(void* _ptr)
 				//temp=g_shares[ofPlayerID*shareInfo->numplayers*shareInfo->range + (ofCardID*shareInfo->numplayers + forPlayerID)];
 				temp=g_shares[ofPlayerID*shareInfo->numplayers*shareInfo->range + (i*shareInfo->numplayers + forPlayerID)];
 				recvlen = sizeof(temp);
-						
+				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,enc_share_str(enc_str,temp));		
 				if ( (ptr= BET_decrypt(decipher,sizeof(decipher),shareInfo->bvv_public_key,shareInfo->player_key.priv,temp.bytes,&recvlen)) == 0 )
 						printf("decrypt error ");
 				else
