@@ -436,7 +436,8 @@ void* BET_request(void* _ptr)
 				ofCardID=jint(shareInfo,"ofCardID");
 				ofPlayerID=jint(shareInfo,"ofPlayerID");
 				forPlayerID=jint(shareInfo,"forPlayerID");
-				temp=g_shares[ofPlayerID*shareInfo->numplayers*shareInfo->range + (ofCardID*shareInfo->numplayers + forPlayerID)];
+				//temp=g_shares[ofPlayerID*shareInfo->numplayers*shareInfo->range + (ofCardID*shareInfo->numplayers + forPlayerID)];
+				temp=g_shares[ofPlayerID*shareInfo->numplayers*shareInfo->range + (i*shareInfo->numplayers + forPlayerID)];
 				recvlen = sizeof(temp);
 						
 				if ( (ptr= BET_decrypt(decipher,sizeof(decipher),shareInfo->bvv_public_key,shareInfo->player_key.priv,temp.bytes,&recvlen)) == 0 )
