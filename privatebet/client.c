@@ -821,10 +821,13 @@ void* BET_clientbvv(void * _ptr)
 					{
 						deckid=jbits256(gameInfo,"deckid");
 						cjsonfinalcards=cJSON_GetObjectItem(gameInfo,"finalcards");
+						printf("\ncards received to bvv from dcv");
 						for(int playerID=0;playerID<numplayers;playerID++) 
 						{
+								printf("\nplayerID: %d",playerID);
 								for(int i=0;i<numcards;i++) 
 								{
+									printf("\ncardID:%d",i);
 									finalcards[playerID][i]=jbits256i(cjsonfinalcards,playerID*numcards+i);
 								}
 						}

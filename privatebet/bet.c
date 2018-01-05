@@ -887,6 +887,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 	refval = fmul_donna(blindedcard,crecip_donna(recover));
 	printf("\n%s:%d:cardID:%d, Blinding Value:%s", __FUNCTION__,__LINE__,cardID,bits256_str(str,recover));
+	printf("\nFinal card:%s",bits256_str(str,refval));
 	for(i=0;i<numcards;i++)
 	{
 		for(j=0;j<numcards;j++)
