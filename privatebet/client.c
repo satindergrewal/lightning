@@ -522,7 +522,16 @@ void* BET_response(void* _ptr)
 			if(flag)
 				break;	
 		}
-		sleep(1);
+		for(int i=0;i<share_info->range;i++)
+		{
+			printf("\n");
+			for(int j=0;j<share_info->numplayers;j++)
+			{
+				printf("%d ",sharesflag[i][j]);		
+			}
+
+		}
+		sleep(5);
 	
 	}
 	nn_shutdown(pushsock,0);
