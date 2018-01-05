@@ -436,9 +436,9 @@ void* BET_request(void* _ptr)
 				ofPlayerID=jint(shareInfo,"ofPlayerID");
 				forPlayerID=jint(shareInfo,"forPlayerID");
 				//temp=g_shares[ofPlayerID*shareInfo->numplayers*shareInfo->range + (ofCardID*shareInfo->numplayers + forPlayerID)];
-				temp=g_shares[ofPlayerID*shareInfo->numplayers*shareInfo->range + (i*shareInfo->numplayers + forPlayerID)];
+				temp=g_shares[ofPlayerID*shareInfo->numplayers*shareInfo->range + (i*shareInfo->numplayers + j)];
 				recvlen = sizeof(temp);
-				printf("\n%d",(ofPlayerID*shareInfo->numplayers*shareInfo->range + (i*shareInfo->numplayers + forPlayerID)));
+				printf("\n%d ",(ofPlayerID*shareInfo->numplayers*shareInfo->range + (i*shareInfo->numplayers + j)));
 				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,enc_share_str(enc_str,temp));		
 				if ( (ptr= BET_decrypt(decipher,sizeof(decipher),shareInfo->bvv_public_key,shareInfo->player_key.priv,temp.bytes,&recvlen)) == 0 )
 						printf("decrypt error ");
