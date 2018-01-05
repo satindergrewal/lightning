@@ -742,6 +742,10 @@ void* BET_clientplayer(void * _ptr)
 				                decoded[i] = k;    	
             				}
         			 }
+					 while(1)
+				 	{
+				 		sleep(5);
+				 	}
     				decodebad += errs;
     				decodegood+= (numcards - errs);
      				}
