@@ -428,7 +428,6 @@ void* BET_request(void* _ptr)
 				cJSON_AddNumberToObject(shareReq,"forPlayerID",shareInfo->myplayerid);
 				buf=cJSON_Print(shareReq);
 				bytes=nn_send(shareInfo->pushsock,buf,strlen(buf),0);
-				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 				cJSON_Delete(shareReq);
 			}
 			else if((j==shareInfo->myplayerid) && (sharesflag[i][j]==0)) {
@@ -438,13 +437,10 @@ void* BET_request(void* _ptr)
 				//temp=g_shares[ofPlayerID*shareInfo->numplayers*shareInfo->range + (ofCardID*shareInfo->numplayers + forPlayerID)];
 				temp=g_shares[shareInfo->myplayerid*shareInfo->numplayers*shareInfo->range + (i*shareInfo->numplayers + shareInfo->myplayerid)];
 				recvlen = sizeof(temp);
-				printf("\n%d ",(ofPlayerID*shareInfo->numplayers*shareInfo->range + (i*shareInfo->numplayers + j)));
-				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,enc_share_str(enc_str,temp));		
 				if ( (ptr= BET_decrypt(decipher,sizeof(decipher),shareInfo->bvv_public_key,shareInfo->player_key.priv,temp.bytes,&recvlen)) == 0 )
 						printf("decrypt error ");
 				else
 				{
-					printf("\n%s:%d",__FUNCTION__,__LINE__);
 					memcpy(share.bytes,ptr,recvlen);
 					playershares[i][j]=share;
 					sharesflag[i][j]=1;
@@ -524,7 +520,6 @@ void* BET_response(void* _ptr)
 				{
 					sharesflag[ofCardID][ofPlayerID]=1;
 					playershares[ofCardID][ofPlayerID]=jbits256(share_res,"share");
-					printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);	
 				}
 			}
 			
@@ -548,28 +543,6 @@ void* BET_response(void* _ptr)
 	}
 	nn_shutdown(pushsock,0);
 	nn_shutdown(subsock,0);
-}
-
-void* BET_receive(void* _ptr)
-{
-	char bindaddr[128]="ipc:///tmp/bet.ipc",bindaddr1[128]="ipc:///tmp/bet1.ipc";
-	char *buf = NULL;
-	struct privatebet_info *bet = _ptr;
-	cJSON *share_rcv;
-	while(0)
-	{
-		int bytes = nn_recv (bet->subsock, &buf, NN_MSG, 0);
-		if(bytes>0)
-		{
-			printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
-			share_rcv=cJSON_Parse(buf);
-			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(share_rcv,"messageid")),"receive_share"))
-			{
-				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
-			}
-		}
-		sleep(1);
-	}
 }
 
 
