@@ -896,6 +896,21 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 			vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 		}
 	}
+	printf("\nv_hash is:\n");
+	for(int i=0;i<numcards;i++){
+		for(int j=0;j<numcards;j++){
+			printf("\n%s",bits256_str(str,v_hash[i][j]));
+		}
+	}
+	
+	printf("\ng_hash is:\n");
+	for(int i=0;i<numplayers;i++){
+		for(int j=0;j<numcards;j++){
+			printf("\n%s",bits256_str(str,v_hash[i][j]));
+		}
+	}
+
+						
 	playerid=bet->myplayerid;
 	for (i=0; i<numcards; i++)
     {
