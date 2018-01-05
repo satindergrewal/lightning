@@ -349,7 +349,7 @@ void* BET_hostdcv(void * _ptr)
 {
 		uint32_t numplayers,range,playerID,bytes;
 		char str[65];
-		cJSON *gameInfo=NULL,*playerInfo=NULL,*item=NULL,*cjsoncardprods=NULL,*cjsonfinalcards=NULL;
+		cJSON *gameInfo=NULL,*playerInfo=NULL,*item=NULL,*cjsoncardprods=NULL,*cjsonfinalcards=NULL,*cjsong_hash=NULL;
 		bits256 playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],deckid;
 		struct privatebet_info *bet = _ptr;
 		range=bet->range;
@@ -405,7 +405,17 @@ void* BET_hostdcv(void * _ptr)
 			{
 				cJSON_AddItemToArray(cjsonfinalcards,cJSON_CreateString(bits256_str(str,finalcards[i][j])));
 			}
-		  }	
+		  }
+
+		  cJSON_AddItemToObject(gameInfo,"g_hash",cjsong_hash=cJSON_CreateArray());
+		  for(int i=0;i<numplayers;i++)
+		  {
+			for(int j=0;j<range;j++)
+			{
+				cJSON_AddItemToArray(cjsong_hash,cJSON_CreateString(bits256_str(str,g_hash[i][j])));
+			}
+		  }
+		  
 		  char *rendered=cJSON_Print(gameInfo);
 		  bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
 		  while(1)

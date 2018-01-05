@@ -899,14 +899,14 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	printf("\nv_hash is:\n");
 	for(int i=0;i<numcards;i++){
 		for(int j=0;j<numcards;j++){
-			printf("\n%s",bits256_str(str,v_hash[i][j]));
+			printf("\n%d %d %s",i,j,bits256_str(str,v_hash[i][j]));
 		}
 	}
 	
 	printf("\ng_hash is:\n");
 	for(int i=0;i<numplayers;i++){
 		for(int j=0;j<numcards;j++){
-			printf("\n%s",bits256_str(str,v_hash[i][j]));
+			printf("\n%s %d %d",i,j,bits256_str(str,g_hash[i][j]));
 		}
 	}
 

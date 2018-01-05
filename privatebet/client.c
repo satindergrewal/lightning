@@ -655,7 +655,7 @@ void* BET_clientplayer(void * _ptr)
 		int32_t permis[CARDS777_MAXCARDS],numcards,numplayers;
 		struct pair256 key;struct privatebet_info *bet = _ptr;
 		char str[65],share_str[177];
-		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*cjsonblindedcards,*cjsonshamirshards,*cjsoncardprods,*item;
+		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*cjsonblindedcards,*cjsonshamirshards,*cjsoncardprods,*item,*cjsong_hash;
 
 		numplayers=bet->numplayers;
 		numcards=bet->range;
@@ -759,6 +759,18 @@ void* BET_clientplayer(void * _ptr)
 								cardprods[i][j]=jbits256i(cjsoncardprods,i*numcards+j);
 							}
 						}
+
+						
+						cjsong_hash=cJSON_GetObjectItem(gameInfo,"g_hash");
+						
+						for(int i=0;i<numplayers;i++)
+						{
+							for(int j=0;j<numcards;j++)
+							{
+								g_hash[i][j]=jbits256i(cjsong_hash,i*numcards+j);
+							}
+						}
+
 					}
 					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share"))
 					{
