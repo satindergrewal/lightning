@@ -869,96 +869,15 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 		}
 
 	
- #if 1
-	 shares=calloc(numplayers,sizeof(uint8_t*));
-	 for(i=0;i<numplayers;i++)
-		 shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
-	 
-	 basepoint = curve25519_basepoint9();
-	 uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
-	 
-	 M=(numplayers/2)+1;
-	 for(k=0;k<bet->range;k++)
- 	 {
- 		for(i=0;i<M;i++) 
-		 {
-			 memcpy(shares[i],playershares[k][i].bytes,sizeof(bits256));
-		 }
-		
-		 gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
-		 refval = fmul_donna(blindedcard,crecip_donna(recover));
-		 printf("\n%s:%d:cardID:%d, Blinding Value:%s", __FUNCTION__,__LINE__,cardID,bits256_str(str,recover));
-		 for(i=0;i<numcards;i++)
-		 {
-			 for(j=0;j<numcards;j++)
-			 {
-				 bits256 temp=xoverz_donna(curve25519(key.priv,curve25519(playerprivs[i],cardprods[j])));
-				 vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
-			 }
-		 }
-		 playerid=bet->myplayerid;
-
-		 for (i=0; i<numcards; i++)
-		 {
-			 for (j=0; j<numcards; j++)
-			 {
-				 if ( bits256_cmp(v_hash[i][j],g_hash[playerid][cardID]) == 0 )
-				 {
-					 tmp = curve25519(key.priv,curve25519(playerprivs[i],cardprods[j]));
-					 xoverz = xoverz_donna(tmp);
-					 vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
-					 fe = crecip_donna(curve25519_fieldelement(hash));
-					 decoded = curve25519(fmul_donna(refval,fe),basepoint);
-					 if ( bits256_cmp(decoded,cardprods[j]) == 0 )
-					 {
-						 printf("\nplayer.%d decoded card %s value %d\n",playerid,bits256_str(str,decoded),playerprivs[i].bytes[30]);
-						 tmp=playerprivs[i];
-						 flag=1;
-						 goto end;
-					 }
-				 }
-			 }
-		 }
-		 
- 	 }
-	 
-	 end:
-	for(i=0;i<numplayers;i++)
-	{
-	   free(shares[i]);
-	}
-	 free(shares);
-	 if(!flag)
-	 {
-		 memset(tmp.bytes,0,sizeof(tmp));
-		 printf("\ncouldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
-	 }
- #endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	#if 0 
+ 	#if 1 
     shares=calloc(numplayers,sizeof(uint8_t*));
     for(i=0;i<numplayers;i++)
         shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
     
     basepoint = curve25519_basepoint9();
     uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
-	for(i=0;i<numplayers;i++){
+
+	/*for(i=0;i<numplayers;i++){
 		if(i!=bet->myplayerid){
 			tmp=BET_request_share(cardID,i,bet,public_key_b,key);
 		}
@@ -978,11 +897,11 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	for(i=0;i<numplayers;i++)
 	{
 		printf("\n%s:%d:share:%s",__FUNCTION__,__LINE__,bits256_str(str,cardshares[i]));
-	}
+	}*/
 	M=(numplayers/2)+1;
 	for(i=0;i<M;i++) 
 	{
-		memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
+		memcpy(shares[i],playershares[cardID][i].bytes,sizeof(bits256));
 	}
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 	refval = fmul_donna(blindedcard,crecip_donna(recover));
