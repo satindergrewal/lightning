@@ -918,6 +918,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
         {
         	if ( bits256_cmp(v_hash[i][j],g_hash[playerid][cardID]) == 0 )
 			{
+				printf("\n%s:%d",__FUNCTION__,__LINE__);
 	            tmp = curve25519(key.priv,curve25519(playerprivs[i],cardprods[j]));
 	            xoverz = xoverz_donna(tmp);
 	            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
