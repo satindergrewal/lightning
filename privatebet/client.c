@@ -436,7 +436,7 @@ void* BET_request(void* _ptr)
 				ofPlayerID=jint(shareInfo,"ofPlayerID");
 				forPlayerID=jint(shareInfo,"forPlayerID");
 				//temp=g_shares[ofPlayerID*shareInfo->numplayers*shareInfo->range + (ofCardID*shareInfo->numplayers + forPlayerID)];
-				temp=g_shares[ofPlayerID*shareInfo->numplayers*shareInfo->range + (i*shareInfo->numplayers + j)];
+				temp=g_shares[shareInfo->myplayerid*shareInfo->numplayers*shareInfo->range + (i*shareInfo->numplayers + shareInfo->myplayerid)];
 				recvlen = sizeof(temp);
 				printf("\n%d ",(ofPlayerID*shareInfo->numplayers*shareInfo->range + (i*shareInfo->numplayers + j)));
 				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,enc_share_str(enc_str,temp));		
