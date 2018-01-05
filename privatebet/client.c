@@ -421,7 +421,7 @@ void* BET_request(void* _ptr)
 		{
 			if((j!=shareInfo->myplayerid) && (sharesflag[i][j]==0))
 			{				
-				shareInfo=cJSON_CreateObject();
+				shareReq=cJSON_CreateObject();
 				cJSON_AddStringToObject(shareReq,"messageid","request_share");
 				cJSON_AddNumberToObject(shareReq,"ofCardID",i);
 				cJSON_AddNumberToObject(shareReq,"ofPlayerID",j);
