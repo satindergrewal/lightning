@@ -432,7 +432,6 @@ void* BET_request(void* _ptr)
 				cJSON_Delete(shareReq);
 			}
 			else if((j==shareInfo->myplayerid) && (sharesflag[i][j]==0)) {
-				sharesflag[i][j]=1;
 				ofCardID=jint(shareInfo,"ofCardID");
 				ofPlayerID=jint(shareInfo,"ofPlayerID");
 				forPlayerID=jint(shareInfo,"forPlayerID");
@@ -444,8 +443,10 @@ void* BET_request(void* _ptr)
 						printf("decrypt error ");
 				else
 				{
+					printf("\n%s:%d",__FUNCTION__,__LINE__);
 					memcpy(share.bytes,ptr,recvlen);
 					playershares[i][j]=share;
+					sharesflag[i][j]=1;
 				}
 					
 				
