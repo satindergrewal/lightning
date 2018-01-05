@@ -839,7 +839,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
         printf("error launching BET_receive thread");
         exit(-1);
     }
-	if ( OS_thread_create(&t_req,NULL,(void *)BET_request,bet) != 0 )
+	if ( OS_thread_create(&t_req,NULL,(void *)BET_request,share_info) != 0 )
     {
         printf("error launching BET_request thread");
         exit(-1);

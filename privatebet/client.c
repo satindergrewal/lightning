@@ -398,40 +398,56 @@ char *enc_share_str(char hexstr[177],struct enc_share x)
 
 void* BET_request(void* _ptr)
 {
-	char bindaddr[128]="ipc:///tmp/bet.ipc";
-	struct privatebet_info *bet = _ptr;
-	
-	cJSON *shareInfo=NULL;
+	struct enc_share temp;
+	bits256 share;
+	uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
+	struct privatebet_share *shareInfo=_ptr;
+	int32_t ofCardID,ofPlayerID,forPlayerID;
+	cJSON *shareReq=NULL;
 	char *buf=NULL,str[65];
 	int bytes;
 
-	for(int i=0;i<bet->range;i++)
+	for(int i=0;i<shareInfo->range;i++)
 	{
-		for(int j=0;j<bet->numplayers;j++)
+		for(int j=0;j<shareInfo->numplayers;j++)
 		{
 			sharesflag[i][j]=0;
 		}
 	}
 
-	for(int i=0;i<bet->range;i++)
+	for(int i=0;i<shareInfo->range;i++)
 	{
-		for(int j=0;j<bet->numplayers;j++)
+		for(int j=0;j<shareInfo->numplayers;j++)
 		{
-			if((j!=bet->myplayerid) && (sharesflag[i][j]==0))
+			if((j!=shareInfo->myplayerid) && (sharesflag[i][j]==0))
 			{				
 				shareInfo=cJSON_CreateObject();
-				cJSON_AddStringToObject(shareInfo,"messageid","request_share");
-				cJSON_AddNumberToObject(shareInfo,"ofCardID",i);
-				cJSON_AddNumberToObject(shareInfo,"ofPlayerID",j);
-				cJSON_AddNumberToObject(shareInfo,"forPlayerID",bet->myplayerid);
-				buf=cJSON_Print(shareInfo);
+				cJSON_AddStringToObject(shareReq,"messageid","request_share");
+				cJSON_AddNumberToObject(shareReq,"ofCardID",i);
+				cJSON_AddNumberToObject(shareReq,"ofPlayerID",j);
+				cJSON_AddNumberToObject(shareReq,"forPlayerID",shareInfo->myplayerid);
+				buf=cJSON_Print(shareReq);
 				bytes=nn_send(bet->pushsock,buf,strlen(buf),0);
 				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
-				cJSON_Delete(shareInfo);
+				cJSON_Delete(shareReq);
 			}
-			else if((j==bet->myplayerid) && (sharesflag[i][j]==0)) {
+			else if((j==shareInfo->myplayerid) && (sharesflag[i][j]==0)) {
 				sharesflag[i][j]=1;
-				printf("\n%d %d ::%d",i,j,sharesflag[i][j]);
+				ofCardID=jint(shareInfo,"ofCardID");
+				ofPlayerID=jint(shareInfo,"ofPlayerID");
+				forPlayerID=jint(shareInfo,"forPlayerID");
+				temp=g_shares[ofPlayerID*shareInfo->numplayers*shareInfo->range + (ofCardID*shareInfo->numplayers + forPlayerID)];
+				recvlen = sizeof(temp);
+						
+				if ( (ptr= BET_decrypt(decipher,sizeof(decipher),shareInfo->bvv_public_key,shareInfo->player_key.priv,temp.bytes,&recvlen)) == 0 )
+						printf("decrypt error ");
+				else
+				{
+					memcpy(share.bytes,ptr,recvlen);
+					playershares[i][j]=share;
+				}
+					
+				
 			}
 		}
 	}
@@ -523,15 +539,6 @@ void* BET_response(void* _ptr)
 			}
 			if(flag)
 				break;	
-		}
-		for(int i=0;i<share_info->range;i++)
-		{
-			printf("\n");
-			for(int j=0;j<share_info->numplayers;j++)
-			{
-				printf("%d ",sharesflag[i][j]);		
-			}
-
 		}
 		sleep(5);
 	
