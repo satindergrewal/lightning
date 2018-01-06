@@ -464,8 +464,10 @@ void* BET_response(void* _ptr)
 	struct privatebet_share *share_info=_ptr;
 	cJSON *share_res;
 	char bindaddr[128]="ipc:///tmp/bet.ipc",bindaddr1[128]="ipc:///tmp/bet1.ipc";
-	subsock=BET_nanosock(0,bindaddr,NN_SUB);
-	pushsock=BET_nanosock(0,bindaddr1,NN_PUSH);
+	//subsock=BET_nanosock(0,bindaddr,NN_SUB);
+	//pushsock=BET_nanosock(0,bindaddr1,NN_PUSH);
+	subsock=share_info->subsock;
+	pushsock=share_info->pushsock;
 	
 	int flag=1;
 	while(flag)
@@ -734,9 +736,9 @@ void* BET_clientplayer(void * _ptr)
 				                decoded[i] = k;    	
             				}
         			 }
-					printf("\nCards Decoded:%d, errored:%d",decoded,errs);   
 					decodebad += errs;
     				decodegood+= (numcards - errs);
+					printf("\nCards Decoded:%d, errored:%d",decodegood,decodebad);					
      				}
 					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d"))
 					{
