@@ -483,10 +483,8 @@ void* BET_response(void* _ptr)
 				ofCardID=jint(share_res,"ofCardID");
 				ofPlayerID=jint(share_res,"ofPlayerID");
 				forPlayerID=jint(share_res,"forPlayerID");
-				printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 				if((ofPlayerID==share_info->myplayerid)&&(forPlayerID!=share_info->myplayerid))
 					{
-						printf("\n%s:%d:player id:%d",__FUNCTION__,__LINE__,share_info->myplayerid);
 						temp=g_shares[ofPlayerID*share_info->numplayers*share_info->range + (ofCardID*share_info->numplayers + forPlayerID)];
 						recvlen = sizeof(temp);
 						if ( (ptr= BET_decrypt(decipher,sizeof(decipher),share_info->bvv_public_key,share_info->player_key.priv,temp.bytes,&recvlen)) == 0 )
@@ -506,11 +504,9 @@ void* BET_response(void* _ptr)
 							char *buf=NULL;
 							buf=cJSON_Print(share_res);
 							int bytes=nn_send(pushsock,buf,strlen(buf),0);
-							
 						}	
 					}
-	
-			}
+				}
 			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(share_res,"messageid")),"receive_share"))
 			{
 				ofCardID=jint(share_res,"ofCardID");
@@ -522,7 +518,6 @@ void* BET_response(void* _ptr)
 					playershares[ofCardID][ofPlayerID]=jbits256(share_res,"share");
 				}
 			}
-			
 		}
 		for(int i=0;i<share_info->range;i++)
 		{
@@ -533,13 +528,11 @@ void* BET_response(void* _ptr)
 					flag=1;
 					break;
 				}
-				
 			}
 			if(flag)
 				break;	
 		}
 		sleep(5);
-	
 	}
 	nn_shutdown(pushsock,0);
 	nn_shutdown(subsock,0);
@@ -742,11 +735,7 @@ void* BET_clientplayer(void * _ptr)
 				                decoded[i] = k;    	
             				}
         			 }
-					 while(1)
-				 	{
-				 		sleep(5);
-				 	}
-    				decodebad += errs;
+					decodebad += errs;
     				decodegood+= (numcards - errs);
      				}
 					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d"))

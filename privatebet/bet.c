@@ -910,8 +910,9 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 		}
 	}
 
-						
 	playerid=bet->myplayerid;
+	printf("\n%s:%d:playerid:%d,cardid:%d",__FUNCTION__,__LINE__,playerid,cardID);
+	
 	for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
