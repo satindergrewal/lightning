@@ -53,10 +53,13 @@ uint8_t sharenrs[256];
 struct rpcrequest_info *LP_garbage_collector;
 struct enc_share { uint8_t bytes[sizeof(bits256)+crypto_box_NONCEBYTES+crypto_box_ZEROBYTES]; };
 struct enc_share *g_shares=NULL;
-//struct enc_share g_shares[CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS];
 
 bits256 v_hash[CARDS777_MAXCARDS][CARDS777_MAXCARDS];
 bits256 g_hash[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+
+int32_t sharesflag[CARDS777_MAXCARDS][CARDS777_MAXPLAYERS];
+bits256 playershares[CARDS777_MAXCARDS][CARDS777_MAXPLAYERS];
+bits256 deckid;
 uint32_t LP_rand()
 {
     uint32_t retval;
@@ -437,63 +440,97 @@ int main(int argc,const char *argv[])
 
 	range = (range % 52) + 1;
 	numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
+	range=2;
+	numplayers=2;
 	printf("%s:%d, range:%d, numplayers:%d\n",__FUNCTION__,__LINE__,range,numplayers);
 
 	// for dcv
-	BET_dcv=calloc(1,sizeof(struct privatebet_info));
-    BET_dcv->pubsock = BET_nanosock(1,bindaddr,NN_PUB);
-    BET_dcv->pullsock = BET_nanosock(1,bindaddr1,NN_PULL);
-    BET_dcv->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
-    BET_dcv->maxchips = CARDS777_MAXCHIPS;
-    BET_dcv->chipsize = CARDS777_CHIPSIZE;
-	BET_dcv->numplayers=numplayers;
-    BET_betinfo_set(BET_dcv,"demo",range,0,Maxplayers);
-    if ( OS_thread_create(&dcv_t,NULL,(void *)BET_hostdcv,(void *)BET_dcv) != 0 )
-    {
-        printf("error launching BET_hostloop for pub.%d pull.%d\n",BET_dcv->pubsock,BET_dcv->pullsock);
-        exit(-1);
-    }
+	if((argc==2)&&(strcmp(argv[1],"dcv")==0))
+	{
+		BET_dcv=calloc(1,sizeof(struct privatebet_info));
+	    BET_dcv->pubsock = BET_nanosock(1,bindaddr,NN_PUB);
+	    BET_dcv->pullsock = BET_nanosock(1,bindaddr1,NN_PULL);
+	    BET_dcv->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
+	    BET_dcv->maxchips = CARDS777_MAXCHIPS;
+	    BET_dcv->chipsize = CARDS777_CHIPSIZE;
+		BET_dcv->numplayers=numplayers;
+	    BET_betinfo_set(BET_dcv,"demo",range,0,Maxplayers);
+	    if ( OS_thread_create(&dcv_t,NULL,(void *)BET_hostdcv,(void *)BET_dcv) != 0 )
+	    {
+	        printf("error launching BET_hostloop for pub.%d pull.%d\n",BET_dcv->pubsock,BET_dcv->pullsock);
+	        exit(-1);
+	    }
+		if(pthread_join(dcv_t,NULL))
+		{
+			printf("\nError in joining the main thread for dcv");
+		}
+	}
 
 	// for bvv
-	BET_bvv=calloc(1,sizeof(struct privatebet_info));
-    BET_bvv->subsock = BET_nanosock(0,bindaddr,NN_SUB);
-    BET_bvv->pushsock = BET_nanosock(0,bindaddr1,NN_PUSH);
-    BET_bvv->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
-    BET_bvv->maxchips = CARDS777_MAXCHIPS;
-    BET_bvv->chipsize = CARDS777_CHIPSIZE;
-	BET_bvv->numplayers=numplayers;
-	BET_bvv->myplayerid=0;
-    BET_betinfo_set(BET_bvv,"demo",range,0,Maxplayers);
-    if ( OS_thread_create(&bvv_t,NULL,(void *)BET_clientbvv,(void *)BET_bvv) != 0 )
-    {
-        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_bvv->subsock,BET_bvv->pushsock);
-        exit(-1);
-    }
+	else if((argc==2)&&(strcmp(argv[1],"bvv")==0))
+	{
+		BET_bvv=calloc(1,sizeof(struct privatebet_info));
+	    BET_bvv->subsock = BET_nanosock(0,bindaddr,NN_SUB);
+	    BET_bvv->pushsock = BET_nanosock(0,bindaddr1,NN_PUSH);
+	    BET_bvv->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
+	    BET_bvv->maxchips = CARDS777_MAXCHIPS;
+	    BET_bvv->chipsize = CARDS777_CHIPSIZE;
+		BET_bvv->numplayers=numplayers;
+		BET_bvv->myplayerid=0;
+	    BET_betinfo_set(BET_bvv,"demo",range,0,Maxplayers);
+	    if ( OS_thread_create(&bvv_t,NULL,(void *)BET_clientbvv,(void *)BET_bvv) != 0 )
+	    {
+	        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_bvv->subsock,BET_bvv->pushsock);
+	        exit(-1);
+	    }
+		if(pthread_join(bvv_t,NULL))
+		{
+			printf("\nError in joining the main thread for bvvv");
+		}
+	}
 
 	// for players
-	BET_players=calloc(numplayers,sizeof(struct privatebet_info*));
-	for(int i=0;i<numplayers;i++)
+	else if((argc==3)&&(strcmp(argv[1],"player")==0)) 
 	{
-		BET_players[i]=calloc(1,sizeof(struct privatebet_info));
+		char *ptr;
+		i=0;
+		BET_players=calloc(numplayers,sizeof(struct privatebet_info*));
+		//for(int i=0;i<numplayers;i++)
+			BET_players[i]=calloc(1,sizeof(struct privatebet_info));
+		
+	    
+		/*for(int i=0;i<numplayers;i++)
+		{*/
+			BET_players[i]->subsock = BET_nanosock(0,bindaddr,NN_SUB);
+		    BET_players[i]->pushsock = BET_nanosock(0,bindaddr1,NN_PUSH);
+		    BET_players[i]->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
+		    BET_players[i]->maxchips = CARDS777_MAXCHIPS;
+		    BET_players[i]->chipsize = CARDS777_CHIPSIZE;
+			BET_players[i]->numplayers=numplayers;
+			BET_players[i]->myplayerid=atoi(argv[2]);
+		    BET_betinfo_set(BET_players[i],"demo",range,0,Maxplayers);
+		    if (OS_thread_create(&players_t[i],NULL,(void *)BET_clientplayer,(void *)BET_players[i]) != 0 )
+		    {
+		        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_players[i]->subsock,BET_players[i]->pushsock);
+		        exit(-1);
+		    }	
+		/*}*/
+		/*for(int i=0;i<numplayers;i++)
+		{*/
+			if(pthread_join(players_t[i],NULL))
+			{
+				printf("\nError in joining the main thread for player %d",i);
+			}
+		/*}*/
 	}
-    
-	for(int i=0;i<numplayers;i++)
+	else
 	{
-		BET_players[i]->subsock = BET_nanosock(0,bindaddr,NN_SUB);
-	    BET_players[i]->pushsock = BET_nanosock(0,bindaddr1,NN_PUSH);
-	    BET_players[i]->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
-	    BET_players[i]->maxchips = CARDS777_MAXCHIPS;
-	    BET_players[i]->chipsize = CARDS777_CHIPSIZE;
-		BET_players[i]->numplayers=numplayers;
-		BET_players[i]->myplayerid=i;
-	    BET_betinfo_set(BET_players[i],"demo",range,0,Maxplayers);
-	    if (OS_thread_create(&players_t[i],NULL,(void *)BET_clientplayer,(void *)BET_players[i]) != 0 )
-	    {
-	        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_players[i]->subsock,BET_players[i]->pushsock);
-	        exit(-1);
-	    }	
+		printf("\nInvalid Usage");
+		printf("\nFor DCV: ./bet dcv");
+		printf("\nFor BVV: ./bet bvv");
+		printf("\nFor Player: ./bet player player_id");
 	}
-
+	#if 0
 	if(pthread_join(dcv_t,NULL))
 	{
 		printf("\nError in joining the main thread for dcv");
@@ -511,6 +548,7 @@ int main(int argc,const char *argv[])
 			printf("\nError in joining the main thread for player %d",i);
 		}
 	}
+	#endif
     return 0;
 }
 
@@ -777,35 +815,67 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
     uint8_t **shares,flag=0;
 	uint32_t playerid;
 	char share_str[177];
+	pthread_t t_req,t_rcv,t_res;
+	struct privatebet_share *share_info=NULL;
+
+	share_info=calloc(1,sizeof(struct privatebet_share));
+	share_info->bvv_public_key=public_key_b;
+	share_info->player_key=key;
+	share_info->subsock=bet->subsock;
+	share_info->myplayerid=bet->myplayerid;
+	share_info->range=bet->range;
+	share_info->numplayers=bet->numplayers;
+	share_info->pushsock=bet->pushsock;
+
+	
+	if ( OS_thread_create(&t_res,NULL,(void *)BET_response,share_info) != 0 )
+    {
+        printf("error launching BET_response thread");
+        exit(-1);
+    }
+	sleep(5);
+	if ( OS_thread_create(&t_req,NULL,(void *)BET_request,share_info) != 0 )
+    {
+        printf("error launching BET_request thread");
+        exit(-1);
+    }
+	if(pthread_join(t_req,NULL))
+	{
+		printf("\nError in joining the main thread for t_req");
+	}
+	if(pthread_join(t_res,NULL))
+	{
+		printf("\nError in joining the main thread for t_res");
+	}
+
+	for(int i=0;i<bet->range;i++)
+		{
+			printf("\ncard:%d",i);
+			for(int j=0;j<bet->numplayers;j++)
+				{
+					printf("\nshare:%s",bits256_str(str,playershares[i][j]));
+				}
+		}
+
+	
+ 	#if 1 
     shares=calloc(numplayers,sizeof(uint8_t*));
     for(i=0;i<numplayers;i++)
         shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
     
     basepoint = curve25519_basepoint9();
     uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
-	for(i=0;i<numplayers;i++){
-		if(i!=bet->myplayerid){
-			tmp=BET_request_share(cardID,i,bet,public_key_b,key);
-		}
-		else{
-			temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardID*bet->numplayers + bet->myplayerid)];
-			recvlen = sizeof(temp);
-			if ( (ptr= BET_decrypt(decipher,sizeof(decipher),public_key_b,key.priv,temp.bytes,&recvlen)) == 0 )
-            	printf("decrypt error ");
-        	else
-        	{
-        		memcpy(tmp.bytes,ptr,recvlen);
-	       	}
-		}
-		memcpy(cardshares[i].bytes,tmp.bytes,sizeof(bits256));
-	}
+	
 	M=(numplayers/2)+1;
 	for(i=0;i<M;i++) 
 	{
-		memcpy(shares[i],cardshares[i].bytes,sizeof(bits256));
+		memcpy(shares[i],playershares[cardID][i].bytes,sizeof(bits256));
 	}
+	gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
+	
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 	refval = fmul_donna(blindedcard,crecip_donna(recover));
+
 	for(i=0;i<numcards;i++)
 	{
 		for(j=0;j<numcards;j++)
@@ -814,7 +884,9 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 			vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 		}
 	}
+
 	playerid=bet->myplayerid;
+
 	for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
@@ -848,6 +920,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 		memset(tmp.bytes,0,sizeof(tmp));
 		printf("\ncouldnt decode blindedcard %s\n",bits256_str(str,blindedcard));
 	}
+	#endif
     return(tmp);
 }
 
