@@ -764,11 +764,21 @@ void* BET_clientplayer(void * _ptr)
 						}
 
 					}
-					/*
 					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share"))
 					{
+						struct privatebet_share *share_info=NULL;
 						
-						BET_give_share(gameInfo,bet,public_key_b,key);
+						share_info=calloc(1,sizeof(struct privatebet_share));
+						share_info->bvv_public_key=public_key_b;
+						share_info->player_key=key;
+						share_info->subsock=bet->subsock;
+						share_info->myplayerid=bet->myplayerid;
+						share_info->range=bet->range;
+						share_info->numplayers=bet->numplayers;
+						share_info->pushsock=bet->pushsock;
+						BET_response(share_info);
+						free(share_info);
+						//BET_give_share(gameInfo,bet,public_key_b,key);
 					}*/
 				}
 			}
