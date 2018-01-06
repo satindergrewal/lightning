@@ -779,7 +779,7 @@ void* BET_clientplayer(void * _ptr)
 						BET_response(share_info);
 						free(share_info);
 						//BET_give_share(gameInfo,bet,public_key_b,key);
-					}*/
+					}
 				}
 			}
 			nn_shutdown(bet->pushsock,0);
