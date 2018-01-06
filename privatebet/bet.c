@@ -843,21 +843,10 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	{
 		printf("\nError in joining the main thread for t_req");
 	}
-	else
-	{
-		printf("\nRequest thread is finished");
-	}
-	
 	if(pthread_join(t_res,NULL))
 	{
 		printf("\nError in joining the main thread for t_res");
 	}
-	else	
-	{
-		printf("\nResponse thread is finished");
-	}
-	
-	printf("\n%s:%d",__FUNCTION__,__LINE__);
 
 	for(int i=0;i<bet->range;i++)
 		{
