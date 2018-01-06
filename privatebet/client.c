@@ -676,10 +676,11 @@ void* BET_clientplayer(void * _ptr)
 				int bytes = nn_recv (bet->subsock, &buf, NN_MSG, 0);
 				if(bytes>0)
 				{
-					printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
+					
 					gameInfo=cJSON_Parse(buf);
 					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"decode"))
 					{
+						printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 						public_key_b=jbits256(gameInfo,"public_key_b");
 						g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
 						cjsonblindedcards=cJSON_GetObjectItem(gameInfo,"blindedcards");
@@ -740,6 +741,7 @@ void* BET_clientplayer(void * _ptr)
      				}
 					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d"))
 					{
+						printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 						deckid=jbits256(gameInfo,"deckid");
 						cjsoncardprods=cJSON_GetObjectItem(gameInfo,"cardprods");
 						
