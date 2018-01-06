@@ -466,9 +466,7 @@ void* BET_response(void* _ptr)
 	char bindaddr[128]="ipc:///tmp/bet.ipc",bindaddr1[128]="ipc:///tmp/bet1.ipc";
 	subsock=BET_nanosock(0,bindaddr,NN_SUB);
 	pushsock=BET_nanosock(0,bindaddr1,NN_PUSH);
-	if((subsock>=0)&&(pushsock>=0)){
-		printf("\n%s:%d:socket creation is done",__FUNCTION__,__LINE__);
-	}
+	
 	int flag=1;
 	while(flag)
 	{
@@ -736,6 +734,7 @@ void* BET_clientplayer(void * _ptr)
 				                decoded[i] = k;    	
             				}
         			 }
+					printf("\nCards Decoded:%d, errored:%d",decoded,errs);   
 					decodebad += errs;
     				decodegood+= (numcards - errs);
      				}
