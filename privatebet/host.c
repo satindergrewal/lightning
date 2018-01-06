@@ -425,7 +425,7 @@ void* BET_hostdcv(void * _ptr)
 	  			if(bytes>0)
 	  			{
 	  				bytes=nn_send(bet->pubsock,buf,strlen(buf),0);
-					printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
+					
 	  			}
            }
 		  nn_shutdown(bet->pullsock,0);

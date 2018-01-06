@@ -886,8 +886,7 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 	
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 	refval = fmul_donna(blindedcard,crecip_donna(recover));
-	printf("\n%s:%d:cardID:%d, Blinding Value:%s", __FUNCTION__,__LINE__,cardID,bits256_str(str,recover));
-	printf("\nFinal card:%s",bits256_str(str,refval));
+
 	for(i=0;i<numcards;i++)
 	{
 		for(j=0;j<numcards;j++)
@@ -896,30 +895,15 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 			vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 		}
 	}
-	printf("\nv_hash is:\n");
-	for(int i=0;i<numcards;i++){
-		for(int j=0;j<numcards;j++){
-			printf("\n%d %d %s",i,j,bits256_str(str,v_hash[i][j]));
-		}
-	}
-	
-	printf("\ng_hash is:\n");
-	for(int i=0;i<numplayers;i++){
-		for(int j=0;j<numcards;j++){
-			printf("\n%d %d %s",i,j,bits256_str(str,g_hash[i][j]));
-		}
-	}
 
 	playerid=bet->myplayerid;
-	printf("\n%s:%d:playerid:%d,cardid:%d",__FUNCTION__,__LINE__,playerid,cardID);
-	
+
 	for (i=0; i<numcards; i++)
     {
         for (j=0; j<numcards; j++)
         {
         	if ( bits256_cmp(v_hash[i][j],g_hash[playerid][cardID]) == 0 )
 			{
-				printf("\n%s:%d",__FUNCTION__,__LINE__);
 	            tmp = curve25519(key.priv,curve25519(playerprivs[i],cardprods[j]));
 	            xoverz = xoverz_donna(tmp);
 	            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
@@ -1022,7 +1006,6 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
 	for (i=0; i<numcards; i++)
     {
         blindings[i] = rand256(1);
-		printf("\n%s:%d:cardID:%d, Blinding Value:%s",__FUNCTION__,__LINE__,i,bits256_str(str,blindings[i]));
 		blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
 		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
 		}
@@ -1035,7 +1018,6 @@ struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,b
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-				printf("\n%s:%d:share:%s",__FUNCTION__,__LINE__,bits256_str(str,cardshares[j]));
 				BET_ciphercreate(b_key.priv,keys[j].prod,temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
 				memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
 			}

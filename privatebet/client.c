@@ -816,27 +816,22 @@ void* BET_clientbvv(void * _ptr)
 					}
 				 }
 				}
-			printf("\n%s:%d",__FUNCTION__,__LINE__);
 			while (flag) 
 			{
 				char *buf = NULL;
 				int bytes = nn_recv (bet->subsock, &buf, NN_MSG, 0);
 				if(bytes>0)
 				{
-					printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 					gameInfo=cJSON_Parse(buf);
 					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d")) 
 					{
 						deckid=jbits256(gameInfo,"deckid");
 						cjsonfinalcards=cJSON_GetObjectItem(gameInfo,"finalcards");
-						printf("\ncards received to bvv from dcv");
 						for(int playerID=0;playerID<numplayers;playerID++) 
 						{
-								printf("\nplayerID: %d",playerID);
 								for(int i=0;i<numcards;i++) 
 								{
 									finalcards[playerID][i]=jbits256i(cjsonfinalcards,playerID*numcards+i);
-									printf("\ncardID:%d:%s",i,bits256_str(str,finalcards[playerID][i]));
 								}
 						}
 	         		    g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
