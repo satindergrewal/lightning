@@ -349,7 +349,7 @@ void* BET_hostdcv(void * _ptr)
 {
 		uint32_t numplayers,range,playerID,bytes;
 		char str[65];
-		cJSON *gameInfo=NULL,*playerInfo=NULL,*item=NULL,*cjsoncardprods=NULL,*cjsonfinalcards=NULL;
+		cJSON *gameInfo=NULL,*playerInfo=NULL,*item=NULL,*cjsoncardprods=NULL,*cjsonfinalcards=NULL,*cjsong_hash=NULL;
 		bits256 playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],deckid;
 		struct privatebet_info *bet = _ptr;
 		range=bet->range;
@@ -365,6 +365,7 @@ void* BET_hostdcv(void * _ptr)
 			int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
 			if(bytes>0)
 			{
+				printf("\n%s:%d,buf:%s",__FUNCTION__,__LINE__,buf);
 				gameInfo=cJSON_Parse(buf);
 				if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init"))
 				{
@@ -404,7 +405,17 @@ void* BET_hostdcv(void * _ptr)
 			{
 				cJSON_AddItemToArray(cjsonfinalcards,cJSON_CreateString(bits256_str(str,finalcards[i][j])));
 			}
-		  }	
+		  }
+
+		  cJSON_AddItemToObject(gameInfo,"g_hash",cjsong_hash=cJSON_CreateArray());
+		  for(int i=0;i<numplayers;i++)
+		  {
+			for(int j=0;j<range;j++)
+			{
+				cJSON_AddItemToArray(cjsong_hash,cJSON_CreateString(bits256_str(str,g_hash[i][j])));
+			}
+		  }
+		  
 		  char *rendered=cJSON_Print(gameInfo);
 		  bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
 		  while(1)
@@ -414,6 +425,7 @@ void* BET_hostdcv(void * _ptr)
 	  			if(bytes>0)
 	  			{
 	  				bytes=nn_send(bet->pubsock,buf,strlen(buf),0);
+					
 	  			}
            }
 		  nn_shutdown(bet->pullsock,0);
