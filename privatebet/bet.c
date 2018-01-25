@@ -133,6 +133,25 @@ void LP_millistats_update(struct LP_millistats *mp)
     }
 }
 
+int64_t LP_outpoint_amount(char *symbol,bits256 txid,int32_t vout)
+{
+    int64_t amount=0; int32_t numvouts; char coinaddr[64]; cJSON *vouts,*txjson;
+    printf("need to fix the missing code to link to before using LP_outpoint_amount in LP_bitcoin.c\n");
+    exit(0);
+    /*if ( (amount= LP_txvalue(coinaddr,symbol,txid,vout)) != 0 )
+        return(amount);
+    else
+    {
+        if ( (txjson= LP_gettx(symbol,txid,1)) != 0 )
+        {
+            if ( (vouts= jarray(&numvouts,txjson,"vout")) != 0 && vout < numvouts )
+                amount = LP_value_extract(jitem(vouts,vout),0);
+            free_json(txjson);
+        }
+    }*/
+    return(amount);
+}
+
 #include "../../SuperNET/iguana/exchanges/LP_network.c"
 #include "../../SuperNET/iguana/exchanges/LP_secp.c"
 #include "../../SuperNET/iguana/exchanges/LP_bitcoin.c"
