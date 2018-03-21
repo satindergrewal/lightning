@@ -454,7 +454,7 @@ int main(int argc,const char *argv[])
 	    BET_dcv->chipsize = CARDS777_CHIPSIZE;
 		BET_dcv->numplayers=numplayers;
 	    BET_betinfo_set(BET_dcv,"demo",range,0,Maxplayers);
-	    if ( OS_thread_create(&dcv_t,NULL,(void *)BET_hostdcv,(void *)BET_dcv) != 0 )
+	    if ( OS_thread_create(&dcv_t,NULL,(void *)BET_sg777_hostloop,(void *)BET_dcv) != 0 )
 	    {
 	        printf("error launching BET_hostloop for pub.%d pull.%d\n",BET_dcv->pubsock,BET_dcv->pullsock);
 	        exit(-1);

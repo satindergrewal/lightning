@@ -471,3 +471,61 @@ void* BET_hostdcv(void * _ptr)
 	  }
 	  return NULL;
 }
+
+int32_t BET_sg777_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+    char *method; int32_t senderid;
+    if ( (method= jstr(argjson,"method")) != 0 )
+    {
+    	printf("\n%s:%d:method:%s",__FUNCTION__,__LINE__,method);
+    	#if 0
+        senderid = BET_senderid(argjson,bet);
+        if ( strcmp(method,"join") == 0 )
+            return(BET_host_join(argjson,bet,vars));
+        else if ( strcmp(method,"gameeval") == 0 )
+        {
+            BET_client_gameeval(argjson,bet,vars,senderid);
+            return(1);
+        }
+        else if ( strcmp(method,"turni") == 0 )
+        {
+            BET_client_turni(argjson,bet,vars,senderid);
+            return(1);
+        }
+        else if ( strcmp(method,"tablestatus") == 0 )
+            return(0);
+        else return(1);
+		#endif 
+    }
+    return(-1);
+}
+
+
+void BET_sg777_hostloop(void *_ptr)
+{
+    uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; double lastmilli = 0.; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
+    VARS = calloc(1,sizeof(*VARS));
+    printf("hostloop pubsock.%d pullsock.%d range.%d\n",bet->pubsock,bet->pullsock,bet->range);
+    while ( bet->pullsock >= 0 && bet->pubsock >= 0 )
+    {
+        nonz = 0;
+        if ( (recvlen= nn_recv(bet->pullsock,&ptr,NN_MSG,0)) > 0 )
+        {
+            nonz++;
+            if ( (argjson= cJSON_Parse(ptr)) != 0 )
+            {
+                if ( BET_hostcommand(argjson,bet,VARS) != 0 ) // usually just relay to players
+                {
+                    //printf("RELAY.(%s)\n",jprint(argjson,0));
+                    // BET_message_send("BET_relay",bet->pubsock,argjson,0,bet);
+                    //if ( (sendlen= nn_send(bet->pubsock,ptr,recvlen,0)) != recvlen )
+                    //    printf("sendlen.%d != recvlen.%d for %s\n",sendlen,recvlen,jprint(argjson,0));
+                }
+                free_json(argjson);
+            }
+            nn_freemsg(ptr);
+        }
+          
+    }
+}
+
