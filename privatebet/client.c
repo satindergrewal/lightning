@@ -657,8 +657,8 @@ void* BET_clientplayer(void * _ptr)
         {
             key = deckgen_player(playerprivs,playercards,permis,numcards);
             joinInfo=cJSON_CreateObject();
-            cJSON_AddStringToObject(joinInfo,"messageid","join_req");
-            jaddbits256(joinInfo,"publickey",key.prod);    
+            cJSON_AddStringToObject(joinInfo,"method","join_req");
+            jaddbits256(joinInfo,"pubkey",key.prod);    
             char *rendered=cJSON_Print(joinInfo);
             int bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
             printf("\n%s:%d:bytes:%d,buf:%s",__FUNCTION__,__LINE__,bytes,rendered);
@@ -671,7 +671,7 @@ void* BET_clientplayer(void * _ptr)
                 if(bytes>0)
                 {
                     gameInfo=cJSON_Parse(buf);
-                    if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"join_res"))
+                    if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"method")),"join_res"))
                     {
                         
                         cJSON_Print(gameInfo);

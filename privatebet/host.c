@@ -372,13 +372,13 @@ void* BET_hostdcv(void * _ptr)
             {
                 printf("\n%s:%d,buf:%s",__FUNCTION__,__LINE__,buf);
                 gameInfo=cJSON_Parse(buf);
-                if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"join_req"))
+                if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"method")),"join_req"))
                 {
                     numplayers++;
                     playerInfo=cJSON_CreateObject();
-                    cJSON_AddStringToObject(playerInfo,"messageid","join_res");
-                    cJSON_AddNumberToObject(playerInfo,"playerid",numplayers);
-                    jaddbits256(playerInfo,"publickey",jbits256(gameInfo,"publickey"));
+                    cJSON_AddStringToObject(playerInfo,"method","join_res");
+                    cJSON_AddNumberToObject(playerInfo,"peerid",numplayers);
+                    jaddbits256(playerInfo,"pubkey",jbits256(gameInfo,"pubkey"));
                     char *rendered=cJSON_Print(playerInfo);
                     int bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
                     printf("\n%s:%d:bytes:%d,buf:%s",__FUNCTION__,__LINE__,bytes,rendered);
@@ -508,13 +508,14 @@ void BET_sg777_hostloop(void *_ptr)
     printf("hostloop pubsock.%d pullsock.%d range.%d\n",bet->pubsock,bet->pullsock,bet->range);
     while ( bet->pullsock >= 0 && bet->pubsock >= 0 )
     {
+        
         nonz = 0;
         if ( (recvlen= nn_recv(bet->pullsock,&ptr,NN_MSG,0)) > 0 )
         {
             nonz++;
             if ( (argjson= cJSON_Parse(ptr)) != 0 )
             {
-                if ( BET_hostcommand(argjson,bet,VARS) != 0 ) // usually just relay to players
+                if ( BET_sg777_hostcommand(argjson,bet,VARS) != 0 ) // usually just relay to players
                 {
                     //printf("RELAY.(%s)\n",jprint(argjson,0));
                     // BET_message_send("BET_relay",bet->pubsock,argjson,0,bet);
