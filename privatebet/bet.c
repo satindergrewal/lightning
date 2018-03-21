@@ -443,7 +443,6 @@ int main(int argc,const char *argv[])
 	range=2;
 	numplayers=2;
 	printf("%s:%d, range:%d, numplayers:%d\n",__FUNCTION__,__LINE__,range,numplayers);
-
 	// for dcv
 	if((argc==2)&&(strcmp(argv[1],"dcv")==0))
 	{
@@ -460,7 +459,7 @@ int main(int argc,const char *argv[])
 	        printf("error launching BET_hostloop for pub.%d pull.%d\n",BET_dcv->pubsock,BET_dcv->pullsock);
 	        exit(-1);
 	    }
-		if(pthread_join(dcv_t,NULL))
+       	if(pthread_join(dcv_t,NULL))
 		{
 			printf("\nError in joining the main thread for dcv");
 		}

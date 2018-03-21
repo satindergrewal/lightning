@@ -353,14 +353,52 @@ void* BET_hostdcv(void * _ptr)
 		bits256 playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],deckid;
 		struct privatebet_info *bet = _ptr;
 		range=bet->range;
-		
+	
 	  numplayers=0;
 	  dekgen_vendor_perm(bet->range);
       deckid=rand256(0);
-	  if ( bet->pubsock >= 0 && bet->pullsock >= 0 )
+      
+      printf("\n%s:%d",__FUNCTION__,__LINE__);
+
+
+      if ( bet->pubsock >= 0 && bet->pullsock >= 0 ) 
+      {
+          while(numplayers!=bet->numplayers)
+          {
+
+            char *buf=NULL;
+            int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
+            if(bytes>0)
+            {
+                printf("\n%s:%d,buf:%s",__FUNCTION__,__LINE__,buf);
+                gameInfo=cJSON_Parse(buf);
+                if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"join_req"))
+                {
+                    numplayers++;
+                    playerInfo=cJSON_CreateObject();
+                    cJSON_AddStringToObject(playerInfo,"messageid","join_res");
+                    cJSON_AddNumberToObject(playerInfo,"playerid",numplayers);
+                    jaddbits256(playerInfo,"publickey",jbits256(gameInfo,"publickey"));
+                    char *rendered=cJSON_Print(playerInfo);
+                    int bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
+                    printf("\n%s:%d:bytes:%d,buf:%s",__FUNCTION__,__LINE__,bytes,rendered);
+            
+            
+                    
+                }
+                
+             }
+          }
+ 
+      }
+
+      printf("\n%s:%d, number of players:%d",__FUNCTION__,__LINE__,numplayers);
+
+      if (( bet->pubsock >= 0 && bet->pullsock >= 0 ) &&(0))
 	  {
 		while(numplayers!=bet->numplayers)
 		  {
+
 			char *buf=NULL;
 			int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
 			if(bytes>0)

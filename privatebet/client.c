@@ -649,11 +649,43 @@ void* BET_clientplayer(void * _ptr)
 		struct pair256 key;struct privatebet_info *bet = _ptr;
 		char str[65],share_str[177];
 		cJSON *playerInfo,*gameInfo,*cjsonplayercards,*cjsonblindedcards,*cjsonshamirshards,*cjsoncardprods,*item,*cjsong_hash;
-
+        cJSON *joinInfo;
 		numplayers=bet->numplayers;
 		numcards=bet->range;
 		
-		if ( bet->subsock >= 0 && bet->pushsock >= 0 )
+        if ( bet->subsock >= 0 && bet->pushsock >= 0 ) 
+        {
+            key = deckgen_player(playerprivs,playercards,permis,numcards);
+            joinInfo=cJSON_CreateObject();
+            cJSON_AddStringToObject(joinInfo,"messageid","join_req");
+            jaddbits256(joinInfo,"publickey",key.prod);    
+            char *rendered=cJSON_Print(joinInfo);
+            int bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
+            printf("\n%s:%d:bytes:%d,buf:%s",__FUNCTION__,__LINE__,bytes,rendered);
+            
+            
+            while(1)
+            {
+                char *buf=NULL;
+                int bytes=nn_recv(bet->subsock,&buf,NN_MSG,0);
+                if(bytes>0)
+                {
+                    gameInfo=cJSON_Parse(buf);
+                    if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"join_res"))
+                    {
+                        
+                        cJSON_Print(gameInfo);
+
+                    }
+                    
+
+                }
+            }
+            
+        }
+
+
+		if (( bet->subsock >= 0 && bet->pushsock >= 0 ) && (0))
 		{
 			key = deckgen_player(playerprivs,playercards,permis,numcards);
 			playerInfo=cJSON_CreateObject();
