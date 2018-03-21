@@ -489,7 +489,7 @@ int main(int argc,const char *argv[])
 	}
 
 	// for players
-	else if((argc==3)&&(strcmp(argv[1],"player")==0)) 
+	else if((argc==2)&&(strcmp(argv[1],"player")==0)) 
 	{
 		char *ptr;
 		i=0;
@@ -506,9 +506,9 @@ int main(int argc,const char *argv[])
 		    BET_players[i]->maxchips = CARDS777_MAXCHIPS;
 		    BET_players[i]->chipsize = CARDS777_CHIPSIZE;
 			BET_players[i]->numplayers=numplayers;
-			BET_players[i]->myplayerid=atoi(argv[2]);
+			//BET_players[i]->myplayerid=atoi(argv[2]);
 		    BET_betinfo_set(BET_players[i],"demo",range,0,Maxplayers);
-		    if (OS_thread_create(&players_t[i],NULL,(void *)BET_clientplayer,(void *)BET_players[i]) != 0 )
+		    if (OS_thread_create(&players_t[i],NULL,(void *)BET_p2p_clientloop,(void *)BET_players[i]) != 0 )
 		    {
 		        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_players[i]->subsock,BET_players[i]->pushsock);
 		        exit(-1);

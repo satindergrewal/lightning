@@ -663,7 +663,7 @@ void* BET_clientplayer(void * _ptr)
             int bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
             printf("\n%s:%d:bytes:%d,buf:%s",__FUNCTION__,__LINE__,bytes,rendered);
             
-            
+         
             while(1)
             {
                 char *buf=NULL;
@@ -673,7 +673,7 @@ void* BET_clientplayer(void * _ptr)
                     gameInfo=cJSON_Parse(buf);
                     if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"method")),"join_res"))
                     {
-                        
+                     	   
                         cJSON_Print(gameInfo);
 
                     }
@@ -917,6 +917,58 @@ void* BET_clientbvv(void * _ptr)
 		
 		}
 	  return NULL;
+}
+
+/*
+Below code is aimed to implement p2p Pangea
+*/
+
+int32_t BET_p2p_clientupdate(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars) // update game state based on host broadcast
+{
+    static uint8_t *decoded; static int32_t decodedlen;
+    char *method; int32_t senderid; bits256 *MofN;
+    if ( (method= jstr(argjson,"method")) != 0 )
+    {
+        if ( strcmp(method,"join_res") == 0 )
+    	{
+    		bet->myplayerid=jint(argjson,"peerid");
+			printf("\n%s:%d:The player ID:%d",__FUNCTION__,__LINE__,bet->myplayerid);
+    	}
+    }		
+
+		return(-1);
+}
+
+
+void BET_p2p_clientloop(void * _ptr)
+{
+    uint32_t lasttime = 0; int32_t nonz,recvlen,lastChips_paid; uint16_t port=7798; char connectaddr[64],hostip[64]; void *ptr; cJSON *msgjson,*reqjson; struct privatebet_vars *VARS; struct privatebet_info *bet = _ptr;
+    VARS = calloc(1,sizeof(*VARS));
+
+	if ( BET_p2p_clientupdate(NULL,bet,VARS) < 0 )
+	{
+		// The initial table join is failed
+	}
+	
+    while ( 1 )
+    {
+        if ( bet->subsock >= 0 && bet->pushsock >= 0 )
+        {
+	        	recvlen= nn_recv (bet->subsock, &ptr, NN_MSG, 0);
+                if ( (msgjson= cJSON_Parse(ptr)) != 0 )
+                {
+                    if ( BET_p2p_clientupdate(msgjson,bet,VARS) < 0 )
+                    {
+                    	// do something here
+                    }           
+                   
+                    free_json(msgjson);
+                }
+                nn_freemsg(ptr);
+            
+        }
+        
+    }
 }
 
 

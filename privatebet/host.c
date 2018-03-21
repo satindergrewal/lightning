@@ -481,7 +481,7 @@ int32_t BET_sg777_client_join(cJSON *argjson,struct privatebet_info *bet,struct 
 	cJSON_AddNumberToObject(playerinfo,"peerid",bet->numplayers);
 	jaddbits256(playerinfo,"pubkey",jbits256(argjson,"pubkey"));
 	char *rendered=cJSON_Print(playerinfo);
-	int bytes=nn_send(bet->pubsock,rendered,sizeof(rendered),0);
+	int bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
 	if(bytes<0)
 		return 0;
 	else
