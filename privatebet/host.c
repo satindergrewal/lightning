@@ -472,12 +472,35 @@ void* BET_hostdcv(void * _ptr)
 	  return NULL;
 }
 
+int32_t BET_sg777_client_join(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	cJSON *playerinfo=NULL;
+	bet->numplayers=bet->numplayers+1;
+	playerinfo=cJSON_CreateObject();
+	cJSON_AddStringToObject(playerinfo,"method","join_res");
+	cJSON_AddNumberToObject(playerinfo,"peerid",bet->numplayers);
+	jaddbits256(playerinfo,"pubkey",jbits256(argjson,"pubkey"));
+	char *rendered=cJSON_Print(playerinfo);
+	int bytes=nn_send(bet->pubsock,rendered,sizeof(rendered),0);
+	if(bytes<0)
+		return 0;
+	else
+		return 1;
+}
+
 int32_t BET_sg777_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     char *method; int32_t senderid;
     if ( (method= jstr(argjson,"method")) != 0 )
     {
-    	printf("\n%s:%d:method:%s",__FUNCTION__,__LINE__,method);
+    	
+		if(strcmp(method,"join_req") == 0)
+		{
+			if(bet->numplayers<bet->maxplayers)
+			{
+				BET_sg777_client_join(argjson,bet,vars);
+			}
+		}
     	#if 0
         senderid = BET_senderid(argjson,bet);
         if ( strcmp(method,"join") == 0 )
