@@ -992,11 +992,9 @@ void BET_p2p_clientloop(void * _ptr)
                     {
                     	// do something here
                     }           
-                   
-                    free_json(msgjson);
+                       
                 }
-                nn_freemsg(ptr);
-            
+               
         }
         
     }
