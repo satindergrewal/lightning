@@ -922,6 +922,31 @@ void* BET_clientbvv(void * _ptr)
 /*
 Below code is aimed to implement p2p Pangea
 */
+int32_t BET_p2p_client_join_res(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	bet->myplayerid=jint(argjson,"peerid");
+	return -1;
+}
+
+int32_t BET_p2p_client_join(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS];
+	int32_t permis[CARDS777_MAXCARDS],numcards,rcvlen;
+	cJSON *joininfo=NULL;
+	struct pair256 key;
+	char *buf=NULL;
+	if(bet->pushsock>=0)
+	{
+		key = deckgen_player(playerprivs,playercards,permis,numcards);
+        joininfo=cJSON_CreateObject();
+        cJSON_AddStringToObject(joininfo,"method","join_req");
+        jaddbits256(joininfo,"pubkey",key.prod);    
+        buf=cJSON_Print(joininfo);
+        rcvlen=nn_send(bet->pushsock,buf,strlen(buf),0);
+        printf("\n%s:%d:bytes:%d,buf:%s",__FUNCTION__,__LINE__,rcvlen,buf);
+	}
+	return -1;
+}
 
 int32_t BET_p2p_clientupdate(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars) // update game state based on host broadcast
 {
@@ -929,11 +954,15 @@ int32_t BET_p2p_clientupdate(cJSON *argjson,struct privatebet_info *bet,struct p
     char *method; int32_t senderid; bits256 *MofN;
     if ( (method= jstr(argjson,"method")) != 0 )
     {
-        if ( strcmp(method,"join_res") == 0 )
+        if ( strcmp(method,"join") == 0 )
     	{
-    		bet->myplayerid=jint(argjson,"peerid");
-			printf("\n%s:%d:The player ID:%d",__FUNCTION__,__LINE__,bet->myplayerid);
+    		BET_p2p_client_join(argjson,bet,vars);
     	}
+		else if ( strcmp(method,"join_res") == 0 )
+		{
+			BET_p2p_client_join_res(argjson,bet,vars);
+			printf("\n%s:%d:The player ID:%d",__FUNCTION__,__LINE__,bet->myplayerid);
+		}
     }		
 
 		return(-1);
@@ -945,7 +974,9 @@ void BET_p2p_clientloop(void * _ptr)
     uint32_t lasttime = 0; int32_t nonz,recvlen,lastChips_paid; uint16_t port=7798; char connectaddr[64],hostip[64]; void *ptr; cJSON *msgjson,*reqjson; struct privatebet_vars *VARS; struct privatebet_info *bet = _ptr;
     VARS = calloc(1,sizeof(*VARS));
 
-	if ( BET_p2p_clientupdate(NULL,bet,VARS) < 0 )
+	msgjson=cJSON_CreateObject();
+	cJSON_AddStringToObject(msgjson,"method","join");
+	if ( BET_p2p_clientupdate(msgjson,bet,VARS) < 0 )
 	{
 		// The initial table join is failed
 	}
