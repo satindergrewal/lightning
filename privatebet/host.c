@@ -486,6 +486,7 @@ int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struc
 	jaddbits256(playerinfo,"pubkey",jbits256(argjson,"pubkey"));
 	char *rendered=cJSON_Print(playerinfo);
 	int bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
+	printf("\n%s:%d:bytes sent:%d,bytes:%s",__FUNCTION__,__LINE__,bytes,rendered);
 	if(bytes<0)
 		return 0;
 	else
