@@ -931,26 +931,28 @@ int32_t BET_p2p_client_join_res(cJSON *argjson,struct privatebet_info *bet,struc
 int32_t BET_p2p_client_join(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
 	bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS];
-	int32_t permis[CARDS777_MAXCARDS],numcards,rcvlen;
+	int32_t permis[CARDS777_MAXCARDS],numcards,recvlen,retval=-1;
 	cJSON *joininfo=NULL;
 	struct pair256 key;
 	char *buf=NULL;
-	if(bet->pushsock>=0)
+	
+    if(bet->pushsock>=0)
 	{
 		key = deckgen_player(playerprivs,playercards,permis,numcards);
         joininfo=cJSON_CreateObject();
         cJSON_AddStringToObject(joininfo,"method","join_req");
         jaddbits256(joininfo,"pubkey",key.prod);    
         buf=cJSON_Print(joininfo);
-        rcvlen=nn_send(bet->pushsock,buf,strlen(buf),0);
-        printf("\n%s:%d:bytes:%d,buf:%s",__FUNCTION__,__LINE__,rcvlen,buf);
-	}
-	return -1;
+        recvlen=nn_send(bet->pushsock,buf,strlen(buf),0);
+        if(recvlen>0)
+            retval=1;
+    }
+    return retval;	
 }
 
 int32_t BET_p2p_clientupdate(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars) // update game state based on host broadcast
 {
-    static uint8_t *decoded; static int32_t decodedlen;
+    static uint8_t *decoded; static int32_t decodedlen,retval=1;
     char *method; int32_t senderid; bits256 *MofN;
     if ( (method= jstr(argjson,"method")) != 0 )
     {
@@ -961,11 +963,16 @@ int32_t BET_p2p_clientupdate(cJSON *argjson,struct privatebet_info *bet,struct p
 		else if ( strcmp(method,"join_res") == 0 )
 		{
 			BET_p2p_client_join_res(argjson,bet,vars);
-			printf("\n%s:%d:The player ID:%d",__FUNCTION__,__LINE__,bet->myplayerid);
+			
 		}
+        else
+        {
+            printf("\n%s:%d:Unknown Command",__FUNCTION__,__LINE__);
+            retval=-1;
+        }
     }		
 
-		return(-1);
+		return retval;
 }
 
 
@@ -973,32 +980,33 @@ void BET_p2p_clientloop(void * _ptr)
 {
     uint32_t lasttime = 0; int32_t nonz,recvlen,lastChips_paid; uint16_t port=7798; char connectaddr[64],hostip[64]; void *ptr; cJSON *msgjson,*reqjson; struct privatebet_vars *VARS; struct privatebet_info *bet = _ptr;
     VARS = calloc(1,sizeof(*VARS));
+    uint8_t flag=1;
 
 	msgjson=cJSON_CreateObject();
 	cJSON_AddStringToObject(msgjson,"method","join");
 	if ( BET_p2p_clientupdate(msgjson,bet,VARS) < 0 )
 	{
-		// The initial table join is failed
+        flag=0;
+		printf("\n%s:%d:Player joining the table failed",__FUNCTION__,__LINE__);
 	}
-	
-    while ( 1 )
+    while ( flag )
     {
+        
         if ( bet->subsock >= 0 && bet->pushsock >= 0 )
         {
 	        	recvlen= nn_recv (bet->subsock, &ptr, NN_MSG, 0);
-                if ( (msgjson= cJSON_Parse(ptr)) != 0 )
+                if (( (msgjson= cJSON_Parse(ptr)) != 0 ) && (recvlen>0))
                 {
                     if ( BET_p2p_clientupdate(msgjson,bet,VARS) < 0 )
                     {
-                    	// do something here
+                    	// do something here, possibly this could be because unknown commnad or because of encountering a special case which state machine fails to handle
                     }           
                    
                     free_json(msgjson);
                 }
                 
-            
         }
-        nn_freemsg(ptr);
+        
     }
 }
 
