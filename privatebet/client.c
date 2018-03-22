@@ -998,7 +998,7 @@ void BET_p2p_clientloop(void * _ptr)
                 
             
         }
-        free(ptr);
+        nn_freemsg(ptr);
     }
 }
 

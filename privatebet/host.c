@@ -16,7 +16,7 @@
 struct privatebet_rawpeerln Rawpeersln[CARDS777_MAXPLAYERS+1],oldRawpeersln[CARDS777_MAXPLAYERS+1];
 struct privatebet_peerln Peersln[CARDS777_MAXPLAYERS+1];
 int32_t Num_rawpeersln,oldNum_rawpeersln,Num_peersln,Numgames;
-
+int32_t players_joined=0;
 struct privatebet_peerln *BET_peerln_find(char *peerid)
 {
     int32_t i;
@@ -345,6 +345,10 @@ void BET_hostloop(void *_ptr)
         }
     }
 }
+
+/*
+The following API's describe the events of DCV in Pangea.
+*/
 void* BET_hostdcv(void * _ptr)
 {
 		uint32_t numplayers,range,playerID,bytes;
@@ -472,10 +476,10 @@ void* BET_hostdcv(void * _ptr)
 	  return NULL;
 }
 
-int32_t BET_sg777_client_join(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
 	cJSON *playerinfo=NULL;
-	bet->numplayers=bet->numplayers+1;
+	bet->numplayers=players_joined++;
 	playerinfo=cJSON_CreateObject();
 	cJSON_AddStringToObject(playerinfo,"method","join_res");
 	cJSON_AddNumberToObject(playerinfo,"peerid",bet->numplayers);
@@ -488,7 +492,7 @@ int32_t BET_sg777_client_join(cJSON *argjson,struct privatebet_info *bet,struct 
 		return 1;
 }
 
-int32_t BET_sg777_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     char *method; int32_t senderid;
     if ( (method= jstr(argjson,"method")) != 0 )
@@ -498,7 +502,7 @@ int32_t BET_sg777_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct 
 		{
 			if(bet->numplayers<bet->maxplayers)
 			{
-				BET_sg777_client_join(argjson,bet,vars);
+				BET_p2p_client_join_req(argjson,bet,vars);
 			}
 		}
     	#if 0
@@ -524,7 +528,7 @@ int32_t BET_sg777_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct 
 }
 
 
-void BET_sg777_hostloop(void *_ptr)
+void BET_p2p_hostloop(void *_ptr)
 {
     uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; double lastmilli = 0.; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
     VARS = calloc(1,sizeof(*VARS));
@@ -538,7 +542,7 @@ void BET_sg777_hostloop(void *_ptr)
             nonz++;
             if ( (argjson= cJSON_Parse(ptr)) != 0 )
             {
-                if ( BET_sg777_hostcommand(argjson,bet,VARS) != 0 ) // usually just relay to players
+                if ( BET_p2p_hostcommand(argjson,bet,VARS) != 0 ) // usually just relay to players
                 {
                     //printf("RELAY.(%s)\n",jprint(argjson,0));
                     // BET_message_send("BET_relay",bet->pubsock,argjson,0,bet);
