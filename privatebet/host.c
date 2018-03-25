@@ -479,23 +479,30 @@ void* BET_hostdcv(void * _ptr)
 int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
 	cJSON *playerinfo=NULL;
-	bet->numplayers=players_joined++;
+    uint32_t bytes,retval=1;
+	char *rendered=NULL;
+
+    bet->numplayers=players_joined++;
+    
 	playerinfo=cJSON_CreateObject();
 	cJSON_AddStringToObject(playerinfo,"method","join_res");
 	cJSON_AddNumberToObject(playerinfo,"peerid",bet->numplayers);
 	jaddbits256(playerinfo,"pubkey",jbits256(argjson,"pubkey"));
-	char *rendered=cJSON_Print(playerinfo);
-	int bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
+
+	rendered=cJSON_Print(playerinfo);
+	bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
 	printf("\n%s:%d:bytes sent:%d,bytes:%s",__FUNCTION__,__LINE__,bytes,rendered);
+
 	if(bytes<0)
 		return 0;
 	else
 		return 1;
-}
+ }
 
 int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-    char *method; int32_t senderid;
+    char *method; int32_t senderid,retval=1;
+
     if ( (method= jstr(argjson,"method")) != 0 )
     {
     	
@@ -506,6 +513,8 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 				BET_p2p_client_join_req(argjson,bet,vars);
 			}
 		}
+        else
+            retval=-1;
     	#if 0
         senderid = BET_senderid(argjson,bet);
         if ( strcmp(method,"join") == 0 )
@@ -525,7 +534,7 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
         else return(1);
 		#endif 
     }
-    return(-1);
+    return retval;
 }
 
 
@@ -534,13 +543,12 @@ void BET_p2p_hostloop(void *_ptr)
     uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; double lastmilli = 0.; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
     VARS = calloc(1,sizeof(*VARS));
     printf("hostloop pubsock.%d pullsock.%d range.%d\n",bet->pubsock,bet->pullsock,bet->range);
+    
     while ( bet->pullsock >= 0 && bet->pubsock >= 0 )
     {
-        
-        nonz = 0;
         if ( (recvlen= nn_recv(bet->pullsock,&ptr,NN_MSG,0)) > 0 )
         {
-            nonz++;
+        
             if ( (argjson= cJSON_Parse(ptr)) != 0 )
             {
                 if ( BET_p2p_hostcommand(argjson,bet,VARS) != 0 ) // usually just relay to players
