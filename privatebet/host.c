@@ -17,6 +17,9 @@ struct privatebet_rawpeerln Rawpeersln[CARDS777_MAXPLAYERS+1],oldRawpeersln[CARD
 struct privatebet_peerln Peersln[CARDS777_MAXPLAYERS+1];
 int32_t Num_rawpeersln,oldNum_rawpeersln,Num_peersln,Numgames;
 int32_t players_joined=0;
+
+struct deck_dcv_info dcv_info;
+
 struct privatebet_peerln *BET_peerln_find(char *peerid)
 {
     int32_t i;
@@ -362,47 +365,11 @@ void* BET_hostdcv(void * _ptr)
 	  dekgen_vendor_perm(bet->range);
       deckid=rand256(0);
       
-      printf("\n%s:%d",__FUNCTION__,__LINE__);
-
-
+     
       if ( bet->pubsock >= 0 && bet->pullsock >= 0 ) 
-      {
-          while(numplayers!=bet->numplayers)
-          {
-
-            char *buf=NULL;
-            int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
-            if(bytes>0)
-            {
-                printf("\n%s:%d,buf:%s",__FUNCTION__,__LINE__,buf);
-                gameInfo=cJSON_Parse(buf);
-                if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"method")),"join_req"))
-                {
-                    numplayers++;
-                    playerInfo=cJSON_CreateObject();
-                    cJSON_AddStringToObject(playerInfo,"method","join_res");
-                    cJSON_AddNumberToObject(playerInfo,"peerid",numplayers);
-                    jaddbits256(playerInfo,"pubkey",jbits256(gameInfo,"pubkey"));
-                    char *rendered=cJSON_Print(playerInfo);
-                    int bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
-                    printf("\n%s:%d:bytes:%d,buf:%s",__FUNCTION__,__LINE__,bytes,rendered);
-            
-            
-                    
-                }
-                
-             }
-          }
- 
-      }
-
-      printf("\n%s:%d, number of players:%d",__FUNCTION__,__LINE__,numplayers);
-
-      if (( bet->pubsock >= 0 && bet->pullsock >= 0 ) &&(0))
 	  {
 		while(numplayers!=bet->numplayers)
 		  {
-
 			char *buf=NULL;
 			int bytes=nn_recv(bet->pullsock,&buf,NN_MSG,0);
 			if(bytes>0)
@@ -478,12 +445,25 @@ void* BET_hostdcv(void * _ptr)
 
 int32_t BET_p2p_host_init(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-  int32_t peerid,retval=-1;
+  	int32_t peerid,retval=-1;
+  	bits256 cardpubvalues[CARDS777_MAXPLAYERS];
+	cJSON *cardinfo=NULL;
+	char str[65];
 
-  peerid=jint(argjson,"peerid");
-  printf("\n%s:%d:Received something from the peer:%d",__FUNCTION__,__LINE__,peerid);	
+  	peerid=jint(argjson,"peerid");
+  	cardinfo=cJSON_GetObjectItem(argjson,"cardinfo");
+	for(int i=0;i<cJSON_GetArraySize(cardinfo);i++)
+	{
+			cardpubvalues[i]=jbits256i(cardinfo,i);
+	} 	
+
+	printf("\n%s:%d:peerid:%d\n",__FUNCTION__,__LINE__,peerid);
+	for(int i=0;i<cJSON_GetArraySize(cardinfo);i++)
+	{
+		printf("\n%s",bits256_str(str,cardpubvalues[i]));
+	}
  	
-  return retval;
+	return retval;
 }
 
 int32_t BET_p2p_host_start_init(struct privatebet_info *bet)

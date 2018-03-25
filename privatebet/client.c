@@ -657,7 +657,7 @@ void* BET_clientplayer(void * _ptr)
 		numcards=bet->range;
 		
       
-		if (( bet->subsock >= 0 && bet->pushsock >= 0 ) && (0))
+		if ( bet->subsock >= 0 && bet->pushsock >= 0 )
 		{
 			key = deckgen_player(playerprivs,playercards,permis,numcards);
 			playerInfo=cJSON_CreateObject();
