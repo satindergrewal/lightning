@@ -950,10 +950,10 @@ int32_t BET_p2p_client_join_res(cJSON *argjson,struct privatebet_info *bet,struc
 int32_t BET_p2p_client_join(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
 	bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS];
-	int32_t permis[CARDS777_MAXCARDS],numcards,recvlen,retval=-1;
+	int32_t permis[CARDS777_MAXCARDS],numcards,bytes,retval=-1;
 	cJSON *joininfo=NULL;
 	struct pair256 key;
-	char *buf=NULL;
+	char *rendered=NULL;
 	
     if(bet->pushsock>=0)
 	{
@@ -962,10 +962,12 @@ int32_t BET_p2p_client_join(cJSON *argjson,struct privatebet_info *bet,struct pr
         joininfo=cJSON_CreateObject();
         cJSON_AddStringToObject(joininfo,"method","join_req");
         jaddbits256(joininfo,"pubkey",key.prod);    
-        buf=cJSON_Print(joininfo);
-        recvlen=nn_send(bet->pushsock,buf,strlen(buf),0);
-        if(recvlen>0)
+        rendered=cJSON_Print(joininfo);
+        bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
+
+        if(bytes>0)
             retval=1;
+        printf("\n%s:%d:data:%s",__FUNCTION__,__LINE__,rendered);
     }
     return retval;	
 }

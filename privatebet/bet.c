@@ -442,6 +442,7 @@ int main(int argc,const char *argv[])
 	numplayers = (numplayers % (CARDS777_MAXPLAYERS-1)) + 2;
 	range=2;
 	numplayers=2;
+    Maxplayers=2;
 	printf("%s:%d, range:%d, numplayers:%d\n",__FUNCTION__,__LINE__,range,numplayers);
 	// for dcv
 	if((argc==2)&&(strcmp(argv[1],"dcv")==0))
@@ -452,7 +453,7 @@ int main(int argc,const char *argv[])
 	    BET_dcv->maxplayers = (Maxplayers < CARDS777_MAXPLAYERS) ? Maxplayers : CARDS777_MAXPLAYERS;
 	    BET_dcv->maxchips = CARDS777_MAXCHIPS;
 	    BET_dcv->chipsize = CARDS777_CHIPSIZE;
-		BET_dcv->numplayers=numplayers;
+		BET_dcv->numplayers=0;
 	    BET_betinfo_set(BET_dcv,"demo",range,0,Maxplayers);
 	    if ( OS_thread_create(&dcv_t,NULL,(void *)BET_p2p_hostloop,(void *)BET_dcv) != 0 )
 	    {

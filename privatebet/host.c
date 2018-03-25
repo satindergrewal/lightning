@@ -496,7 +496,7 @@ int32_t BET_p2p_host_start_init(struct privatebet_info *bet)
 	cJSON_AddStringToObject(init,"method","init");
 
 	rendered=cJSON_Print(init);
-	bytes=nn_send(bet->pubsock,rendered,NN_MSG,0)
+	bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
 
 	printf("\n%s:%d: data:%s",__FUNCTION__,__LINE__,rendered);
 	return retval;
@@ -536,6 +536,7 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 			if(bet->numplayers<bet->maxplayers)
 			{
 				BET_p2p_client_join_req(argjson,bet,vars);
+                printf("\n%s:%d:numplayers:%d,maxplayers:%d",__FUNCTION__,__LINE__,bet->numplayers,bet->maxplayers);
 				if(bet->numplayers==bet->maxplayers)
 				{
 					printf("\nTable is filled");
@@ -577,7 +578,6 @@ void BET_p2p_hostloop(void *_ptr)
     uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; double lastmilli = 0.; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
     VARS = calloc(1,sizeof(*VARS));
     printf("hostloop pubsock.%d pullsock.%d range.%d\n",bet->pubsock,bet->pullsock,bet->range);
-    
     while ( bet->pullsock >= 0 && bet->pubsock >= 0 )
     {
         if ( (recvlen= nn_recv(bet->pullsock,&ptr,NN_MSG,0)) > 0 )
