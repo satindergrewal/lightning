@@ -937,7 +937,7 @@ int32_t BET_p2p_client_join_res(cJSON *argjson,struct privatebet_info *bet,struc
 int32_t BET_p2p_client_join(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
 	bits256 playerprivs[CARDS777_MAXCARDS],playercards[CARDS777_MAXCARDS];
-	int32_t permis[CARDS777_MAXCARDS],numcards,bytes,retval=-1;
+	int32_t permis[CARDS777_MAXCARDS],bytes,retval=-1;
 	cJSON *joininfo=NULL;
 	struct pair256 key;
 	char *rendered=NULL;
@@ -945,7 +945,7 @@ int32_t BET_p2p_client_join(cJSON *argjson,struct privatebet_info *bet,struct pr
     if(bet->pushsock>=0)
 	{
 		//key = deckgen_player(playerprivs,playercards,permis,numcards);
-		key = deckgen_player(secret_info.cardprivkeys,secret_info.cardpubkeys,secret_info.permis,numcards);
+		key = deckgen_player(secret_info.cardprivkeys,secret_info.cardpubkeys,secret_info.permis,bet->range);
 		player_key=key;
         joininfo=cJSON_CreateObject();
         cJSON_AddStringToObject(joininfo,"method","join_req");
