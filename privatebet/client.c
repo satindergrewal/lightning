@@ -926,8 +926,12 @@ Below code is aimed to implement p2p Pangea
 
 int32_t BET_p2p_client_init(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-	int32_t retval=-1;
+	int32_t bytes,retval=-1;
+	cJSON *init_p=NULL;
 
+	init_p=cJSON_CreateObject();
+	cJSON_AddStringToObject(init_p,"method","init_p");
+	cJSON_AddNumberToObject(init_p,"peerid",bet->myplayerid);
 	
 	return retval;
 }

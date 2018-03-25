@@ -476,6 +476,31 @@ void* BET_hostdcv(void * _ptr)
 	  return NULL;
 }
 
+int32_t BET_p2p_host_init(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+  int32_t peerid,retval=-1;
+
+  peerid=jint(argjson,"peerid");
+  printf("\n%s:%d:Received something from the peer:%d",__FUNCTION__,__LINE__,peerid);	
+ 	
+  return retval;
+}
+
+int32_t BET_p2p_host_start_init(struct privatebet_info *bet)
+{
+	int32_t bytes,retval=-1;
+	cJSON *init=NULL;
+	char *rendered=NULL;
+	
+	init=cJSON_CreateObject();
+	cJSON_AddStringToObject(init,"method","init");
+
+	rendered=cJSON_Print(init);
+	bytes=nn_send(bet->pubsock,rendered,NN_MSG,0)
+
+	printf("\n%s:%d: data:%s",__FUNCTION__,__LINE__,rendered);
+	return retval;
+}
 int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
 	cJSON *playerinfo=NULL;
@@ -511,7 +536,16 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 			if(bet->numplayers<bet->maxplayers)
 			{
 				BET_p2p_client_join_req(argjson,bet,vars);
+				if(bet->numplayers==bet->maxplayers)
+				{
+					printf("\nTable is filled");
+					BET_p2p_host_start_init(bet);
+				}
 			}
+		}
+		else if(strcmp(method,"init_p") == 0)
+		{
+			BET_p2p_host_init(argjson,bet,vars);
 		}
         else
             retval=-1;
