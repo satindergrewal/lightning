@@ -507,7 +507,7 @@ int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struc
     uint32_t bytes,retval=1;
 	char *rendered=NULL;
 
-    bet->numplayers=players_joined++;
+    bet->numplayers=++players_joined;
     
 	playerinfo=cJSON_CreateObject();
 	cJSON_AddStringToObject(playerinfo,"method","join_res");
@@ -537,6 +537,7 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 			{
 				BET_p2p_client_join_req(argjson,bet,vars);
                 printf("\n%s:%d:numplayers:%d,maxplayers:%d",__FUNCTION__,__LINE__,bet->numplayers,bet->maxplayers);
+                printf("\n");
 				if(bet->numplayers==bet->maxplayers)
 				{
 					printf("\nTable is filled");
