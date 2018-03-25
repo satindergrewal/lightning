@@ -310,6 +310,14 @@ struct privatebet_share
 	struct pair256 player_key;
 };
 
+//added by sg777
+struct privatebet_secret_info
+{
+	struct pair256 player_key;
+	bits256 cardpubkeys[CARDS777_MAXCARDS],cardprivkeys[CARDS777_MAXCARDS];
+	int32_t permis[CARDS777_MAXCARDS];
+	
+};
 
 bits256 *BET_process_packet(bits256 *cardpubs,bits256 *deckidp,bits256 senderpub,bits256 mypriv,uint8_t *decoded,int32_t maxsize,bits256 mypub,uint8_t *sendbuf,int32_t size,int32_t checkplayers,int32_t range);
 cJSON *BET_hostrhashes(struct privatebet_info *bet);

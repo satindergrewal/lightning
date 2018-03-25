@@ -13,6 +13,8 @@
  *                                                                            *
  ******************************************************************************/
 struct pair256 player_key;
+struct privatebet_secret_info secret_info;
+
 
 int32_t BET_client_onechip(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
 {
@@ -654,38 +656,7 @@ void* BET_clientplayer(void * _ptr)
 		numplayers=bet->numplayers;
 		numcards=bet->range;
 		
-        if ( bet->subsock >= 0 && bet->pushsock >= 0 ) 
-        {
-            key = deckgen_player(playerprivs,playercards,permis,numcards);
-            joinInfo=cJSON_CreateObject();
-            cJSON_AddStringToObject(joinInfo,"method","join_req");
-            jaddbits256(joinInfo,"pubkey",key.prod);    
-            char *rendered=cJSON_Print(joinInfo);
-            int bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
-            printf("\n%s:%d:bytes:%d,buf:%s",__FUNCTION__,__LINE__,bytes,rendered);
-            
-         
-            while(1)
-            {
-                char *buf=NULL;
-                int bytes=nn_recv(bet->subsock,&buf,NN_MSG,0);
-                if(bytes>0)
-                {
-                    gameInfo=cJSON_Parse(buf);
-                    if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"method")),"join_res"))
-                    {
-                     	   
-                        cJSON_Print(gameInfo);
-
-                    }
-                    
-
-                }
-            }
-            
-        }
-
-
+      
 		if (( bet->subsock >= 0 && bet->pushsock >= 0 ) && (0))
 		{
 			key = deckgen_player(playerprivs,playercards,permis,numcards);
@@ -927,13 +898,20 @@ Below code is aimed to implement p2p Pangea
 int32_t BET_p2p_client_init(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
 	int32_t bytes,retval=1;
-	cJSON *init_p=NULL;
-    char *rendered=NULL;
+	cJSON *cjsonplayercards,*init_p=NULL;
+    char *rendered=NULL,str[65];
 
 	init_p=cJSON_CreateObject();
+
 	cJSON_AddStringToObject(init_p,"method","init_p");
 	cJSON_AddNumberToObject(init_p,"peerid",bet->myplayerid);
-	
+	jaddbits256(init_p,"pubkey",player_key.prod);
+	cJSON_AddItemToObject(init_p,"cardinfo",cjsonplayercards=cJSON_CreateArray());
+	for(int i=0;i<bet->maxplayers;i++) 
+	{
+		cJSON_AddItemToArray(cjsonplayercards,cJSON_CreateString(bits256_str(str,secret_info.cardpubkeys[i])));
+	}
+			
     rendered=cJSON_Print(init_p);
     bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
 
@@ -966,7 +944,8 @@ int32_t BET_p2p_client_join(cJSON *argjson,struct privatebet_info *bet,struct pr
 	
     if(bet->pushsock>=0)
 	{
-		key = deckgen_player(playerprivs,playercards,permis,numcards);
+		//key = deckgen_player(playerprivs,playercards,permis,numcards);
+		key = deckgen_player(secret_info.cardprivkeys,secret_info.cardpubkeys,secret_info.permis,numcards);
 		player_key=key;
         joininfo=cJSON_CreateObject();
         cJSON_AddStringToObject(joininfo,"method","join_req");
@@ -1000,8 +979,7 @@ int32_t BET_p2p_clientupdate(cJSON *argjson,struct privatebet_info *bet,struct p
 		}
 		else if ( strcmp(method,"init") == 0 )
 		{
-            printf("\n%s:%d",__FUNCTION__,__LINE__);
-			retval=BET_p2p_client_init(argjson,bet,vars);
+            retval=BET_p2p_client_init(argjson,bet,vars);
 			
 		}
         else
