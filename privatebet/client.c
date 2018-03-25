@@ -926,13 +926,22 @@ Below code is aimed to implement p2p Pangea
 
 int32_t BET_p2p_client_init(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-	int32_t bytes,retval=-1;
+	int32_t bytes,retval=1;
 	cJSON *init_p=NULL;
+    char *rendered=NULL;
 
 	init_p=cJSON_CreateObject();
 	cJSON_AddStringToObject(init_p,"method","init_p");
 	cJSON_AddNumberToObject(init_p,"peerid",bet->myplayerid);
 	
+    rendered=cJSON_Print(init_p);
+    bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
+
+    printf("\n%s:%d: data:%s",__FUNCTION__,__LINE__,rendered);
+
+    if(bytes<0)
+        retval=-1;
+    
 	return retval;
 }
 
@@ -976,8 +985,10 @@ int32_t BET_p2p_clientupdate(cJSON *argjson,struct privatebet_info *bet,struct p
 {
     static uint8_t *decoded; static int32_t decodedlen,retval=1;
     char *method; int32_t senderid; bits256 *MofN;
+    
     if ( (method= jstr(argjson,"method")) != 0 )
     {
+        printf("\n%s:%d:method:%s",__FUNCTION__,__LINE__,method);    
         if ( strcmp(method,"join") == 0 )
     	{
     		BET_p2p_client_join(argjson,bet,vars);
@@ -989,6 +1000,7 @@ int32_t BET_p2p_clientupdate(cJSON *argjson,struct privatebet_info *bet,struct p
 		}
 		else if ( strcmp(method,"init") == 0 )
 		{
+            printf("\n%s:%d",__FUNCTION__,__LINE__);
 			retval=BET_p2p_client_init(argjson,bet,vars);
 			
 		}
