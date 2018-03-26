@@ -903,6 +903,7 @@ int32_t BET_p2p_bvvcommand(cJSON *argjson,struct privatebet_info *bet,struct pri
 	
     if ( (method= jstr(argjson,"method")) != 0 )
     {
+    	printf("\n%s:%d:method:%s",__FUNCTION__,__LINE__,method);
    		if(strcmp(method,"init_d") == 0)
 		{
 			printf("\n%s:%d: BVV ",__FUNCTION__,__LINE__);
@@ -922,9 +923,9 @@ void BET_p2p_bvvloop(void *_ptr)
 
 	while ( bet->pushsock>= 0 && bet->subsock>= 0 )
     {
-        if ( (recvlen= nn_recv(bet->pullsock,&ptr,NN_MSG,0)) > 0 )
+        if ( (recvlen= nn_recv(bet->subsock,&ptr,NN_MSG,0)) > 0 )
         {
-        
+        	
             if ( (argjson= cJSON_Parse(ptr)) != 0 )
             {
                 if ( BET_p2p_bvvcommand(argjson,bet,VARS) != 0 ) // usually just relay to players
