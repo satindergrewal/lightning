@@ -925,6 +925,7 @@ void BET_p2p_bvvloop(void *_ptr)
     {
         if ( (recvlen= nn_recv(bet->subsock,&ptr,NN_MSG,0)) > 0 )
         {
+            printf("\n%s:%d:data:%s",__FUNCTION__,__LINE__,ptr);
         	
             if ( (argjson= cJSON_Parse(ptr)) != 0 )
             {
