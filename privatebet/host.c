@@ -458,13 +458,14 @@ int32_t BET_p2p_host_init(cJSON *argjson,struct privatebet_info *bet,struct priv
 	} 	
 	
 	sg777_deckgen_vendor(peerid,dcv_info.cardprods[peerid],dcv_info.dcvblindcards[peerid],bet->range,cardpubvalues,dcv_info.deckid);
-
-	printf("\n%s:%d:Dcv vlinded cards of peerid:%d\n",__FUNCTION__,__LINE__,peerid);
+	dcv_info.numplayers=dcv_info.numplayers+1;
+	/*
+	printf("\n%s:%d:DCV blinded cards of peerid:%d\n",__FUNCTION__,__LINE__,peerid);
 	for(int i=0;i<bet->range;i++)
 	{
 		printf("\n%s",bits256_str(str,dcv_info.dcvblindcards[peerid][i]));
 	}
- 	
+ 	*/
 	return retval;
 }
 
@@ -493,7 +494,7 @@ int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struc
     
 	playerinfo=cJSON_CreateObject();
 	cJSON_AddStringToObject(playerinfo,"method","join_res");
-	cJSON_AddNumberToObject(playerinfo,"peerid",bet->numplayers);
+	cJSON_AddNumberToObject(playerinfo,"peerid",bet->numplayers-1); //players numbering starts from 0(zero)
 	jaddbits256(playerinfo,"pubkey",jbits256(argjson,"pubkey"));
 
 	rendered=cJSON_Print(playerinfo);
@@ -530,6 +531,10 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 		else if(strcmp(method,"init_p") == 0)
 		{
 			BET_p2p_host_init(argjson,bet,vars);
+			if(dcv_info.numplayers==dcv_info.maxplayers)
+			{
+				printf("\n%s:%d:DCV deck initialization is done",__FUNCTION__,__LINE__);
+			}
 		}
         else
             retval=-1;
@@ -561,11 +566,20 @@ void BET_p2p_hostloop(void *_ptr)
     uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; double lastmilli = 0.; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
     VARS = calloc(1,sizeof(*VARS));
     printf("hostloop pubsock.%d pullsock.%d range.%d\n",bet->pubsock,bet->pullsock,bet->range);
-	
+
+	dcv_info.numplayers=0;
+	dcv_info.maxplayers=bet->maxplayers;
 	BET_permutation(dcv_info.permis,bet->range);
     dcv_info.deckid=rand256(0);
 	dcv_info.dcv_key.priv=curve25519_keypair(&dcv_info.dcv_key.prod);
-
+	
+	printf("\nThe DCV permutation is :");
+	for(int i=0;i<bet->range;i++)
+	{
+		permis_d.[i]=dcv_info.permis[i];
+		printf("%d\t",permis_d.[i]);
+	}
+	printf("\n");
     while ( bet->pullsock >= 0 && bet->pubsock >= 0 )
     {
         if ( (recvlen= nn_recv(bet->pullsock,&ptr,NN_MSG,0)) > 0 )
