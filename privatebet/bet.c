@@ -982,6 +982,39 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     return(tmp);
 }
 
+struct pair256 p2p_bvv_init(struct pair256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
+{
+    int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 cardshares[CARDS777_MAXPLAYERS],basepoint,temp_hash[CARDS777_MAXCARDS];
+    char str[65],share_str[177];
+    struct enc_share temp;
+	//libgfshare_init();
+	
+	for (i=0; i<numcards; i++){
+		temp_hash[i]=g_hash[playerid][i];
+	}
+	for (i=0; i<numcards; i++)
+    {
+        blindings[i] = rand256(1);
+		blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
+		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
+		}
+    M = (numplayers/2) + 1;
+    
+    gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
+	
+        for (i=0; i<numcards; i++)
+        {
+            gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
+            // create combined allshares
+            for (j=0; j<numplayers; j++) {
+				BET_ciphercreate(b_key.priv,keys[j].prod,temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
+				memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
+			}
+        }
+    // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
+    return b_key;
+}
+
 struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
     int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 cardshares[CARDS777_MAXPLAYERS],basepoint,temp_hash[CARDS777_MAXCARDS];
