@@ -14,6 +14,7 @@
  ******************************************************************************/
 struct pair256 player_key;
 struct privatebet_secret_info secret_info;
+struct deck_bvv_info bvv_info;
 
 
 int32_t BET_client_onechip(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
@@ -895,6 +896,75 @@ void* BET_clientbvv(void * _ptr)
 Below code is aimed to implement p2p Pangea
 */
 
+int32_t BET_p2p_bvv_init(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	int32_t bytes,retval=-1;
+	char *rendered,str[65];
+	cJSON *cjsondcvblindcards,*cjsonpeerpubkeys;
+	bits256 dcvblindcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],peerpubkeys[CARDS777_MAXPLAYERS];
+	
+	
+	bvv_info.numplayers=bet->numplayers;
+	bvv_info.maxplayers=bet->maxplayers;
+	bvv_info.deckid=jbits256(argjson,"deckid");
+	bvv_info.bvv_key.priv=curve25519_keypair(&bvv_info.bvv_key.prod);
+	cjsonpeerpubkeys=cJSON_GetObjectItem(argjson,"peerpubkeys");
+	cjsondcvblindcards=cJSON_GetObjectItem(argjson,"dcvblindcards");
+	for(int playerID=0;playerID<bvv_info.maxplayers;playerID++) 
+	{
+		peerpubkeys[playerID]=jbits256i(cjsonpeerpubkeys,playerID);
+		for(int i=0;i<bet->range;i++) 
+		{
+			dcvblindcards[playerID][i]=jbits256i(cjsondcvblindcards,playerID*bvv_info.maxplayers+i);
+		}
+	}
+    g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
+
+	printf("\n%s:%d:Peer keys are:\n");
+	for(int i=0;i<bvv_info.maxplayers;i++)
+	{
+		printf("\n%s",bits256_str(str,peerpubkeys[i]));
+	}
+	printf("\n");
+	/*
+
+	for (int playerid=0; playerid<bvv_info.maxplayers; playerid++)
+	{
+        sg777_blinding_vendor(keys,b_key,blindingvals[playerid],blindedcards[playerid],finalcards[playerid],numcards,numplayers,playerid,deckid); // over network
+	}
+				cJSON_Delete(gameInfo);
+				gameInfo=cJSON_CreateObject();
+				cJSON_AddStringToObject(gameInfo,"messageid","decode");
+				jaddbits256(gameInfo,"public_key_b",b_key.prod);
+				cJSON_AddItemToObject(gameInfo,"blindedcards",cjsonblindedcards=cJSON_CreateArray());
+				for(int i=0;i<numplayers;i++) 
+				{
+					for(int j=0;j<numcards;j++) 
+					{
+					cJSON_AddItemToArray(cjsonblindedcards,cJSON_CreateString(bits256_str(str,blindedcards[i][j])));
+					}
+				}
+				cJSON_AddItemToObject(gameInfo,"shamirshards",cjsonshamirshards=cJSON_CreateArray());
+				int k=0;
+				for(int playerid=0;playerid<numplayers;playerid++) 
+				{
+					for (int i=0; i<numcards; i++)
+					{
+			            for (int j=0; j<numplayers; j++) 
+						{
+							cJSON_AddItemToArray(cjsonshamirshards,cJSON_CreateString(enc_share_str(share_str,g_shares[k++])));
+			            }
+			        }
+				}
+				char *rendered=cJSON_Print(gameInfo);
+				nn_send(bet->pushsock,rendered,strlen(rendered),0);
+				flag=0;
+			
+	*/
+	return retval;
+		
+	
+}
 
 
 int32_t BET_p2p_bvvcommand(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
@@ -906,8 +976,7 @@ int32_t BET_p2p_bvvcommand(cJSON *argjson,struct privatebet_info *bet,struct pri
     	printf("\n%s:%d:method:%s",__FUNCTION__,__LINE__,method);
    		if(strcmp(method,"init_d") == 0)
 		{
-			printf("\n%s:%d: BVV ",__FUNCTION__,__LINE__);
-			printf("\n");
+			 BET_p2p_bvv_init(argjson,bet,vars);
 		}
         else
             retval=-1;
