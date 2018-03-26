@@ -982,7 +982,7 @@ bits256 sg777_player_decode(int32_t playerid,int32_t cardID,int numplayers,struc
     return(tmp);
 }
 
-struct pair256 p2p_bvv_init(struct pair256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
+struct pair256 p2p_bvv_init(bits256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid)
 {
     int32_t i,j,k,M,permi,permis[256]; uint8_t space[8192]; bits256 cardshares[CARDS777_MAXPLAYERS],basepoint,temp_hash[CARDS777_MAXCARDS];
     char str[65],share_str[177];
@@ -1007,7 +1007,7 @@ struct pair256 p2p_bvv_init(struct pair256 *keys,struct pair256 b_key,bits256 *b
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-				BET_ciphercreate(b_key.priv,keys[j].prod,temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
+				BET_ciphercreate(b_key.priv,keys[j],temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
 				memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
 			}
         }
