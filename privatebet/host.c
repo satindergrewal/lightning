@@ -576,8 +576,8 @@ void BET_p2p_hostloop(void *_ptr)
 	printf("\nThe DCV permutation is :");
 	for(int i=0;i<bet->range;i++)
 	{
-		permis_d.[i]=dcv_info.permis[i];
-		printf("%d\t",permis_d.[i]);
+		permis_d[i]=dcv_info.permis[i];
+		printf("%d\t",permis_d[i]);
 	}
 	printf("\n");
     while ( bet->pullsock >= 0 && bet->pubsock >= 0 )
