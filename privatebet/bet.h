@@ -326,6 +326,8 @@ struct deck_dcv_info
 	int32_t permis[CARDS777_MAXCARDS];
 	bits256 cardpubkeys[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 	bits256 dcvblindcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	bits256 cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	bits256 finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 };
 
 bits256 *BET_process_packet(bits256 *cardpubs,bits256 *deckidp,bits256 senderpub,bits256 mypriv,uint8_t *decoded,int32_t maxsize,bits256 mypub,uint8_t *sendbuf,int32_t size,int32_t checkplayers,int32_t range);

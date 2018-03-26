@@ -456,11 +456,13 @@ int32_t BET_p2p_host_init(cJSON *argjson,struct privatebet_info *bet,struct priv
 	{
 			cardpubvalues[i]=jbits256i(cardinfo,i);
 	} 	
+	
+	sg777_deckgen_vendor(peerid,dcv_info.cardprods[peerid],dcv_info.dcvblindcards[peerid],bet->range,cardpubvalues,dcv_info.deckid)
 
-	printf("\n%s:%d:peerid:%d\n",__FUNCTION__,__LINE__,peerid);
-	for(int i=0;i<cJSON_GetArraySize(cardinfo);i++)
+	printf("\n%s:%d:Dcv vlinded cards of peerid:%d\n",__FUNCTION__,__LINE__,peerid);
+	for(int i=0;i<bet->range;i++)
 	{
-		printf("\n%s",bits256_str(str,cardpubvalues[i]));
+		printf("\n%s",bits256_str(str,dcv_info.dcvblindcards[peerid][i]));
 	}
  	
 	return retval;
@@ -559,6 +561,11 @@ void BET_p2p_hostloop(void *_ptr)
     uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; double lastmilli = 0.; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
     VARS = calloc(1,sizeof(*VARS));
     printf("hostloop pubsock.%d pullsock.%d range.%d\n",bet->pubsock,bet->pullsock,bet->range);
+	
+	BET_permutation(dcv_info.permis,bet->range);
+    dcv_info.deckid=rand256(0);
+	dcv_info.dcv_key.priv=curve25519_keypair(&dcv_info.dcv_key.prod);
+
     while ( bet->pullsock >= 0 && bet->pubsock >= 0 )
     {
         if ( (recvlen= nn_recv(bet->pullsock,&ptr,NN_MSG,0)) > 0 )
