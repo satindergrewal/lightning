@@ -906,6 +906,7 @@ int32_t BET_p2p_bvvcommand(cJSON *argjson,struct privatebet_info *bet,struct pri
    		if(strcmp(method,"init_d") == 0)
 		{
 			printf("\n%s:%d: BVV ",__FUNCTION__,__LINE__);
+			printf("\n");
 		}
         else
             retval=-1;

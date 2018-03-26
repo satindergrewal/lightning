@@ -478,7 +478,7 @@ int main(int argc,const char *argv[])
 		BET_bvv->numplayers=numplayers;
 		BET_bvv->myplayerid=0;
 	    BET_betinfo_set(BET_bvv,"demo",range,0,Maxplayers);
-	    if ( OS_thread_create(&bvv_t,NULL,(void *)BET_clientbvv,(void *)BET_bvv) != 0 )
+	    if ( OS_thread_create(&bvv_t,NULL,(void *)BET_p2p_bvvloop,(void *)BET_bvv) != 0 )
 	    {
 	        printf("error launching BET_clientloop for sub.%d push.%d\n",BET_bvv->subsock,BET_bvv->pushsock);
 	        exit(-1);
