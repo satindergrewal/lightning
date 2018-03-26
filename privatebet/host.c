@@ -445,7 +445,7 @@ void* BET_hostdcv(void * _ptr)
 
 int32_t BET_p2p_host_deck_init_info(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-      cJSON *deck_init_info,*cjsoncardprods,*cjsondcvblindcards,*cjsong_hash;
+      cJSON *deck_init_info,*cjsoncardprods,*cjsondcvblindcards,*cjsong_hash,*cjsonpeerpubkeys;
 	  char str[65],*rendered;
 	  int32_t bytes,retval=1;
 	  
@@ -477,6 +477,12 @@ int32_t BET_p2p_host_deck_init_info(cJSON *argjson,struct privatebet_info *bet,s
 			cJSON_AddItemToArray(cjsong_hash,cJSON_CreateString(bits256_str(str,g_hash[i][j])));
 		}
 	  }
+	  cJSON_AddItemToObject(deck_init_info,"peerpubkeys",cjsonpeerpubkeys=cJSON_CreateArray());
+	  for(int i=0;i<dcv_info.numplayers;i++)
+      {
+      	cJSON_AddItemToArray(cjsonpeerpubkeys,cJSON_CreateString(bits256_str(str,dcv_info.peerpubkeys[i])));
+	  }
+
 	  
 	  rendered=cJSON_Print(deck_init_info);
 	  bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
@@ -541,7 +547,8 @@ int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struc
 	char *rendered=NULL;
 
     bet->numplayers=++players_joined;
-    
+	dcv_info.playerpubkeys[players_joined-1]=jbits256(argjson,"pubkey");
+	
 	playerinfo=cJSON_CreateObject();
 	cJSON_AddStringToObject(playerinfo,"method","join_res");
 	cJSON_AddNumberToObject(playerinfo,"peerid",bet->numplayers-1); //players numbering starts from 0(zero)
