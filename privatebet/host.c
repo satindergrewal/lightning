@@ -547,7 +547,7 @@ int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struc
 	char *rendered=NULL;
 
     bet->numplayers=++players_joined;
-	dcv_info.playerpubkeys[players_joined-1]=jbits256(argjson,"pubkey");
+	dcv_info.peerpubkeys[players_joined-1]=jbits256(argjson,"pubkey");
 	
 	playerinfo=cJSON_CreateObject();
 	cJSON_AddStringToObject(playerinfo,"method","join_res");
