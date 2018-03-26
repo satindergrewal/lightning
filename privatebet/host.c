@@ -443,6 +443,56 @@ void* BET_hostdcv(void * _ptr)
 	  return NULL;
 }
 
+int32_t BET_p2p_host_deck_init_info(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+      cJSON *deck_init_info,*cjsoncardprods,*cjsondcvblindcards,*cjsong_hash;
+	  char str[65],*rendered;
+	  int32_t bytes,retval=1;
+	  
+	  deck_init_info=cJSON_CreateObject();
+	  cJSON_AddStringToObject(deck_init_info,"messageid","init_d");
+	  jaddbits256(deck_init_info,"deckid",dcv_info.deckid);
+	  cJSON_AddItemToObject(deck_init_info,"cardprods",cjsoncardprods=cJSON_CreateArray());
+	  for(int i=0;i<dcv_info.numplayers;i++)
+	  {
+		for(int j=0;j<bet->range;j++)
+		{
+			cJSON_AddItemToArray(cjsoncardprods,cJSON_CreateString(bits256_str(str,dcv_info.cardprods[i][j])));
+		}
+	  }
+	  cJSON_AddItemToObject(deck_init_info,"dcvblindcards",cjsondcvblindcards=cJSON_CreateArray());
+	  for(int i=0;i<dcv_info.numplayers;i++)
+	  {
+		for(int j=0;j<bet->range;j++)
+		{
+			cJSON_AddItemToArray(cjsondcvblindcards,cJSON_CreateString(bits256_str(str,dcv_info.dcvblindcards[i][j])));
+		}
+	  }
+
+	  cJSON_AddItemToObject(deck_init_info,"g_hash",cjsong_hash=cJSON_CreateArray());
+	  for(int i=0;i<dcv_info.numplayers;i++)
+	  {
+		for(int j=0;j<bet->range;j++)
+		{
+			cJSON_AddItemToArray(cjsong_hash,cJSON_CreateString(bits256_str(str,g_hash[i][j])));
+		}
+	  }
+	  
+	  rendered=cJSON_Print(deck_init_info);
+	  bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
+
+	  printf("\n%s:%d:data:%s",__FUNCTION__,__LINE__,rendered);
+
+	  if(bytes<0)
+	  	retval=-1;
+
+	  return retval;
+	 
+}
+
+
+
+
 int32_t BET_p2p_host_init(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
   	int32_t peerid,retval=-1;
@@ -510,7 +560,7 @@ int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struc
 int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     char *method; int32_t senderid,retval=1;
-
+	
     if ( (method= jstr(argjson,"method")) != 0 )
     {
     	
@@ -531,10 +581,10 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 		else if(strcmp(method,"init_p") == 0)
 		{
 			BET_p2p_host_init(argjson,bet,vars);
-			printf("\n%s:%d:numplayers:%d,maxplayers:%d",__FUNCTION__,__LINE__,dcv_info.numplayers,dcv_info.maxplayers);
 			if(dcv_info.numplayers==dcv_info.maxplayers)
 			{
 				printf("\n%s:%d:DCV deck initialization is done",__FUNCTION__,__LINE__);
+				BET_p2p_host_deck_init_info(argjson,bet,vars);
 			}
 		}
         else
