@@ -457,7 +457,7 @@ int32_t BET_p2p_host_init(cJSON *argjson,struct privatebet_info *bet,struct priv
 			cardpubvalues[i]=jbits256i(cardinfo,i);
 	} 	
 	
-	sg777_deckgen_vendor(peerid,dcv_info.cardprods[peerid],dcv_info.dcvblindcards[peerid],bet->range,cardpubvalues,dcv_info.deckid)
+	sg777_deckgen_vendor(peerid,dcv_info.cardprods[peerid],dcv_info.dcvblindcards[peerid],bet->range,cardpubvalues,dcv_info.deckid);
 
 	printf("\n%s:%d:Dcv vlinded cards of peerid:%d\n",__FUNCTION__,__LINE__,peerid);
 	for(int i=0;i<bet->range;i++)
