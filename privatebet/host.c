@@ -589,24 +589,6 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 		}
         else
             retval=-1;
-    	#if 0
-        senderid = BET_senderid(argjson,bet);
-        if ( strcmp(method,"join") == 0 )
-            return(BET_host_join(argjson,bet,vars));
-        else if ( strcmp(method,"gameeval") == 0 )
-        {
-            BET_client_gameeval(argjson,bet,vars,senderid);
-            return(1);
-        }
-        else if ( strcmp(method,"turni") == 0 )
-        {
-            BET_client_turni(argjson,bet,vars,senderid);
-            return(1);
-        }
-        else if ( strcmp(method,"tablestatus") == 0 )
-            return(0);
-        else return(1);
-		#endif 
     }
     return retval;
 }

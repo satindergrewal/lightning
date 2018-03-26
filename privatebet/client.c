@@ -895,6 +895,54 @@ void* BET_clientbvv(void * _ptr)
 Below code is aimed to implement p2p Pangea
 */
 
+
+
+int32_t BET_p2p_bvvcommand(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+    char *method; int32_t senderid,retval=1;
+	
+    if ( (method= jstr(argjson,"method")) != 0 )
+    {
+   		if(strcmp(method,"init_d") == 0)
+		{
+			printf("\n%s:%d: BVV ",__FUNCTION__,__LINE__);
+		}
+        else
+            retval=-1;
+    }
+    return retval;
+}
+
+
+void BET_p2p_bvvloop(void *_ptr)
+{
+    uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; double lastmilli = 0.; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
+    VARS = calloc(1,sizeof(*VARS));
+
+	while ( bet->pushsock>= 0 && bet->subsock>= 0 )
+    {
+        if ( (recvlen= nn_recv(bet->pullsock,&ptr,NN_MSG,0)) > 0 )
+        {
+        
+            if ( (argjson= cJSON_Parse(ptr)) != 0 )
+            {
+                if ( BET_p2p_bvvcommand(argjson,bet,VARS) != 0 ) // usually just relay to players
+                {
+                	// do soemthing incase any command or logic failures
+                }
+                free_json(argjson);
+            }
+            nn_freemsg(ptr);
+        }
+          
+    }
+}
+
+
+
+
+
+
 int32_t BET_p2p_client_init(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
 	int32_t bytes,retval=1;
