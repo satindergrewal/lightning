@@ -450,7 +450,7 @@ int32_t BET_p2p_host_deck_init_info(cJSON *argjson,struct privatebet_info *bet,s
 	  int32_t bytes,retval=1;
 	  
 	  deck_init_info=cJSON_CreateObject();
-	  cJSON_AddStringToObject(deck_init_info,"messageid","init_d");
+	  cJSON_AddStringToObject(deck_init_info,"method","init_d");
 	  jaddbits256(deck_init_info,"deckid",dcv_info.deckid);
 	  cJSON_AddItemToObject(deck_init_info,"cardprods",cjsoncardprods=cJSON_CreateArray());
 	  for(int i=0;i<dcv_info.numplayers;i++)
