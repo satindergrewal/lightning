@@ -531,6 +531,7 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 		else if(strcmp(method,"init_p") == 0)
 		{
 			BET_p2p_host_init(argjson,bet,vars);
+			printf("\n%s:%d:numplayers:%d,maxplayers:%d",__FUNCTION__,__LINE__,dcv_info.numplayers,dcv_info.maxplayers);
 			if(dcv_info.numplayers==dcv_info.maxplayers)
 			{
 				printf("\n%s:%d:DCV deck initialization is done",__FUNCTION__,__LINE__);
@@ -573,7 +574,7 @@ void BET_p2p_hostloop(void *_ptr)
     dcv_info.deckid=rand256(0);
 	dcv_info.dcv_key.priv=curve25519_keypair(&dcv_info.dcv_key.prod);
 	
-	printf("\nThe DCV permutation is :");
+	printf("\nThe DCV permutation of range:%d:",bet->range);
 	for(int i=0;i<bet->range;i++)
 	{
 		permis_d[i]=dcv_info.permis[i];
