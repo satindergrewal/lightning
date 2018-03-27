@@ -930,7 +930,7 @@ int32_t BET_p2p_bvv_init(cJSON *argjson,struct privatebet_info *bet,struct priva
 	}
 	
 	bvv_init_info=cJSON_CreateObject();
-	cJSON_AddStringToObject(bvv_init_info,"messageid","init_b");
+	cJSON_AddStringToObject(bvv_init_info,"method","init_b");
 	jaddbits256(bvv_init_info,"bvvpubkey",bvv_info.bvv_key.prod);
 	cJSON_AddItemToObject(bvv_init_info,"bvvblindcards",cjsonbvvblindcards=cJSON_CreateArray());
 	for(int i=0;i<bvv_info.numplayers;i++)
@@ -955,7 +955,7 @@ int32_t BET_p2p_bvv_init(cJSON *argjson,struct privatebet_info *bet,struct priva
 	rendered=cJSON_Print(bvv_init_info);
 	bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
 
-	printf("\n%s:%d:bvv init data:%s",rendered);
+	printf("\n%s:%d:bvv init data:%s",__FUNCTION__,__LINE__,rendered);
 	
 	if(bytes<0)
 		retval=-1;
