@@ -566,7 +566,7 @@ int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struc
 
 int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-    char *method; int32_t senderid,retval=1;
+    char *method; int32_t bytes,retval=1;
 	
     if ( (method= jstr(argjson,"method")) != 0 )
     {
@@ -595,7 +595,11 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 			}
 		}
         else
-            retval=-1;
+    	{
+    		bytes=nn_send(bet->pubsock,cJSON_Print(argjson),strlen(cJSON_Print(argjson)),0);
+			if(bytes<0)
+				retval=-1;
+    	}
     }
     return retval;
 }
