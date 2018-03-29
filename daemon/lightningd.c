@@ -100,13 +100,16 @@ int main(int argc, char *argv[])
 
 	/* Ignore SIGPIPE: we look at our write return values*/
 	signal(SIGPIPE, SIG_IGN);
+    printf("secrets_init\n");
 
 	/* Set up node ID and private key. */
 	secrets_init(dstate);
 	new_node(dstate->rstate, &dstate->id);
+    printf("db_init\n");
 
 	/* Read or create database. */
 	db_init(dstate);
+    printf("setup_topology\n");
 
 	/* Initialize block topology. */
 	setup_topology(dstate->topology, dstate->bitcoind, &dstate->timers,
