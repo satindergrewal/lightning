@@ -85,9 +85,9 @@ ssize_t test_read(int fd UNUSED, void *buf, size_t len)
 
 int main(int argc, char *argv[])
 {
+#ifdef notnow
 	char *fake_argv[] = { argv[0], "--lightning-dir=/tmp/", "test", NULL };
 
-#ifdef notnow
 	/* sizeof() is an overestimate, but we don't care. */
 	response = tal_arr(NULL, char,
 			   sizeof(HEADER)
