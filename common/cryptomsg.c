@@ -4,7 +4,6 @@
 #include <ccan/crypto/sha256/sha256.h>
 #include <ccan/endian/endian.h>
 #include <ccan/mem/mem.h>
-#include <ccan/short_types/short_types.h>
 #include <ccan/take/take.h>
 #include <common/cryptomsg.h>
 #include <common/dev_disconnect.h>
@@ -132,9 +131,13 @@ static struct io_plan *peer_decrypt_body(struct io_conn *conn,
 	struct io_plan *plan;
 	u8 *in, *decrypted;
 
+	pcs->reading_body = false;
+
 	decrypted = cryptomsg_decrypt_body(pcs->in, &pcs->cs, pcs->in);
 	if (!decrypted)
 		return io_close(conn);
+
+	status_io(LOG_IO_IN, decrypted);
 
 	/* BOLT #1:
 	 *
@@ -198,6 +201,8 @@ static struct io_plan *peer_decrypt_header(struct io_conn *conn,
 
 	tal_free(pcs->in);
 
+	pcs->reading_body = true;
+
 	/* BOLT #8:
 	 *
 	 * * Read _exactly_ `l+16` bytes from the network buffer, let
@@ -224,6 +229,7 @@ struct io_plan *peer_read_message(struct io_conn *conn,
 	 *
 	 *  * Read _exactly_ `18-bytes` from the network buffer.
 	 */
+	pcs->reading_body = false;
 	pcs->in = tal_arr(conn, u8, 18);
 	pcs->next_in = next;
 	return io_read(conn, pcs->in, 18, peer_decrypt_header, pcs);
@@ -321,6 +327,7 @@ u8 *cryptomsg_encrypt_msg(const tal_t *ctx,
 	return out;
 }
 
+#if DEVELOPER
 static struct io_plan *peer_write_postclose(struct io_conn *conn,
 					    struct peer_crypto_state *pcs)
 {
@@ -328,6 +335,7 @@ static struct io_plan *peer_write_postclose(struct io_conn *conn,
 	dev_sabotage_fd(io_conn_fd(conn));
 	return pcs->next_out(conn, pcs->peer);
 }
+#endif
 
 struct io_plan *peer_write_message(struct io_conn *conn,
 				   struct peer_crypto_state *pcs,
@@ -336,14 +344,20 @@ struct io_plan *peer_write_message(struct io_conn *conn,
 							   struct peer *))
 {
 	struct io_plan *(*post)(struct io_conn *, struct peer_crypto_state *);
+#if DEVELOPER
 	int type = fromwire_peektype(msg);
+#endif
+
 	assert(!pcs->out);
 
+	/* Important: this doesn't take msg! */
+	status_io(LOG_IO_OUT, msg);
 	pcs->out = cryptomsg_encrypt_msg(conn, &pcs->cs, msg);
 	pcs->next_out = next;
 
 	post = peer_write_done;
 
+#if DEVELOPER
 	switch (dev_disconnect(type)) {
 	case DEV_DISCONNECT_BEFORE:
 		dev_sabotage_fd(io_conn_fd(conn));
@@ -359,6 +373,7 @@ struct io_plan *peer_write_message(struct io_conn *conn,
 	case DEV_DISCONNECT_NORMAL:
 		break;
 	}
+#endif /* DEVELOPER */
 
 	/* BOLT #8:
 	 *   * Send `lc || c` over the network buffer.
@@ -366,8 +381,16 @@ struct io_plan *peer_write_message(struct io_conn *conn,
 	return io_write(conn, pcs->out, tal_count(pcs->out), post, pcs);
 }
 
+/* We read in two parts, so we might have started body. */
+bool peer_in_started(const struct io_conn *conn,
+		     const struct peer_crypto_state *cs)
+{
+	return io_plan_in_started(conn) || cs->reading_body;
+}
+
 void init_peer_crypto_state(struct peer *peer, struct peer_crypto_state *pcs)
 {
 	pcs->peer = peer;
 	pcs->out = pcs->in = NULL;
+	pcs->reading_body = false;
 }

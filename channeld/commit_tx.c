@@ -12,7 +12,7 @@
 #endif
 
 static bool trim(const struct htlc *htlc,
-		 u64 feerate_per_kw, u64 dust_limit_satoshis,
+		 u32 feerate_per_kw, u64 dust_limit_satoshis,
 		 enum side side)
 {
 	u64 htlc_fee;
@@ -42,7 +42,7 @@ static bool trim(const struct htlc *htlc,
 }
 
 size_t commit_tx_num_untrimmed(const struct htlc **htlcs,
-			       u64 feerate_per_kw, u64 dust_limit_satoshis,
+			       u32 feerate_per_kw, u64 dust_limit_satoshis,
 			       enum side side)
 {
 	size_t i, n;
@@ -86,13 +86,13 @@ static void add_received_htlc_out(struct bitcoin_tx *tx, size_t n,
 }
 
 struct bitcoin_tx *commit_tx(const tal_t *ctx,
-			     const struct sha256_double *funding_txid,
+			     const struct bitcoin_txid *funding_txid,
 			     unsigned int funding_txout,
 			     u64 funding_satoshis,
 			     enum side funder,
 			     u16 to_self_delay,
 			     const struct keyset *keyset,
-			     u64 feerate_per_kw,
+			     u32 feerate_per_kw,
 			     u64 dust_limit_satoshis,
 			     u64 self_pay_msat,
 			     u64 other_pay_msat,
@@ -101,7 +101,6 @@ struct bitcoin_tx *commit_tx(const tal_t *ctx,
 			     u64 obscured_commitment_number,
 			     enum side side)
 {
-	const tal_t *tmpctx = tal_tmpctx(ctx);
 	u64 base_fee_msat;
 	struct bitcoin_tx *tx;
 	size_t i, n, untrimmed;
@@ -287,6 +286,5 @@ struct bitcoin_tx *commit_tx(const tal_t *ctx,
 	/* Input amount needed for signature code. */
 	tx->input[0].amount = tal_dup(tx->input, u64, &funding_satoshis);
 
-	tal_free(tmpctx);
 	return tx;
 }

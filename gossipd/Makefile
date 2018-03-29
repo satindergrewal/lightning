@@ -13,6 +13,7 @@ LIGHTNINGD_GOSSIP_CONTROL_OBJS := $(LIGHTNINGD_GOSSIP_CONTROL_SRC:.c=.o)
 
 # gossipd needs these:
 LIGHTNINGD_GOSSIP_HEADERS := gossipd/gen_gossip_wire.h \
+	gossipd/gossip_store.h				\
 	gossipd/handshake.h				\
 	gossipd/routing.h				\
 	gossipd/broadcast.h
@@ -34,28 +35,34 @@ LIGHTNINGD_HEADERS_GEN += $(LIGHTNINGD_GOSSIP_HEADERS)
 
 # Common source we use.
 GOSSIPD_COMMON_OBJS :=				\
+	common/bip32.o				\
 	common/crypto_state.o			\
 	common/crypto_sync.o			\
 	common/cryptomsg.o			\
 	common/daemon_conn.o			\
-	common/debug.o				\
 	common/dev_disconnect.o			\
+	common/features.o			\
+	common/gen_status_wire.o		\
 	common/io_debug.o			\
 	common/msg_queue.o			\
 	common/ping.o				\
 	common/pseudorand.o			\
 	common/status.o				\
+	common/status_wire.o			\
+	common/subdaemon.o			\
 	common/timeout.o			\
 	common/type_to_string.o			\
 	common/utils.o				\
+	common/utxo.o				\
 	common/version.o			\
+	common/wireaddr.o			\
 	common/wire_error.o			\
 	hsmd/client.o				\
 	hsmd/gen_hsm_client_wire.o		\
 	lightningd/gossip_msg.o			\
-	lightningd/netaddr.o
+	wire/gen_onion_wire.o
 
-$(LIGHTNINGD_GOSSIP_OBJS) $(LIGHTNINGD_GOSSIP_CLIENT_OBJS): $(LIGHTNINGD_HEADERS)
+$(LIGHTNINGD_GOSSIP_OBJS) $(LIGHTNINGD_GOSSIP_CLIENT_OBJS): $(LIGHTNINGD_HEADERS) $(LIGHTNINGD_GOSSIP_HEADERS)
 
 $(LIGHTNINGD_GOSSIP_CONTROL_OBJS) : $(LIGHTNINGD_GOSSIP_CONTROL_HEADERS)
 
@@ -76,6 +83,6 @@ check-whitespace: $(LIGHTNINGD_GOSSIP_ALLSRC_NOGEN:%=check-whitespace/%) $(LIGHT
 clean: gossipd-clean
 
 gossipd-clean:
-	$(RM) $(LIGHTNINGD_GOSSIP_OBJS) gen_*
+	$(RM) $(LIGHTNINGD_GOSSIP_OBJS) gossipd/gen_*
 
--include gossipd/test/Makefile 
+-include gossipd/test/Makefile

@@ -16,7 +16,10 @@ struct io_plan *daemon_conn_read_next(struct io_conn *conn,
 struct io_plan *daemon_conn_write_next(struct io_conn *conn,
 				       struct daemon_conn *dc)
 {
-	const u8 *msg = msg_dequeue(&dc->out);
+	const u8 *msg;
+
+again:
+	msg = msg_dequeue(&dc->out);
 	if (msg) {
 		int fd = msg_extract_fd(msg);
 		if (fd >= 0)
@@ -25,11 +28,10 @@ struct io_plan *daemon_conn_write_next(struct io_conn *conn,
 		return io_write_wire(conn, take(msg), daemon_conn_write_next,
 				     dc);
 	} else if (dc->msg_queue_cleared_cb) {
-		return dc->msg_queue_cleared_cb(conn, dc);
-	} else {
-		return msg_queue_wait(conn, &dc->out,
-				      daemon_conn_write_next, dc);
+		if (dc->msg_queue_cleared_cb(conn, dc))
+			goto again;
 	}
+	return msg_queue_wait(conn, &dc->out, daemon_conn_write_next, dc);
 }
 
 bool daemon_conn_sync_flush(struct daemon_conn *dc)
@@ -57,7 +59,7 @@ bool daemon_conn_sync_flush(struct daemon_conn *dc)
 	}
 	io_fd_block(daemon_fd, false);
 
-	/* Success iff we flushed them all. */
+	/* Success if and only if we flushed them all. */
 	return msg == NULL;
 }
 
@@ -85,6 +87,12 @@ void daemon_conn_init(tal_t *ctx, struct daemon_conn *dc, int fd,
 	conn = io_new_conn(ctx, fd, daemon_conn_start, dc);
 	if (finish)
 		io_set_finish(conn, finish, dc);
+}
+
+void daemon_conn_clear(struct daemon_conn *dc)
+{
+	io_set_finish(dc->conn, NULL, NULL);
+	io_close(dc->conn);
 }
 
 void daemon_conn_send(struct daemon_conn *dc, const u8 *msg)

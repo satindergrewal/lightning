@@ -13,5 +13,4 @@ void sha256_double_done(struct sha256_ctx *shactx, struct sha256_double *res)
 	sha256_done(shactx, &res->sha);
 	sha256(&res->sha, &res->sha, sizeof(res->sha));
 }
-
 REGISTER_TYPE_TO_HEXSTR(sha256_double);

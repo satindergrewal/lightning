@@ -41,25 +41,32 @@ OPENINGD_COMMON_OBJS :=				\
 	common/crypto_sync.o			\
 	common/cryptomsg.o			\
 	common/daemon_conn.o			\
-	common/debug.o				\
 	common/derive_basepoints.o		\
 	common/dev_disconnect.o			\
 	common/funding_tx.o			\
+	common/gen_status_wire.o		\
+	common/gen_peer_status_wire.o		\
 	common/htlc_wire.o			\
 	common/initial_channel.o		\
 	common/initial_commit_tx.o		\
 	common/key_derive.o			\
 	common/keyset.o				\
+	common/memleak.o			\
 	common/msg_queue.o			\
 	common/ping.o				\
+	common/peer_billboard.o			\
 	common/peer_failed.o			\
 	common/permute_tx.o			\
 	common/pseudorand.o			\
+	common/read_peer_msg.o			\
 	common/status.o				\
+	common/status_wire.o			\
+	common/subdaemon.o			\
 	common/type_to_string.o			\
 	common/utils.o				\
 	common/utxo.o				\
-	common/version.o
+	common/version.o			\
+	common/wire_error.o
 
 $(LIGHTNINGD_OPENING_OBJS): $(LIGHTNINGD_HEADERS)
 
@@ -86,6 +93,6 @@ check-whitespace: $(LIGHTNINGD_OPENING_SRC_NOGEN:%=check-whitespace/%) $(LIGHTNI
 clean: opening-clean
 
 opening-clean:
-	$(RM) $(LIGHTNINGD_OPENING_OBJS) gen_*
+	$(RM) $(LIGHTNINGD_OPENING_OBJS) openingd/gen_*
 
--include openingd/test/Makefile 
+-include openingd/test/Makefile

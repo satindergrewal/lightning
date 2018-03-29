@@ -6,19 +6,24 @@ channel_normal_operation,11001
 
 # Begin!  (passes gossipd-client fd)
 channel_init,1000
-channel_init,,chain_hash,struct sha256_double
-channel_init,,funding_txid,struct sha256_double
+channel_init,,chain_hash,struct bitcoin_blkid
+channel_init,,funding_txid,struct bitcoin_txid
 channel_init,,funding_txout,u16
 channel_init,,funding_satoshi,u64
 channel_init,,our_config,struct channel_config
 channel_init,,their_config,struct channel_config
-channel_init,,feerate_per_kw,u32
+# FIXME: Fix generate-wire.py to allow NUM_SIDES*u32 here.
+channel_init,,feerate_per_kw,2*u32
+channel_init,,feerate_min,u32
+channel_init,,feerate_max,u32
 channel_init,,first_commit_sig,secp256k1_ecdsa_signature
 channel_init,,crypto_state,struct crypto_state
+channel_init,,gossip_index,u64
 channel_init,,remote_fundingkey,struct pubkey
-channel_init,,revocation_basepoint,struct pubkey
-channel_init,,payment_basepoint,struct pubkey
-channel_init,,delayed_payment_basepoint,struct pubkey
+channel_init,,remote_revocation_basepoint,struct pubkey
+channel_init,,remote_payment_basepoint,struct pubkey
+channel_init,,remote_htlc_basepoint,struct pubkey
+channel_init,,remote_delayed_payment_basepoint,struct pubkey
 channel_init,,remote_per_commit,struct pubkey
 channel_init,,old_remote_per_commit,struct pubkey
 channel_init,,funder,enum side
@@ -50,9 +55,10 @@ channel_init,,local_funding_locked,bool
 channel_init,,remote_funding_locked,bool
 channel_init,,funding_short_id,struct short_channel_id
 channel_init,,reestablish,bool
-channel_init,,shutdown_scriptpubkey_len,u16
-channel_init,,shutdown_scriptpubkey,shutdown_scriptpubkey_len*u8
+channel_init,,send_shutdown,bool
 channel_init,,remote_shutdown_received,bool
+channel_init,,final_scriptpubkey_len,u16
+channel_init,,final_scriptpubkey,final_scriptpubkey_len*u8
 channel_init,,flags,u8
 channel_init,,init_peer_pkt_len,u16
 channel_init,,init_peer_pkt,init_peer_pkt_len*u8
@@ -79,7 +85,7 @@ channel_offer_htlc_reply,,failure_code,u16
 channel_offer_htlc_reply,,failurestrlen,u16
 channel_offer_htlc_reply,,failurestr,failurestrlen*u8
 
-# Main daemon found out the preimage for an htlc
+# Main daemon found out the preimage for an HTLC
 #include <bitcoin/preimage.h>
 channel_fulfill_htlc,1005
 channel_fulfill_htlc,,id,u64
@@ -88,11 +94,13 @@ channel_fulfill_htlc,,payment_preimage,struct preimage
 # Main daemon says HTLC failed
 channel_fail_htlc,1006
 channel_fail_htlc,,id,u64
-# If malformed is non-zero, it's a BADONION code
-channel_fail_htlc,,malformed,u16
-# Otherwise, error_pkt contains failreason.
+# If this is non-zero length, you need to wrap this and pass it on.
 channel_fail_htlc,,len,u16
 channel_fail_htlc,,error_pkt,len*u8
+# If it errcode is != 0, it's a local error, otherwise we're passing through.
+channel_fail_htlc,,errcode,u16
+# If errcode & UPDATE, this says which outgoing channel failed.
+channel_fail_htlc,,which_channel,struct short_channel_id
 
 # Ping/pong test.
 channel_ping,1011
@@ -102,9 +110,6 @@ channel_ping,,len,u16
 channel_ping_reply,1111
 channel_ping_reply,,totlen,u16
 
-# Channeld tells the master that the channel has been announced
-channel_announced,1012
-
 # When we receive funding_locked.
 channel_got_funding_locked,1019
 channel_got_funding_locked,,next_per_commit_point,struct pubkey
@@ -112,6 +117,7 @@ channel_got_funding_locked,,next_per_commit_point,struct pubkey
 # When we send a commitment_signed message, tell master.
 channel_sending_commitsig,1020
 channel_sending_commitsig,,commitnum,u64
+channel_sending_commitsig,,feerate,u32
 # SENT_ADD_COMMIT, SENT_REMOVE_ACK_COMMIT, SENT_ADD_ACK_COMMIT, SENT_REMOVE_COMMIT
 channel_sending_commitsig,,num_changed,u16
 channel_sending_commitsig,,changed,num_changed*struct changed_htlc
@@ -125,6 +131,7 @@ channel_sending_commitsig_reply,1120
 # When we have a commitment_signed message, tell master to remember.
 channel_got_commitsig,1021
 channel_got_commitsig,,commitnum,u64
+channel_got_commitsig,,feerate,u32
 channel_got_commitsig,,signature,secp256k1_ecdsa_signature
 channel_got_commitsig,,num_htlcs,u16
 channel_got_commitsig,,htlc_signature,num_htlcs*secp256k1_ecdsa_signature
@@ -158,10 +165,8 @@ channel_got_revoke,,changed,num_changed*struct changed_htlc
 # (eg. if we sent another commitment_signed, that would implicitly ack).
 channel_got_revoke_reply,1122
 
-# Tell peer that channel is shutting down
+# Tell peer to shut down channel.
 channel_send_shutdown,1023
-channel_send_shutdown,,scriptpubkey_len,u16
-channel_send_shutdown,,scriptpubkey,scriptpubkey_len*u8
 
 # Peer told us that channel is shutting down
 channel_got_shutdown,1024
@@ -171,7 +176,13 @@ channel_got_shutdown,,scriptpubkey,scriptpubkey_len*u8
 # Shutdown is complete, ready for closing negotiation. + peer_fd & gossip_fd.
 channel_shutdown_complete,1025
 channel_shutdown_complete,,crypto_state,struct crypto_state
+channel_shutdown_complete,,gossip_index,u64
 
 # Re-enable commit timer.
 channel_dev_reenable_commit,1026
 channel_dev_reenable_commit_reply,1126
+
+channel_feerates,1027
+channel_feerates,,feerate,u32
+channel_feerates,,min_feerate,u32
+channel_feerates,,max_feerate,u32

@@ -11,7 +11,8 @@
 #include <unistd.h>
 #include <wire/gen_peer_wire.h>
 
-/* We move the fd IFF we do a disconnect. */
+#if DEVELOPER
+/* We move the fd if and only if we do a disconnect. */
 static int dev_disconnect_fd = -1;
 static char dev_disconnect_line[200];
 static int dev_disconnect_count, dev_disconnect_len;
@@ -28,7 +29,9 @@ static void next_dev_disconnect(void)
 		 dev_disconnect_line, sizeof(dev_disconnect_line)-1);
 	if (r < 0)
 		err(1, "Reading dev_disconnect file");
-	lseek(dev_disconnect_fd, -r, SEEK_CUR);
+	if (lseek(dev_disconnect_fd, -r, SEEK_CUR) < 0) {
+		err(1, "lseek failure");
+	}
 
 	/* Get first line */
 	dev_disconnect_line[r] = '\n';
@@ -73,7 +76,9 @@ enum dev_disconnect dev_disconnect(int pkt_type)
 		return DEV_DISCONNECT_NORMAL;
 	}
 
-	lseek(dev_disconnect_fd, dev_disconnect_len+1, SEEK_CUR);
+	if (lseek(dev_disconnect_fd, dev_disconnect_len+1, SEEK_CUR) < 0) {
+		err(1, "lseek failure");
+	}
 
 	status_trace("dev_disconnect: %s%s", dev_disconnect_line,
 		     dev_disconnect_nocommit ? "-nocommit" : "");
@@ -132,3 +137,4 @@ void dev_blackhole_fd(int fd)
 	dup2(fds[1], fd);
 	close(fds[1]);
 }
+#endif

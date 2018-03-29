@@ -9,7 +9,7 @@ const char *version(void)
 	return chipsVERSION;
 }
 
-char *version_and_exit(const void *unused)
+char *version_and_exit(const void *unused UNUSED)
 {
 	printf("%s\n"
 	       "aka. %s\n"

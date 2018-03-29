@@ -1,5 +1,5 @@
-#ifndef LIGHTNING_LIGHTNINGD_CHANNEL_CHANNELD_HTLC_H
-#define LIGHTNING_LIGHTNINGD_CHANNEL_CHANNELD_HTLC_H
+#ifndef LIGHTNING_CHANNELD_CHANNELD_HTLC_H
+#define LIGHTNING_CHANNELD_CHANNELD_HTLC_H
 #include "config.h"
 #include <bitcoin/locktime.h>
 #include <ccan/short_types/short_types.h>
@@ -20,6 +20,9 @@ struct htlc {
 	struct sha256 rhash;
 	/* The preimage which hashes to rhash (if known) */
 	struct preimage *r;
+
+	/* The routing shared secret (only for incoming) */
+	struct secret *shared_secret;
 
 	/* FIXME: We could union these together: */
 	/* Routing information sent with this HTLC. */
@@ -67,15 +70,10 @@ static inline struct htlc *htlc_get(struct htlc_map *htlcs, u64 id, enum side ow
 	return NULL;
 }
 
-static inline size_t htlc_map_count(const struct htlc_map *htlcs)
-{
-	return htlcs->raw.elems;
-}
-
 /* FIXME: Move these out of the hash! */
 static inline bool htlc_is_dead(const struct htlc *htlc)
 {
 	return htlc->state == RCVD_REMOVE_ACK_REVOCATION
 		|| htlc->state == SENT_REMOVE_ACK_REVOCATION;
 }
-#endif /* LIGHTNING_LIGHTNINGD_CHANNEL_CHANNELD_HTLC_H */
+#endif /* LIGHTNING_CHANNELD_CHANNELD_HTLC_H */

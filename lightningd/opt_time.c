@@ -1,4 +1,5 @@
 #include "opt_time.h"
+#include <assert.h>
 #include <ccan/str/str.h>
 #include <ccan/tal/str/str.h>
 #include <errno.h>
@@ -25,6 +26,8 @@ char *opt_set_time(const char *arg, struct timerel *t)
 {
 	char *endp;
 	unsigned long int l;
+
+	assert(arg != NULL);
 
 	/* This is how the manpage says to do it.  Yech. */
 	errno = 0;
@@ -76,23 +79,4 @@ void opt_show_time(char buf[OPT_SHOW_LEN], const struct timerel *t)
 			sprintf(buf, "%lus", t->ts.tv_sec);
 	} else
 		sprintf(buf, "%lus", t->ts.tv_sec);
-}
-
-char *opt_set_timeabs(const char *arg, struct timeabs *t)
-{
-	long double d;
-
-	if (sscanf(arg, "%Lf", &d) != 1)
-		return tal_fmt(NULL, "'%s' is not a time", arg);
-	t->ts.tv_sec = d;
-	t->ts.tv_nsec = (d - t->ts.tv_sec) * 1000000000;
-	return NULL;
-}
-
-void opt_show_timeabs(char buf[OPT_SHOW_LEN], const struct timeabs *t)
-{
-	long double d = t->ts.tv_sec;
-	d = d * 1000000000 + t->ts.tv_nsec;
-
-	sprintf(buf, "%.9Lf", d);
 }
