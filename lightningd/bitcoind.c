@@ -252,6 +252,8 @@ start_bitcoin_cli(struct bitcoind *bitcoind,
 {
 	va_list ap;
 	struct bitcoin_cli *bcli = tal(bitcoind, struct bitcoin_cli);
+    printf("call cli.(%s)\n",cmd);
+
 	bcli->bitcoind = bitcoind;
 	bcli->process = process;
 	bcli->cb = cb;
