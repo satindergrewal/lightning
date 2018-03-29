@@ -130,9 +130,11 @@ void backend_new_plan(struct io_conn *conn)
 		num_waiting--;
 
 	pfd->events = 0;
-	if (conn->plan[IO_IN].status == IO_POLLING)
+	if (conn->plan[IO_IN].status == IO_POLLING_NOTSTARTED
+	    || conn->plan[IO_IN].status == IO_POLLING_STARTED)
 		pfd->events |= POLLIN;
-	if (conn->plan[IO_OUT].status == IO_POLLING)
+	if (conn->plan[IO_OUT].status == IO_POLLING_NOTSTARTED
+	    || conn->plan[IO_OUT].status == IO_POLLING_STARTED)
 		pfd->events |= POLLOUT;
 
 	if (pfd->events) {
@@ -278,8 +280,13 @@ void *io_loop(struct timers *timers, struct timer **expired)
 		}
 
 		r = pollfn(pollfds, num_fds, ms_timeout);
-		if (r < 0)
+		if (r < 0) {
+			/* Signals shouldn't break us, unless they set
+			 * io_loop_return. */
+			if (errno == EINTR)
+				continue;
 			break;
+		}
 
 		for (i = 0; i < num_fds && !io_loop_return; i++) {
 			struct io_conn *c = (void *)fds[i];

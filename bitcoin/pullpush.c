@@ -1,8 +1,8 @@
 #include "pullpush.h"
 #include "varint.h"
+#include <assert.h>
 #include <ccan/endian/endian.h>
 #include <ccan/mem/mem.h>
-#include <ccan/tal/tal.h>
 
 void push_varint(varint_t v,
 		 void (*push)(const void *, size_t, void *), void *pushp)
@@ -58,6 +58,7 @@ const u8 *pull(const u8 **cursor, size_t *max, void *copy, size_t n)
 	}
 	*cursor += n;
 	*max -= n;
+	assert(p);
 	if (copy)
 		memcpy(copy, p, n);
 	return memcheck(p, n);

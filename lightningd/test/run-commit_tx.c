@@ -15,31 +15,18 @@ static bool print_superverbose;
 #include <ccan/array_size/array_size.h>
 #include <ccan/err/err.h>
 #include <ccan/str/hex/hex.h>
-#include <common/type_to_string.h>
 
 /* Turn this on to brute-force fee values */
 /*#define DEBUG */
 
-static struct sha256 sha256_from_hex(const char *hex)
-{
-	struct sha256 sha256;
-	if (strstarts(hex, "0x"))
-		hex += 2;
-	if (!hex_decode(hex, strlen(hex), &sha256, sizeof(sha256)))
-		abort();
-	return sha256;
-}
-
 /* bitcoind loves its backwards txids! */
-static struct sha256_double txid_from_hex(const char *hex)
+static struct bitcoin_txid txid_from_hex(const char *hex)
 {
-	struct sha256_double sha256;
-	struct sha256 rev = sha256_from_hex(hex);
-	size_t i;
+	struct bitcoin_txid txid;
 
-	for (i = 0; i < sizeof(rev); i++)
-		sha256.sha.u.u8[sizeof(sha256) - 1 - i] = rev.u.u8[i];
-	return sha256;
+	if (!bitcoin_txid_from_hex(hex, strlen(hex), &txid))
+		abort();
+	return txid;
 }
 
 static struct secret secret_from_hex(const char *hex)
@@ -73,16 +60,11 @@ static bool pubkey_from_secret(const struct secret *secret,
 static void tx_must_be_eq(const struct bitcoin_tx *a,
 			  const struct bitcoin_tx *b)
 {
-	tal_t *tmpctx = tal_tmpctx(NULL);
 	u8 *lina, *linb;
-	size_t i, len;
+	size_t i;
 
 	lina = linearize_tx(tmpctx, a);
 	linb = linearize_tx(tmpctx, b);
-
-	len = tal_len(lina);
-	if (tal_len(linb) < len)
-		len = tal_len(linb);
 
 	for (i = 0; i < tal_len(lina); i++) {
 		if (i >= tal_len(linb))
@@ -105,8 +87,6 @@ static void tx_must_be_eq(const struct bitcoin_tx *a,
 		     "%s",
 		     tal_hex(tmpctx, lina),
 		     tal_hex(tmpctx, linb));
-
-	tal_free(tmpctx);
 }
 
 /* BOLT #3:
@@ -196,25 +176,26 @@ static struct pubkey pubkey_from_hex(const char *hex)
 static void report_htlcs(const struct bitcoin_tx *tx,
 			 const struct htlc **htlc_map,
 			 u16 to_self_delay,
-			 const struct privkey *local_secretkey,
+			 const struct privkey *local_htlcsecretkey,
 			 const struct pubkey *localkey,
+			 const struct pubkey *local_htlckey,
 			 const struct pubkey *local_delayedkey,
-			 const struct privkey *x_remote_secretkey,
+			 const struct privkey *x_remote_htlcsecretkey,
 			 const struct pubkey *remotekey,
+			 const struct pubkey *remote_htlckey,
 			 const struct pubkey *remote_revocation_key,
-			 u64 feerate_per_kw)
+			 u32 feerate_per_kw)
 {
-	tal_t *tmpctx = tal_tmpctx(NULL);
 	size_t i, n;
-	struct sha256_double txid;
+	struct bitcoin_txid txid;
 	struct bitcoin_tx **htlc_tx;
-	secp256k1_ecdsa_signature *remotesig;
+	secp256k1_ecdsa_signature *remotehtlcsig;
 	struct keyset keyset;
 	u8 **wscript;
 
 	htlc_tx = tal_arrz(tmpctx, struct bitcoin_tx *, tal_count(htlc_map));
-	remotesig = tal_arr(tmpctx, secp256k1_ecdsa_signature,
-			    tal_count(htlc_map));
+	remotehtlcsig = tal_arr(tmpctx, secp256k1_ecdsa_signature,
+				tal_count(htlc_map));
 	wscript = tal_arr(tmpctx, u8 *, tal_count(htlc_map));
 
 	bitcoin_txid(tx, &txid);
@@ -232,6 +213,8 @@ static void report_htlcs(const struct bitcoin_tx *tx,
 	keyset.self_delayed_payment_key = *local_delayedkey;
 	keyset.self_payment_key = *localkey;
 	keyset.other_payment_key = *remotekey;
+	keyset.self_htlc_key = *local_htlckey;
+	keyset.other_htlc_key = *remote_htlckey;
 
 	for (i = 0; i < tal_count(htlc_map); i++) {
 		const struct htlc *htlc = htlc_map[i];
@@ -247,8 +230,8 @@ static void report_htlcs(const struct bitcoin_tx *tx,
 						     feerate_per_kw,
 						     &keyset);
 			wscript[i] = bitcoin_wscript_htlc_offer(tmpctx,
-								localkey,
-								remotekey,
+								local_htlckey,
+								remote_htlckey,
 								&htlc->rhash,
 								remote_revocation_key);
 		} else {
@@ -259,25 +242,25 @@ static void report_htlcs(const struct bitcoin_tx *tx,
 						     &keyset);
 			wscript[i] = bitcoin_wscript_htlc_receive(tmpctx,
 								  &htlc->expiry,
-								  localkey,
-								  remotekey,
+								  local_htlckey,
+								  remote_htlckey,
 								  &htlc->rhash,
 								  remote_revocation_key);
 		}
 		sign_tx_input(htlc_tx[i], 0,
 			      NULL,
 			      wscript[i],
-			      x_remote_secretkey, remotekey,
-			      &remotesig[i]);
+			      x_remote_htlcsecretkey, remote_htlckey,
+			      &remotehtlcsig[i]);
 		printf("# signature for output %zi (htlc %"PRIu64")\n", i, htlc->id);
 		printf("remote_htlc_signature = %s\n",
 		       type_to_string(tmpctx, secp256k1_ecdsa_signature,
-				      &remotesig[i]));
+				      &remotehtlcsig[i]));
 	}
 
 	/* For any HTLC outputs, produce htlc_tx */
 	for (i = 0; i < tal_count(htlc_map); i++) {
-		secp256k1_ecdsa_signature localsig;
+		secp256k1_ecdsa_signature localhtlcsig;
 		const struct htlc *htlc = htlc_map[i];
 
 		if (!htlc)
@@ -286,22 +269,26 @@ static void report_htlcs(const struct bitcoin_tx *tx,
 		sign_tx_input(htlc_tx[i], 0,
 			      NULL,
 			      wscript[i],
-			      local_secretkey, localkey,
-			      &localsig);
+			      local_htlcsecretkey, local_htlckey,
+			      &localhtlcsig);
 		printf("# local_signature = %s\n",
 		       type_to_string(tmpctx, secp256k1_ecdsa_signature,
-				      &localsig));
+				      &localhtlcsig));
 		if (htlc_owner(htlc) == LOCAL) {
 			htlc_timeout_tx_add_witness(htlc_tx[i],
-						    localkey, remotekey,
+						    local_htlckey,
+						    remote_htlckey,
 						    &htlc->rhash,
 						    remote_revocation_key,
-						    &localsig, &remotesig[i]);
+						    &localhtlcsig,
+						    &remotehtlcsig[i]);
 		} else {
 			htlc_success_tx_add_witness(htlc_tx[i],
 						    &htlc->expiry,
-						    localkey, remotekey,
-						    &localsig, &remotesig[i],
+						    local_htlckey,
+						    remote_htlckey,
+						    &localhtlcsig,
+						    &remotehtlcsig[i],
 						    htlc->r,
 						    remote_revocation_key);
 		}
@@ -310,7 +297,6 @@ static void report_htlcs(const struct bitcoin_tx *tx,
 		       htlc->id,
 		       tal_hex(tmpctx, linearize_tx(tmpctx, htlc_tx[i])));
 	}
-	tal_free(tmpctx);
 }
 
 static void report(struct bitcoin_tx *tx,
@@ -320,16 +306,17 @@ static void report(struct bitcoin_tx *tx,
 		   const struct privkey *local_funding_privkey,
 		   const struct pubkey *local_funding_pubkey,
 		   u16 to_self_delay,
-		   const struct privkey *local_secretkey,
+		   const struct privkey *local_htlcsecretkey,
 		   const struct pubkey *localkey,
+		   const struct pubkey *local_htlckey,
 		   const struct pubkey *local_delayedkey,
-		   const struct privkey *x_remote_secretkey,
+		   const struct privkey *x_remote_htlcsecretkey,
 		   const struct pubkey *remotekey,
+		   const struct pubkey *remote_htlckey,
 		   const struct pubkey *remote_revocation_key,
-		   u64 feerate_per_kw,
+		   u32 feerate_per_kw,
 		   const struct htlc **htlc_map)
 {
-	tal_t *tmpctx = tal_tmpctx(NULL);
 	char *txhex;
 	secp256k1_ecdsa_signature localsig, remotesig;
 
@@ -355,13 +342,12 @@ static void report(struct bitcoin_tx *tx,
 	printf("output commit_tx: %s\n", txhex);
 
 	report_htlcs(tx, htlc_map, to_self_delay,
-		     local_secretkey, localkey,
+		     local_htlcsecretkey, localkey, local_htlckey,
 		     local_delayedkey,
-		     x_remote_secretkey,
-		     remotekey,
+		     x_remote_htlcsecretkey,
+		     remotekey, remote_htlckey,
 		     remote_revocation_key,
 		     feerate_per_kw);
-	tal_free(tmpctx);
 }
 
 #ifdef DEBUG
@@ -377,12 +363,12 @@ static u64 calc_fee(const struct bitcoin_tx *tx, u64 input_satoshi)
 }
 
 /* For debugging, we do brute-force increase to find thresholds */
-static u64 increase(u64 feerate_per_kw)
+static u32 increase(u32 feerate_per_kw)
 {
 	return feerate_per_kw + 1;
 }
 #else
-static u64 increase(u64 feerate_per_kw)
+static u64 increase(u32 feerate_per_kw)
 {
 	/* BOLT #3:
 	 *
@@ -403,7 +389,7 @@ static u64 increase(u64 feerate_per_kw)
 	const u64 rates[] = { 0, 648, 2070, 2195, 3703, 4915, 9651181 };
 	size_t i;
 
-	for (i = 0; i < ARRAY_SIZE(rates); i++)
+	for (i = 0; i < ARRAY_SIZE(rates) - 1; i++)
 		if (rates[i] == feerate_per_kw)
 			return rates[i+1];
 
@@ -432,24 +418,27 @@ static const struct htlc **invert_htlcs(const struct htlc **htlcs)
 
 int main(void)
 {
-	tal_t *tmpctx = tal_tmpctx(NULL);
-	struct sha256_double funding_txid;
-	u64 funding_amount_satoshi, dust_limit_satoshi, feerate_per_kw;
+	struct bitcoin_txid funding_txid;
+	u64 funding_amount_satoshi, dust_limit_satoshi;
+	u32 feerate_per_kw;
 	u16 to_self_delay;
 	/* x_ prefix means internal vars we used to derive spec */
 	struct privkey local_funding_privkey, x_remote_funding_privkey;
 	struct secret x_local_payment_basepoint_secret, x_remote_payment_basepoint_secret;
+	struct secret x_local_htlc_basepoint_secret, x_remote_htlc_basepoint_secret;
 	struct secret x_local_per_commitment_secret;
 	struct secret x_local_delayed_payment_basepoint_secret;
 	struct secret x_remote_revocation_basepoint_secret;
-	struct privkey local_secretkey, x_remote_secretkey;
+	struct privkey local_htlcsecretkey, x_remote_htlcsecretkey;
 	struct privkey x_local_delayed_secretkey;
 	struct pubkey local_funding_pubkey, remote_funding_pubkey;
 	struct pubkey local_payment_basepoint, remote_payment_basepoint;
+	struct pubkey local_htlc_basepoint, remote_htlc_basepoint;
 	struct pubkey x_local_delayed_payment_basepoint;
 	struct pubkey x_remote_revocation_basepoint;
 	struct pubkey x_local_per_commitment_point;
 	struct pubkey localkey, remotekey, tmpkey;
+	struct pubkey local_htlckey, remote_htlckey;
 	struct pubkey local_delayedkey;
 	struct pubkey remote_revocation_key;
 	struct bitcoin_tx *tx, *tx2;
@@ -457,11 +446,14 @@ int main(void)
 	u8 *wscript;
 	unsigned int funding_output_index;
 	u64 commitment_number, cn_obscurer, to_local_msat, to_remote_msat;
-	const struct htlc **htlcs = setup_htlcs(tmpctx), **htlc_map, **htlc_map2,
-		**inv_htlcs = invert_htlcs(htlcs);
+	const struct htlc **htlcs, **htlc_map, **htlc_map2, **inv_htlcs;
 
 	secp256k1_ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY
 						 | SECP256K1_CONTEXT_SIGN);
+	setup_tmpctx();
+
+	htlcs = setup_htlcs(tmpctx);
+	inv_htlcs = invert_htlcs(htlcs);
 
 	/* BOLT #3:
 	 *
@@ -579,13 +571,19 @@ int main(void)
 				&remote_payment_basepoint))
 		abort();
 
-	if (!derive_simple_privkey(&x_remote_payment_basepoint_secret,
-				   &remote_payment_basepoint,
+	/* FIXME: BOLT should include separate HTLC keys */
+	local_htlc_basepoint = local_payment_basepoint;
+	remote_htlc_basepoint = remote_payment_basepoint;
+	x_local_htlc_basepoint_secret = x_local_payment_basepoint_secret;
+	x_remote_htlc_basepoint_secret = x_remote_payment_basepoint_secret;
+
+	if (!derive_simple_privkey(&x_remote_htlc_basepoint_secret,
+				   &remote_htlc_basepoint,
 				   &x_local_per_commitment_point,
-				   &x_remote_secretkey))
+				   &x_remote_htlcsecretkey))
 		abort();
 	SUPERVERBOSE("INTERNAL: remote_secretkey: %s\n",
-		     type_to_string(tmpctx, struct privkey, &x_remote_secretkey));
+		     type_to_string(tmpctx, struct privkey, &x_remote_htlcsecretkey));
 
 	if (!derive_simple_privkey(&x_local_delayed_payment_basepoint_secret,
 				   &x_local_delayed_payment_basepoint,
@@ -620,21 +618,18 @@ int main(void)
 	printf("remote_funding_pubkey: %s\n",
 	       type_to_string(tmpctx, struct pubkey, &remote_funding_pubkey));
 
-	if (!derive_simple_privkey(&x_local_payment_basepoint_secret,
+	if (!derive_simple_privkey(&x_local_htlc_basepoint_secret,
 				   &local_payment_basepoint,
 				   &x_local_per_commitment_point,
-				   &local_secretkey))
+				   &local_htlcsecretkey))
 		abort();
 	printf("local_secretkey: %s\n",
-	       type_to_string(tmpctx, struct privkey, &local_secretkey));
+	       type_to_string(tmpctx, struct privkey, &local_htlcsecretkey));
 
-	if (!pubkey_from_privkey(&local_secretkey, &localkey))
-		abort();
 	if (!derive_simple_key(&local_payment_basepoint,
 			       &x_local_per_commitment_point,
-			       &tmpkey))
+			       &localkey))
 		abort();
-	assert(pubkey_eq(&tmpkey, &localkey));
 	printf("localkey: %s\n",
 	       type_to_string(tmpctx, struct pubkey, &localkey));
 
@@ -645,6 +640,22 @@ int main(void)
 	printf("remotekey: %s\n",
 	       type_to_string(tmpctx, struct pubkey, &remotekey));
 
+	if (!pubkey_from_privkey(&local_htlcsecretkey, &local_htlckey))
+		abort();
+	if (!derive_simple_key(&local_htlc_basepoint,
+			       &x_local_per_commitment_point,
+			       &tmpkey))
+		abort();
+	assert(pubkey_eq(&tmpkey, &local_htlckey));
+	printf("local_htlckey: %s\n",
+	       type_to_string(tmpctx, struct pubkey, &local_htlckey));
+
+	if (!derive_simple_key(&remote_htlc_basepoint,
+			       &x_local_per_commitment_point,
+			       &remote_htlckey))
+		abort();
+	printf("remote_htlckey: %s\n",
+	       type_to_string(tmpctx, struct pubkey, &remote_htlckey));
 
 	if (!pubkey_from_privkey(&x_local_delayed_secretkey, &local_delayedkey))
 		abort();
@@ -681,13 +692,15 @@ int main(void)
 	       "name: simple commitment tx with no HTLCs\n"
 	       "to_local_msat: %"PRIu64"\n"
 	       "to_remote_msat: %"PRIu64"\n"
-	       "local_feerate_per_kw: %"PRIu64"\n",
+	       "local_feerate_per_kw: %u\n",
 	       to_local_msat, to_remote_msat, feerate_per_kw);
 
 	keyset.self_revocation_key = remote_revocation_key;
 	keyset.self_delayed_payment_key = local_delayedkey;
 	keyset.self_payment_key = localkey;
 	keyset.other_payment_key = remotekey;
+	keyset.self_htlc_key = local_htlckey;
+	keyset.other_htlc_key = remote_htlckey;
 
 	print_superverbose = true;
 	tx = commit_tx(tmpctx, &funding_txid, funding_output_index,
@@ -715,11 +728,13 @@ int main(void)
 	report(tx, wscript, &x_remote_funding_privkey, &remote_funding_pubkey,
 	       &local_funding_privkey, &local_funding_pubkey,
 	       to_self_delay,
-	       &local_secretkey,
+	       &local_htlcsecretkey,
 	       &localkey,
+	       &local_htlckey,
 	       &local_delayedkey,
-	       &x_remote_secretkey,
+	       &x_remote_htlcsecretkey,
 	       &remotekey,
+	       &remote_htlckey,
 	       &remote_revocation_key,
 	       feerate_per_kw,
 	       htlc_map);
@@ -738,7 +753,7 @@ int main(void)
 	       "name: commitment tx with all 5 htlcs untrimmed (minimum feerate)\n"
 	       "to_local_msat: %"PRIu64"\n"
 	       "to_remote_msat: %"PRIu64"\n"
-	       "local_feerate_per_kw: %"PRIu64"\n",
+	       "local_feerate_per_kw: %u\n",
 	       to_local_msat, to_remote_msat, feerate_per_kw);
 
 	print_superverbose = true;
@@ -768,11 +783,13 @@ int main(void)
 	report(tx, wscript, &x_remote_funding_privkey, &remote_funding_pubkey,
 	       &local_funding_privkey, &local_funding_pubkey,
 	       to_self_delay,
-	       &local_secretkey,
+	       &local_htlcsecretkey,
 	       &localkey,
+	       &local_htlckey,
 	       &local_delayedkey,
-	       &x_remote_secretkey,
+	       &x_remote_htlcsecretkey,
 	       &remotekey,
+	       &remote_htlckey,
 	       &remote_revocation_key,
 	       feerate_per_kw,
 	       htlc_map);
@@ -808,7 +825,7 @@ int main(void)
 		tx_must_be_eq(newtx, tx2);
 #ifdef DEBUG
 		if (feerate_per_kw % 100000 == 0)
-			printf("feerate_per_kw = %"PRIu64", fees = %"PRIu64"\n",
+			printf("feerate_per_kw = %u, fees = %"PRIu64"\n",
 			       feerate_per_kw, calc_fee(newtx, funding_amount_satoshi));
 		if (tal_count(newtx->output) == tal_count(tx->output)) {
 			tal_free(newtx);
@@ -819,7 +836,7 @@ int main(void)
 		       "name: commitment tx with %zu output%s untrimmed (maximum feerate)\n"
 		       "to_local_msat: %"PRIu64"\n"
 		       "to_remote_msat: %"PRIu64"\n"
-		       "local_feerate_per_kw: %"PRIu64"\n",
+		       "local_feerate_per_kw: %u\n",
 		       tal_count(tx->output),
 		       tal_count(tx->output) > 1 ? "s" : "",
 		       to_local_msat, to_remote_msat, feerate_per_kw-1);
@@ -840,11 +857,13 @@ int main(void)
 		       &x_remote_funding_privkey, &remote_funding_pubkey,
 		       &local_funding_privkey, &local_funding_pubkey,
 		       to_self_delay,
-		       &local_secretkey,
+		       &local_htlcsecretkey,
 		       &localkey,
+		       &local_htlckey,
 		       &local_delayedkey,
-		       &x_remote_secretkey,
+		       &x_remote_htlcsecretkey,
 		       &remotekey,
+		       &remote_htlckey,
 		       &remote_revocation_key,
 		       feerate_per_kw-1,
 		       htlc_map);
@@ -853,7 +872,7 @@ int main(void)
 		       "name: commitment tx with %zu output%s untrimmed (minimum feerate)\n"
 		       "to_local_msat: %"PRIu64"\n"
 		       "to_remote_msat: %"PRIu64"\n"
-		       "local_feerate_per_kw: %"PRIu64"\n",
+		       "local_feerate_per_kw: %u\n",
 		       tal_count(newtx->output),
 		       tal_count(newtx->output) > 1 ? "s" : "",
 		       to_local_msat, to_remote_msat, feerate_per_kw);
@@ -874,11 +893,13 @@ int main(void)
 		       &x_remote_funding_privkey, &remote_funding_pubkey,
 		       &local_funding_privkey, &local_funding_pubkey,
 		       to_self_delay,
-		       &local_secretkey,
+		       &local_htlcsecretkey,
 		       &localkey,
+		       &local_htlckey,
 		       &local_delayedkey,
-		       &x_remote_secretkey,
+		       &x_remote_htlcsecretkey,
 		       &remotekey,
+		       &remote_htlckey,
 		       &remote_revocation_key,
 		       feerate_per_kw,
 		       htlc_map);
@@ -913,7 +934,7 @@ int main(void)
 		       "name: commitment tx with fee greater than funder amount\n"
 		       "to_local_msat: %"PRIu64"\n"
 		       "to_remote_msat: %"PRIu64"\n"
-		       "local_feerate_per_kw: %"PRIu64"\n",
+		       "local_feerate_per_kw: %u\n",
 		       to_local_msat, to_remote_msat, feerate_per_kw);
 		tx = commit_tx(tmpctx, &funding_txid, funding_output_index,
 			       funding_amount_satoshi,
@@ -930,11 +951,13 @@ int main(void)
 		       &x_remote_funding_privkey, &remote_funding_pubkey,
 		       &local_funding_privkey, &local_funding_pubkey,
 		       to_self_delay,
-		       &local_secretkey,
+		       &local_htlcsecretkey,
 		       &localkey,
+		       &local_htlckey,
 		       &local_delayedkey,
-		       &x_remote_secretkey,
+		       &x_remote_htlcsecretkey,
 		       &remotekey,
+		       &remote_htlckey,
 		       &remote_revocation_key,
 		       feerate_per_kw,
 		       htlc_map);

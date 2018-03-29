@@ -11,11 +11,17 @@
 
 bool sync_crypto_write(struct crypto_state *cs, int fd, const void *msg TAKES)
 {
-	int type = fromwire_peektype(msg);
-	u8 *enc = cryptomsg_encrypt_msg(NULL, cs, msg);
-	bool ret;
+#if DEVELOPER
 	bool post_sabotage = false;
+	int type = fromwire_peektype(msg);
+#endif
+	u8 *enc;
+	bool ret;
 
+	status_io(LOG_IO_OUT, msg);
+	enc = cryptomsg_encrypt_msg(NULL, cs, msg);
+
+#if DEVELOPER
 	switch (dev_disconnect(type)) {
 	case DEV_DISCONNECT_BEFORE:
 		dev_sabotage_fd(fd);
@@ -31,11 +37,14 @@ bool sync_crypto_write(struct crypto_state *cs, int fd, const void *msg TAKES)
 	case DEV_DISCONNECT_NORMAL:
 		break;
 	}
+#endif
 	ret = write_all(fd, enc, tal_len(enc));
 	tal_free(enc);
 
+#if DEVELOPER
 	if (post_sabotage)
 		dev_sabotage_fd(fd);
+#endif
 	return ret;
 }
 
@@ -65,6 +74,7 @@ u8 *sync_crypto_read(const tal_t *ctx, struct crypto_state *cs, int fd)
 	if (!dec)
 		status_trace("Failed body decrypt with rn=%"PRIu64, cs->rn-2);
 	else
-		status_trace("Read decrypt %s", tal_hex(trc, dec));
+		status_io(LOG_IO_IN, dec);
+
 	return dec;
 }

@@ -1,5 +1,5 @@
-#ifndef LIGHTNING_LIGHTNINGD_CHANNEL_COMMIT_TX_H
-#define LIGHTNING_LIGHTNINGD_CHANNEL_COMMIT_TX_H
+#ifndef LIGHTNING_CHANNELD_COMMIT_TX_H
+#define LIGHTNING_CHANNELD_COMMIT_TX_H
 #include "config.h"
 #include <bitcoin/pubkey.h>
 #include <channeld/channeld_htlc.h>
@@ -7,7 +7,6 @@
 #include <common/initial_commit_tx.h>
 
 struct keyset;
-struct sha256_double;
 
 /**
  * commit_tx_num_untrimmed: how many of these htlc outputs will commit tx have?
@@ -20,7 +19,7 @@ struct sha256_double;
  * received HTLCs.
  */
 size_t commit_tx_num_untrimmed(const struct htlc **htlcs,
-			       u64 feerate_per_kw, u64 dust_limit_satoshis,
+			       u32 feerate_per_kw, u64 dust_limit_satoshis,
 			       enum side side);
 
 /**
@@ -43,13 +42,13 @@ size_t commit_tx_num_untrimmed(const struct htlc **htlcs,
  * transaction, so we carefully use the terms "self" and "other" here.
  */
 struct bitcoin_tx *commit_tx(const tal_t *ctx,
-			     const struct sha256_double *funding_txid,
+			     const struct bitcoin_txid *funding_txid,
 			     unsigned int funding_txout,
 			     u64 funding_satoshis,
 			     enum side funder,
 			     u16 to_self_delay,
 			     const struct keyset *keyset,
-			     u64 feerate_per_kw,
+			     u32 feerate_per_kw,
 			     u64 dust_limit_satoshis,
 			     u64 self_pay_msat,
 			     u64 other_pay_msat,
@@ -58,4 +57,4 @@ struct bitcoin_tx *commit_tx(const tal_t *ctx,
 			     u64 obscured_commitment_number,
 			     enum side side);
 
-#endif /* LIGHTNING_LIGHTNINGD_CHANNEL_COMMIT_TX_H */
+#endif /* LIGHTNING_CHANNELD_COMMIT_TX_H */

@@ -8,7 +8,7 @@
 #include <inttypes.h>
 
 struct channel *new_initial_channel(const tal_t *ctx,
-				    const struct sha256_double *funding_txid,
+				    const struct bitcoin_txid *funding_txid,
 				    unsigned int funding_txout,
 				    u64 funding_satoshis,
 				    u64 local_msatoshi,
@@ -38,6 +38,8 @@ struct channel *new_initial_channel(const tal_t *ctx,
 	channel->funding_pubkey[LOCAL] = *local_funding_pubkey;
 	channel->funding_pubkey[REMOTE] = *remote_funding_pubkey;
 	channel->htlcs = NULL;
+	channel->changes_pending[LOCAL] = channel->changes_pending[REMOTE]
+		= false;
 
 	channel->view[LOCAL].feerate_per_kw
 		= channel->view[REMOTE].feerate_per_kw
@@ -75,6 +77,8 @@ struct bitcoin_tx *initial_channel_tx(const tal_t *ctx,
 	if (!derive_keyset(per_commitment_point,
 			   &channel->basepoints[side].payment,
 			   &channel->basepoints[!side].payment,
+			   &channel->basepoints[side].htlc,
+			   &channel->basepoints[!side].htlc,
 			   &channel->basepoints[side].delayed_payment,
 			   &channel->basepoints[!side].revocation,
 			   &keyset))
@@ -100,7 +104,7 @@ struct bitcoin_tx *initial_channel_tx(const tal_t *ctx,
 
 static char *fmt_channel_view(const tal_t *ctx, const struct channel_view *view)
 {
-	return tal_fmt(ctx, "{ feerate_per_kw=%"PRIu64","
+	return tal_fmt(ctx, "{ feerate_per_kw=%"PRIu32","
 		       " owed_local=%"PRIu64","
 		       " owed_remote=%"PRIu64" }",
 		       view->feerate_per_kw,

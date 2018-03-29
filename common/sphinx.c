@@ -12,7 +12,6 @@
 
 #include <sodium/crypto_auth_hmacsha256.h>
 #include <sodium/crypto_stream_chacha20.h>
-#include <wire/wire.h>
 
 #define BLINDING_FACTOR_SIZE 32
 #define SHARED_SECRET_SIZE 32
@@ -355,8 +354,11 @@ struct onionpacket *create_onionpacket(
 	struct hop_params *params = generate_hop_params(ctx, sessionkey, path);
 	struct secret *secrets = tal_arr(ctx, struct secret, num_hops);
 
-	if (!params)
+	if (!params) {
+		tal_free(packet);
+		tal_free(secrets);
 		return NULL;
+	}
 	packet->version = 0;
 	memset(nexthmac, 0, SECURITY_PARAMETER);
 	memset(packet->routinginfo, 0, ROUTING_INFO_SIZE);
@@ -366,6 +368,7 @@ struct onionpacket *create_onionpacket(
 
 	for (i = num_hops - 1; i >= 0; i--) {
 		memcpy(hops_data[i].hmac, nexthmac, SECURITY_PARAMETER);
+		hops_data[i].realm = 0;
 		generate_key_set(params[i].secret, &keys);
 		generate_cipher_stream(stream, keys.rho, ROUTING_INFO_SIZE);
 
@@ -395,7 +398,7 @@ struct onionpacket *create_onionpacket(
 }
 
 /*
- * Given a onionpacket msg extract the information for the current
+ * Given an onionpacket msg extract the information for the current
  * node and unwrap the remainder so that the node can forward it.
  */
 struct route_step *process_onionpacket(
@@ -487,7 +490,7 @@ u8 *create_onionreply(const tal_t *ctx, const struct secret *shared_secret,
 	/* BOLT #4:
 	 *
  	 * Where `hmac` is an HMAC authenticating the remainder of the packet,
-	 * with a key using the above key generation with key type "_um_"
+	 * with a key using the above key generation with key type `um`
 	 */
 	generate_key(key, "um", 2, shared_secret->data);
 
@@ -526,7 +529,6 @@ struct onionreply *unwrap_onionreply(const tal_t *ctx,
 				     const struct secret *shared_secrets,
 				     const int numhops, const u8 *reply)
 {
-	tal_t *tmpctx = tal_tmpctx(ctx);
 	struct onionreply *oreply = tal(tmpctx, struct onionreply);
 	u8 *msg = tal_arr(oreply, u8, tal_len(reply));
 	u8 key[KEY_LEN], hmac[HMAC_SIZE];
@@ -535,7 +537,7 @@ struct onionreply *unwrap_onionreply(const tal_t *ctx,
 	u16 msglen;
 
 	if (tal_len(reply) != ONION_REPLY_SIZE + sizeof(hmac) + 4) {
-		goto fail;
+		return NULL;
 	}
 
 	memcpy(msg, reply, tal_len(reply));
@@ -557,7 +559,7 @@ struct onionreply *unwrap_onionreply(const tal_t *ctx,
 		}
 	}
 	if (oreply->origin_index == -1) {
-		goto fail;
+		return NULL;
 	}
 
 	cursor = msg + sizeof(hmac);
@@ -565,15 +567,13 @@ struct onionreply *unwrap_onionreply(const tal_t *ctx,
 	msglen = fromwire_u16(&cursor, &max);
 
 	if (msglen > ONION_REPLY_SIZE) {
-		goto fail;
+		return NULL;
 	}
 
 	oreply->msg = tal_arr(oreply, u8, msglen);
 	fromwire(&cursor, &max, oreply->msg, msglen);
 
 	tal_steal(ctx, oreply);
-	tal_free(tmpctx);
 	return oreply;
-fail:
-	return tal_free(tmpctx);
+
 }

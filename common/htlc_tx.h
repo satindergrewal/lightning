@@ -6,9 +6,8 @@
 struct keyset;
 struct preimage;
 struct pubkey;
-struct sha256_double;
 
-static inline u64 htlc_timeout_fee(u64 feerate_per_kw)
+static inline u64 htlc_timeout_fee(u32 feerate_per_kw)
 {
 	/* BOLT #3:
 	 *
@@ -17,10 +16,10 @@ static inline u64 htlc_timeout_fee(u64 feerate_per_kw)
 	 * 1. Multiply `feerate_per_kw` by 663 and divide by 1000 (rounding
 	 *    down).
 	 */
-	return feerate_per_kw * 663 / 1000;
+	return feerate_per_kw * 663ULL / 1000;
 }
 
-static inline u64 htlc_success_fee(u64 feerate_per_kw)
+static inline u64 htlc_success_fee(u32 feerate_per_kw)
 {
 	/* BOLT #3:
 	 *
@@ -29,17 +28,17 @@ static inline u64 htlc_success_fee(u64 feerate_per_kw)
 	 * 1. Multiply `feerate_per_kw` by 703 and divide by 1000 (rounding
 	 *    down).
 	 */
-	return feerate_per_kw * 703 / 1000;
+	return feerate_per_kw * 703ULL / 1000;
 }
 
 /* Create HTLC-success tx to spend a received HTLC commitment tx
  * output; doesn't fill in input witness. */
 struct bitcoin_tx *htlc_success_tx(const tal_t *ctx,
-				   const struct sha256_double *commit_txid,
+				   const struct bitcoin_txid *commit_txid,
 				   unsigned int commit_output_number,
 				   u64 htlc_msatoshi,
 				   u16 to_self_delay,
-				   u64 feerate_per_kw,
+				   u32 feerate_per_kw,
 				   const struct keyset *keyset);
 
 /* Fill in the witness for HTLC-success tx produced above. */
@@ -55,12 +54,12 @@ void htlc_success_tx_add_witness(struct bitcoin_tx *htlc_success,
 /* Create HTLC-timeout tx to spend an offered HTLC commitment tx
  * output; doesn't fill in input witness. */
 struct bitcoin_tx *htlc_timeout_tx(const tal_t *ctx,
-				   const struct sha256_double *commit_txid,
+				   const struct bitcoin_txid *commit_txid,
 				   unsigned int commit_output_number,
 				   u64 htlc_msatoshi,
 				   u32 cltv_expiry,
 				   u16 to_self_delay,
-				   u64 feerate_per_kw,
+				   u32 feerate_per_kw,
 				   const struct keyset *keyset);
 
 /* Fill in the witness for HTLC-timeout tx produced above. */

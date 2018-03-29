@@ -5,11 +5,13 @@ LIGHTNINGD_TEST_OBJS := $(LIGHTNINGD_TEST_SRC:.c=.o)
 LIGHTNINGD_TEST_PROGRAMS := $(LIGHTNINGD_TEST_OBJS:.o=)
 
 ALL_TEST_PROGRAMS += $(LIGHTNINGD_TEST_PROGRAMS)
+ALL_OBJS += $(LIGHTNINGD_TEST_OBJS)
 
 LIGHTNINGD_TEST_COMMON_OBJS :=			\
 	common/daemon_conn.o			\
 	common/htlc_state.o			\
 	common/pseudorand.o			\
+	common/memleak.o			\
 	common/msg_queue.o			\
 	common/utils.o				\
 	common/type_to_string.o			\

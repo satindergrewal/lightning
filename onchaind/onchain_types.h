@@ -1,5 +1,5 @@
-#ifndef LIGHTNING_LIGHTNINGD_ONCHAIN_ONCHAIN_TYPES_H
-#define LIGHTNING_LIGHTNINGD_ONCHAIN_ONCHAIN_TYPES_H
+#ifndef LIGHTNING_ONCHAIND_ONCHAIN_TYPES_H
+#define LIGHTNING_ONCHAIND_ONCHAIN_TYPES_H
 #include "config.h"
 
 /* Different transactions we care about. */
@@ -35,6 +35,9 @@ enum tx_type {
 	/* When we use revocation key to take output. */
 	OUR_PENALTY_TX,
 
+	/* Amount too small, we're just spending it to close UTXO */
+	DONATING_TO_MINERS,
+
 	/* Special type for marking outputs as resolved by self. */
 	SELF,
 
@@ -61,4 +64,4 @@ enum output_type {
 };
 
 
-#endif /* LIGHTNING_LIGHTNINGD_ONCHAIN_ONCHAIN_TYPES_H */
+#endif /* LIGHTNING_ONCHAIND_ONCHAIN_TYPES_H */

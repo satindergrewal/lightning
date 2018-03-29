@@ -2,6 +2,7 @@
 #define LIGHTNING_LIGHTNINGD_BITCOIND_H
 #include "config.h"
 #include <bitcoin/chainparams.h>
+#include <bitcoin/tx.h>
 #include <ccan/list/list.h>
 #include <ccan/short_types/short_types.h>
 #include <ccan/tal/tal.h>
@@ -9,11 +10,12 @@
 #include <ccan/typesafe_cb/typesafe_cb.h>
 #include <stdbool.h>
 
-struct sha256_double;
+struct bitcoin_blkid;
+struct bitcoin_tx_output;
+struct block;
 struct lightningd;
 struct ripemd160;
 struct bitcoin_tx;
-struct peer;
 struct bitcoin_block;
 
 enum bitcoind_mode {
@@ -23,11 +25,17 @@ enum bitcoind_mode {
 };
 
 struct bitcoind {
+	/* eg. "bitcoin-cli" */
+	char *cli;
+
 	/* -datadir arg for bitcoin-cli. */
 	char *datadir;
 
 	/* Where to do logging. */
 	struct log *log;
+
+	/* Main lightningd structure */
+	struct lightningd *ld;
 
 	/* Are we currently running a bitcoind request (it's ratelimited) */
 	bool req_running;
@@ -44,24 +52,31 @@ struct bitcoind {
 
 	/* Ignore results, we're shutting down. */
 	bool shutdown;
+
+	/* Passthrough parameters for bitcoin-cli */
+	char *rpcuser, *rpcpass, *rpcconnect, *rpcport;
 };
 
-struct bitcoind *new_bitcoind(const tal_t *ctx, struct log *log);
+struct bitcoind *new_bitcoind(const tal_t *ctx,
+			      struct lightningd *ld,
+			      struct log *log);
 
 void wait_for_bitcoind(struct bitcoind *bitcoind);
 
-void bitcoind_estimate_fee_(struct bitcoind *bitcoind,
-			    void (*cb)(struct bitcoind *bitcoind,
-				       u64, void *),
-			    void *arg);
+void bitcoind_estimate_fees_(struct bitcoind *bitcoind,
+			     const u32 blocks[], const char *estmode[],
+			     size_t num_estimates,
+			     void (*cb)(struct bitcoind *bitcoind,
+					const u32 satoshi_per_kw[], void *),
+			     void *arg);
 
-#define bitcoind_estimate_fee(bitcoind_, cb, arg)			\
-	bitcoind_estimate_fee_((bitcoind_),				\
-			       typesafe_cb_preargs(void, void *,	\
-						   (cb), (arg),		\
-						   struct bitcoind *,	\
-						   u64),		\
-			       (arg))
+#define bitcoind_estimate_fees(bitcoind_, blocks, estmode, num, cb, arg) \
+	bitcoind_estimate_fees_((bitcoind_), (blocks), (estmode), (num), \
+				typesafe_cb_preargs(void, void *,	\
+						    (cb), (arg),	\
+						    struct bitcoind *,	\
+						    const u32 *),	\
+				(arg))
 
 void bitcoind_sendrawtx_(struct bitcoind *bitcoind,
 			 const char *hextx,
@@ -77,20 +92,6 @@ void bitcoind_sendrawtx_(struct bitcoind *bitcoind,
 						int, const char *),	\
 			    (arg))
 
-void bitcoind_get_chaintip_(struct bitcoind *bitcoind,
-			    void (*cb)(struct bitcoind *bitcoind,
-				       const struct sha256_double *tipid,
-				       void *arg),
-			    void *arg);
-
-#define bitcoind_get_chaintip(bitcoind_, cb, arg)			\
-	bitcoind_get_chaintip_((bitcoind_),				\
-			       typesafe_cb_preargs(void, void *,	\
-						   (cb), (arg),		\
-						   struct bitcoind *,	\
-						   const struct sha256_double *), \
-			       (arg))
-
 void bitcoind_getblockcount_(struct bitcoind *bitcoind,
 			     void (*cb)(struct bitcoind *bitcoind,
 					u32 blockcount,
@@ -105,10 +106,11 @@ void bitcoind_getblockcount_(struct bitcoind *bitcoind,
 						    u32 blockcount),	\
 				(arg))
 
+/* blkid is NULL if call fails. */
 void bitcoind_getblockhash_(struct bitcoind *bitcoind,
 			    u32 height,
 			    void (*cb)(struct bitcoind *bitcoind,
-				       const struct sha256_double *blkid,
+				       const struct bitcoin_blkid *blkid,
 				       void *arg),
 			    void *arg);
 #define bitcoind_getblockhash(bitcoind_, height, cb, arg)		\
@@ -117,11 +119,11 @@ void bitcoind_getblockhash_(struct bitcoind *bitcoind,
 			       typesafe_cb_preargs(void, void *,	\
 						   (cb), (arg),		\
 						   struct bitcoind *,	\
-						   const struct sha256_double *), \
+						   const struct bitcoin_blkid *), \
 			       (arg))
 
 void bitcoind_getrawblock_(struct bitcoind *bitcoind,
-			   const struct sha256_double *blockid,
+			   const struct bitcoin_blkid *blockid,
 			   void (*cb)(struct bitcoind *bitcoind,
 				      struct bitcoin_block *blk,
 				      void *arg),
@@ -133,4 +135,27 @@ void bitcoind_getrawblock_(struct bitcoind *bitcoind,
 						  struct bitcoind *,	\
 						  struct bitcoin_block *), \
 			      (arg))
+
+void bitcoind_getoutput_(struct bitcoind *bitcoind,
+			 unsigned int blocknum, unsigned int txnum,
+			 unsigned int outnum,
+			 void (*cb)(struct bitcoind *bitcoind,
+				    const struct bitcoin_tx_output *output,
+				    void *arg),
+			 void *arg);
+#define bitcoind_getoutput(bitcoind_, blocknum, txnum, outnum, cb, arg)	\
+	bitcoind_getoutput_((bitcoind_), (blocknum), (txnum), (outnum),	\
+			    typesafe_cb_preargs(void, void *,		\
+						(cb), (arg),		\
+						struct bitcoind *,	\
+						const struct bitcoin_tx_output*), \
+			    (arg))
+
+void bitcoind_gettxout(struct bitcoind *bitcoind,
+		       const struct bitcoin_txid *txid, const u32 outnum,
+		       void (*cb)(struct bitcoind *bitcoind,
+				  const struct bitcoin_tx_output *txout,
+				  void *arg),
+		       void *arg);
+
 #endif /* LIGHTNING_LIGHTNINGD_BITCOIND_H */
