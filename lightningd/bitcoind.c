@@ -297,13 +297,6 @@ static bool extract_feerate(struct bitcoin_cli *bcli,
 			    (int)output_bytes, output);
 		return false;
 	}
-    else
-    {
-        fee *= 2;
-        //printf("estimatefee.(%s) ->  %.8f\n",p,fee);
-        // Since we used 6 as an estimate, double it.
-    }
-    fee_rate = fee * 100000000;
 
 	feeratetok = json_get_member(output, tokens, "feerate");
 	if (!feeratetok)
