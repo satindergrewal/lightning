@@ -284,7 +284,7 @@ int main(int argc, char *argv[])
 #else
 	backtrace_state = backtrace_create_state(argv[0], 0, NULL, NULL);
 #endif
-
+    printf("main\n");
 	ld = new_lightningd(NULL);
 	secp256k1_ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY
 						 | SECP256K1_CONTEXT_SIGN);
@@ -307,7 +307,7 @@ int main(int argc, char *argv[])
 
 	/* Ignore SIGPIPE: we look at our write return values*/
 	signal(SIGPIPE, SIG_IGN);
-
+printf("testdaemons\n");
 	/* Make sure we can reach other daemons, and versions match. */
 	test_daemons(ld);
 
@@ -324,7 +324,7 @@ int main(int argc, char *argv[])
 
 	/* Everything is within a transaction. */
 	db_begin_transaction(ld->wallet->db);
-
+printf("check wallet\n");
 	if (!wallet_network_check(ld->wallet, get_chainparams(ld)))
 		errx(1, "Wallet network check failed.");
 
