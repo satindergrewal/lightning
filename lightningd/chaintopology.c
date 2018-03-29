@@ -777,11 +777,13 @@ void setup_topology(struct chain_topology *topo,
 	topo->poll_time = poll_time;
 
 	topo->first_blocknum = first_blocknum;
-
+    printf("topo 0\n");
 	/* Make sure bitcoind is started, and ready */
 	wait_for_bitcoind(topo->bitcoind);
+    printf("topo 1\n");
 
 	bitcoind_getblockcount(topo->bitcoind, get_init_blockhash, topo);
+    printf("topo 2\n");
 
 	tal_add_destructor(topo, destroy_chain_topology);
 
