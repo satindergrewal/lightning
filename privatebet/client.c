@@ -1020,7 +1020,7 @@ int32_t BET_p2p_client_bvv_init(cJSON *argjson,struct privatebet_info *bet,struc
 		printf("\n%s:%d",__FUNCTION__,__LINE__);
 		player_info.bvvpubkey=jbits256(argjson,"bvvpubkey");
 		g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
-		cjsonbvvblindcards=cJSON_GetObjectItem(argjson,"blindedcards");
+		cjsonbvvblindcards=cJSON_GetObjectItem(argjson,"bvvblindcards");
 		
 		for(int i=0;i<bet->numplayers;i++)
 		{
