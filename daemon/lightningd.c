@@ -73,19 +73,26 @@ AUTODATA(json_command, &dev_broadcast_command);
 int main(int argc, char *argv[])
 {
 	struct lightningd_state *dstate = lightningd_state();
+    printf("main\n");
 
 	err_set_progname(argv[0]);
+    printf("main2\n");
 
 	if (!streq(protobuf_c_version(), PROTOBUF_C_VERSION))
 		errx(1, "Compiled against protobuf %s, but have %s",
 		     PROTOBUF_C_VERSION, protobuf_c_version());
+    printf("main3\n");
 
 	secp256k1_ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY
 						 | SECP256K1_CONTEXT_SIGN);
 
+    printf("main4\n");
 	dstate->topology = new_topology(dstate, dstate->base_log);
-	dstate->bitcoind = new_bitcoind(dstate, dstate->base_log);
+    printf("main5\n");
+    dstate->bitcoind = new_bitcoind(dstate, dstate->base_log);
+    printf("main6\n");
 	dstate->bitcoind->chainparams = chainparams_for_network("chips");
+    printf("main7\n");
 
 	/* Handle options and config; move to .chipsln */
 	register_opts(dstate);
