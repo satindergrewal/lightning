@@ -413,16 +413,6 @@ static void json_delinvoice(struct command *cmd,
 	command_success(cmd, response);
 }
 
-static void json_delinvoice(struct command *cmd,const char *buffer, const jsmntok_t *params)
-{
-    return(_json_delinvoice(0,cmd,buffer,params));
-}
-
-static void json_delpaidinvoice(struct command *cmd,const char *buffer, const jsmntok_t *params)
-{
-    return(_json_delinvoice(1,cmd,buffer,params));
-}
-
 static const struct json_command delinvoice_command = {
 	"delinvoice",
 	json_delinvoice,
