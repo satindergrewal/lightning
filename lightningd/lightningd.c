@@ -324,36 +324,29 @@ int main(int argc, char *argv[])
 
 	/* Everything is within a transaction. */
 	db_begin_transaction(ld->wallet->db);
-printf("check wallet\n");
 	if (!wallet_network_check(ld->wallet, get_chainparams(ld)))
 		errx(1, "Wallet network check failed.");
-    printf("init_txfilter\n");
 
 	/* Initialize the transaction filter with our pubkeys. */
 	init_txfilter(ld->wallet, ld->owned_txfilter);
-    printf("wallet_invoice_load\n");
 
         /* Check invoices loaded from the database */
 	if (!wallet_invoice_load(ld->wallet)) {
 		fatal("Could not load invoices from the database");
 	}
-    printf("wallet_invoice_autoclean\n");
 
 	/* Set up invoice autoclean. */
 	wallet_invoice_autoclean(ld->wallet,
 				 ld->ini_autocleaninvoice_cycle,
 				 ld->ini_autocleaninvoice_expiredby);
-    printf("gossip_init\n");
 
 	/* Set up gossip daemon. */
 	gossip_init(ld);
 
-    printf("wallet_channels_load_active\n");
 /* Load peers from database */
 	if (!wallet_channels_load_active(ld, ld->wallet))
 		fatal("Could not load channels from the database");
 
-    printf("peers\n");
 	/* TODO(cdecker) Move this into common location for initialization */
 	struct peer *peer;
 	list_for_each(&ld->peers, peer, list) {
@@ -368,17 +361,14 @@ printf("check wallet\n");
 			}
 		}
 	}
-    printf("wallet_htlcs_reconnect\n");
     if (!wallet_htlcs_reconnect(ld->wallet, &ld->htlcs_in, &ld->htlcs_out))
 		fatal("could not reconnect htlcs loaded from wallet, wallet may be inconsistent.");
 
-    printf("wallet_first_blocknum\n");
 	/* Worst case, scan back to the first lightning deployment */
 	first_blocknum = wallet_first_blocknum(ld->wallet,
 					       get_chainparams(ld)
 					       ->when_lightning_became_cool);
 
-    printf("db_commit_transaction\n");
     db_commit_transaction(ld->wallet->db);
 
     printf("setup_topology\n");
@@ -388,7 +378,8 @@ printf("check wallet\n");
 		       ld->config.poll_time,
 		       first_blocknum);
 
-	/* Create RPC socket (if any) */
+    printf("done setup_topology\n");
+/* Create RPC socket (if any) */
 	setup_jsonrpc(ld, ld->rpc_filename);
 
 	/* Now we're about to start, become daemon if desired. */
@@ -400,6 +391,7 @@ printf("check wallet\n");
 		 type_to_string(tmpctx, struct pubkey, &ld->id),
 		 json_escape(tmpctx, (const char *)ld->alias)->s,
 		 tal_hex(tmpctx, ld->rgb), version());
+    printf("activate_peers\n");
 
 	/* Start the peers. */
 	activate_peers(ld);
