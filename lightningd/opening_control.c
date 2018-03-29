@@ -891,7 +891,7 @@ static void json_fund_channel(struct command *cmd,
 
 	if (fc->funding_satoshi > MAX_FUNDING_SATOSHI) {
 		command_fail(cmd, "Funding satoshi must be <= %lld",
-			     (uint64_t)MAX_FUNDING_SATOSHI);
+			     (long long)MAX_FUNDING_SATOSHI);
 		return;
 	}
 
