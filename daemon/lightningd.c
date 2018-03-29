@@ -72,7 +72,8 @@ AUTODATA(json_command, &dev_broadcast_command);
 
 int main(int argc, char *argv[])
 {
-	struct lightningd_state *dstate = lightningd_state();
+    printf("main0\n");
+    struct lightningd_state *dstate = lightningd_state();
     printf("main\n");
 
 	err_set_progname(argv[0]);
