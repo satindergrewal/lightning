@@ -83,7 +83,7 @@ ssize_t test_read(int fd UNUSED, void *buf, size_t len)
 #define TAILER	"] } }"
 #endif
 
-int main(int argc UNUSED, char *argv[])
+int main(int argc, char *argv[])
 {
 	char *fake_argv[] = { argv[0], "--lightning-dir=/tmp/", "test", NULL };
 
