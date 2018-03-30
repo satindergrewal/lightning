@@ -376,7 +376,7 @@ void* BET_hostdcv(void * _ptr)
 			{
 				printf("\n%s:%d,buf:%s",__FUNCTION__,__LINE__,buf);
 				gameInfo=cJSON_Parse(buf);
-				if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init"))
+				if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"method")),"init"))
 				{
 					numplayers++;
 					playerID=jint(gameInfo,"playerid");
@@ -397,7 +397,7 @@ void* BET_hostdcv(void * _ptr)
         		sg777_deckgen_vendor(playerid,cardprods[playerid],finalcards[playerid],range,playercards[playerid],deckid);
           }
 		  gameInfo=cJSON_CreateObject();
-		  cJSON_AddStringToObject(gameInfo,"messageid","init_d");
+		  cJSON_AddStringToObject(gameInfo,"method","init_d");
 		  jaddbits256(gameInfo,"deckid",deckid);
 		  cJSON_AddItemToObject(gameInfo,"cardprods",cjsoncardprods=cJSON_CreateArray());
 		  for(int i=0;i<numplayers;i++)

@@ -426,7 +426,7 @@ void* BET_request(void* _ptr)
 			if((j!=shareInfo->myplayerid) && (sharesflag[i][j]==0))
 			{				
 				shareReq=cJSON_CreateObject();
-				cJSON_AddStringToObject(shareReq,"messageid","request_share");
+				cJSON_AddStringToObject(shareReq,"method","request_share");
 				cJSON_AddNumberToObject(shareReq,"ofCardID",i);
 				cJSON_AddNumberToObject(shareReq,"ofPlayerID",j);
 				cJSON_AddNumberToObject(shareReq,"forPlayerID",shareInfo->myplayerid);
@@ -482,7 +482,7 @@ void* BET_response(void* _ptr)
 		{
 			
 		    share_res=cJSON_Parse(buf);
-			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(share_res,"messageid")),"request_share"))
+			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(share_res,"method")),"request_share"))
 			{
 				ofCardID=jint(share_res,"ofCardID");
 				ofPlayerID=jint(share_res,"ofPlayerID");
@@ -498,7 +498,7 @@ void* BET_response(void* _ptr)
 							memcpy(share.bytes,ptr,recvlen);
 							cJSON_Delete(share_res);
 							share_res=cJSON_CreateObject();
-							cJSON_AddStringToObject(share_res,"messageid","receive_share");
+							cJSON_AddStringToObject(share_res,"method","receive_share");
 							cJSON_AddNumberToObject(share_res,"ofCardID",ofCardID);
 							cJSON_AddNumberToObject(share_res,"ofPlayerID",ofPlayerID);
 							cJSON_AddNumberToObject(share_res,"forPlayerID",forPlayerID);
@@ -511,7 +511,7 @@ void* BET_response(void* _ptr)
 						}	
 					}
 				}
-			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(share_res,"messageid")),"receive_share"))
+			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(share_res,"method")),"receive_share"))
 			{
 				ofCardID=jint(share_res,"ofCardID");
 				ofPlayerID=jint(share_res,"ofPlayerID");
@@ -553,7 +553,7 @@ bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_
 	int32_t forPlayerID;
 	
 	shareInfo=cJSON_CreateObject();
-	cJSON_AddStringToObject(shareInfo,"messageid","request_share");
+	cJSON_AddStringToObject(shareInfo,"method","request_share");
 	cJSON_AddNumberToObject(shareInfo,"ofCardID",ofCardID);
 	cJSON_AddNumberToObject(shareInfo,"ofPlayerID",ofPlayerID);
 	cJSON_AddNumberToObject(shareInfo,"forPlayerID",bet->myplayerid);
@@ -569,12 +569,12 @@ bits256 BET_request_share(int32_t ofCardID,int32_t ofPlayerID,struct privatebet_
 		if(bytes>0)
 		{
 			shareInfo=cJSON_Parse(buf);
-			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"response_share"))
+			if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"method")),"response_share"))
 			{
 				share=jbits256(shareInfo,"share");
 				break;
         	}
-			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"messageid")),"request_share"))
+			else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(shareInfo,"method")),"request_share"))
 			{
 				forPlayerID=jint(shareInfo,"forPlayerID");
 				if(forPlayerID!=bet->myplayerid)
@@ -611,7 +611,7 @@ void BET_give_share(cJSON *shareInfo,struct privatebet_info *bet,bits256 bvv_pub
         	memcpy(share.bytes,ptr,recvlen);
 			cJSON_Delete(shareInfo);
 			shareInfo=cJSON_CreateObject();
-			cJSON_AddStringToObject(shareInfo,"messageid","response_share");
+			cJSON_AddStringToObject(shareInfo,"method","response_share");
 			cJSON_AddNumberToObject(shareInfo,"ofCardID",ofCardID);
 			cJSON_AddNumberToObject(shareInfo,"ofPlayerID",ofPlayerID);
 			cJSON_AddNumberToObject(shareInfo,"forPlayerID",forPlayerID);
@@ -662,7 +662,7 @@ void* BET_clientplayer(void * _ptr)
 		{
 			key = deckgen_player(playerprivs,playercards,permis,numcards);
 			playerInfo=cJSON_CreateObject();
-			cJSON_AddStringToObject(playerInfo,"messageid","init");
+			cJSON_AddStringToObject(playerInfo,"method","init");
 			cJSON_AddNumberToObject(playerInfo,"playerid",bet->myplayerid);
 			cJSON_AddNumberToObject(playerInfo,"range",bet->range);
 			jaddbits256(playerInfo,"publickey",key.prod);
@@ -683,7 +683,7 @@ void* BET_clientplayer(void * _ptr)
 				{
 					
 					gameInfo=cJSON_Parse(buf);
-					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"decode"))
+					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"method")),"decode"))
 					{
 						printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 						public_key_b=jbits256(gameInfo,"public_key_b");
@@ -745,7 +745,7 @@ void* BET_clientplayer(void * _ptr)
     				decodegood+= (numcards - errs);
 					printf("\nCards Decoded:%d, errored:%d",decodegood,decodebad);					
      				}
-					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d"))
+					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"method")),"init_d"))
 					{
 						printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
 						deckid=jbits256(gameInfo,"deckid");
@@ -771,7 +771,7 @@ void* BET_clientplayer(void * _ptr)
 						}
 
 					}
-					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"request_share"))
+					else if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"method")),"request_share"))
 					{
 						struct privatebet_share *share_info=NULL;
 						
@@ -818,7 +818,7 @@ void* BET_clientbvv(void * _ptr)
 				int bytes=nn_recv(bet->subsock,&buf,NN_MSG,0);
 				if(bytes>0)	{
 					gameInfo=cJSON_Parse(buf);
-					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init"))
+					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"method")),"init"))
 					{
 						numplayers++;
 						playerID=jint(gameInfo,"playerid");
@@ -839,7 +839,7 @@ void* BET_clientbvv(void * _ptr)
 				if(bytes>0)
 				{
 					gameInfo=cJSON_Parse(buf);
-					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init_d")) 
+					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"method")),"init_d")) 
 					{
 						deckid=jbits256(gameInfo,"deckid");
 						cjsonfinalcards=cJSON_GetObjectItem(gameInfo,"finalcards");
@@ -857,7 +857,7 @@ void* BET_clientbvv(void * _ptr)
     					}
 						cJSON_Delete(gameInfo);
 						gameInfo=cJSON_CreateObject();
-						cJSON_AddStringToObject(gameInfo,"messageid","decode");
+						cJSON_AddStringToObject(gameInfo,"method","decode");
 						jaddbits256(gameInfo,"public_key_b",b_key.prod);
 						cJSON_AddItemToObject(gameInfo,"blindedcards",cjsonblindedcards=cJSON_CreateArray());
 						for(int i=0;i<numplayers;i++) 
