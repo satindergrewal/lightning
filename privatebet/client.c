@@ -1031,7 +1031,7 @@ int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,str
 	cJSON_AddStringToObject(share_info,"method","share_info");
 	cJSON_AddNumberToObject(share_info,"playerid",bet->myplayerid);
 
-	rendered=cJSON_Print(argjson);
+	rendered=cJSON_Print(share_info);
 	bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
 	
 	if(bytes<0)
@@ -1050,6 +1050,7 @@ int32_t BET_p2p_client_turn(cJSON *argjson,struct privatebet_info *bet,struct pr
 	
 	if(playerid == bet->myplayerid)
 	{
+		no_of_shares++;
 		printf("\nIt's %d players turn",bet->myplayerid);
 	}
 	else 
