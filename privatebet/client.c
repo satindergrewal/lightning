@@ -1028,10 +1028,7 @@ int32_t BET_p2p_client_receive_share(cJSON *argjson,struct privatebet_info *bet,
 		if(bytes<0)
 			retval=-1;
 		else
-		{
 			retval=1;
-			no_of_shares=0;
-		}
 				
 	}
 	return retval;
