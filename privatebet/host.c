@@ -564,7 +564,23 @@ int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struc
 		return 1;
  }
 
-int32_t BET_p2p_dcv_start(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+int32_t BET_p2p_dcv_turn_status(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	int32_t retval;
+
+	if(strcmp(jstr(argjson,"status"),"complete") == 0)
+	{
+		retval=BET_p2p_dcv_turn(argjson,bet,vars);
+	}
+	else
+	{
+		//some action needs to be taken by DCV incase if the turn is not complete
+	}
+	
+	return retval;
+}
+
+int32_t BET_p2p_dcv_turn(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
 	int32_t retval=1,bytes;
 	cJSON *turninfo=NULL;
@@ -580,6 +596,10 @@ int32_t BET_p2p_dcv_start(cJSON *argjson,struct privatebet_info *bet,struct priv
 		retval=-1;	
 	
 	return retval;
+}
+int32_t BET_p2p_dcv_start(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	return BET_p2p_dcv_turn(argjson,bet,vars);
 }
 
 
@@ -618,6 +638,11 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 			printf("\n%s:%d:Game Start",__FUNCTION__,__LINE__);
 			BET_p2p_dcv_start(argjson,bet,vars);
 			
+		}
+		else if(strcmp(method,"turn_status") == 0)
+		{
+			printf("\n%s:%d:Game Start",__FUNCTION__,__LINE__);
+			BET_p2p_dcv_turn_status(argjson,bet,vars);
 		}
         else
     	{

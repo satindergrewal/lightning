@@ -1010,12 +1010,26 @@ void BET_p2p_bvvloop(void *_ptr)
 
 int32_t BET_p2p_client_receive_share(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-	int32_t retval;
-
+	int32_t retval,bytes;
+	cJSON *turn_status=NULL;
+	char *rendered=NULL;
 	no_of_shares++;
 	if(no_of_shares == bet->maxplayers)
 	{
+	
 		printf("\n%s:%d: You received enough number of shares",__FUNCTION__,__LINE__);
+		printf("\n");
+		turn_status=cJSON_CreateObject();
+		cJSON_AddStringToObject(turn_status,"method","turn_status");
+		cJSON_AddStringToObject(turn_status,"status","complete");
+		rendered=cJSON_Print(turn_status);
+		bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
+
+		if(bytes<0)
+			retval=-1;
+		else
+			retval=1;
+				
 	}
 	return retval;
 }
