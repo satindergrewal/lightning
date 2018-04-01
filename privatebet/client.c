@@ -1287,7 +1287,7 @@ int32_t BET_p2p_clientupdate(cJSON *argjson,struct privatebet_info *bet,struct p
 		{
 			retval=BET_p2p_client_give_share(argjson,bet,vars);
 		}
-		else if(strcmp(method,"receive_share") == 0)
+		else if(strcmp(method,"share_info") == 0)
 		{
 			retval=BET_p2p_client_receive_share(argjson,bet,vars);
 		}
