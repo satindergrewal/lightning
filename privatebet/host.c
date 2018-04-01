@@ -564,22 +564,6 @@ int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struc
 		return 1;
  }
 
-int32_t BET_p2p_dcv_turn_status(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
-{
-	int32_t retval;
-
-	if(strcmp(jstr(argjson,"status"),"complete") == 0)
-	{
-		retval=BET_p2p_dcv_turn(argjson,bet,vars);
-	}
-	else
-	{
-		//some action needs to be taken by DCV incase if the turn is not complete
-	}
-	
-	return retval;
-}
-
 int32_t BET_p2p_dcv_turn(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
 	int32_t retval=1,bytes;
@@ -597,6 +581,23 @@ int32_t BET_p2p_dcv_turn(cJSON *argjson,struct privatebet_info *bet,struct priva
 	
 	return retval;
 }
+
+int32_t BET_p2p_dcv_turn_status(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	int32_t retval;
+
+	if(strcmp(jstr(argjson,"status"),"complete") == 0)
+	{
+		retval=BET_p2p_dcv_turn(argjson,bet,vars);
+	}
+	else
+	{
+		//some action needs to be taken by DCV incase if the turn is not complete
+	}
+	
+	return retval;
+}
+
 int32_t BET_p2p_dcv_start(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
 	return BET_p2p_dcv_turn(argjson,bet,vars);

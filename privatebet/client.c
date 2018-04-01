@@ -1028,7 +1028,10 @@ int32_t BET_p2p_client_receive_share(cJSON *argjson,struct privatebet_info *bet,
 		if(bytes<0)
 			retval=-1;
 		else
+		{
 			retval=1;
+			no_of_shares=0;
+		}
 				
 	}
 	return retval;
@@ -1047,6 +1050,8 @@ int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,str
 
 	rendered=cJSON_Print(share_info);
 	bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
+
+	printf("\n%s:%d:data:%s",__FUNCTION__,__LINE__,bytes);
 	
 	if(bytes<0)
 		retval=-1;
