@@ -15,7 +15,7 @@
 
 struct deck_player_info player_info;
 struct deck_bvv_info bvv_info;
-
+int32_t no_of_shares=0;
 
 int32_t BET_client_onechip(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid)
 {
@@ -1007,11 +1007,56 @@ void BET_p2p_bvvloop(void *_ptr)
     }
 }
 
-int32_t BET_p2p_client_turn(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+
+int32_t BET_p2p_client_receive_share(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
 	int32_t retval;
-	
 
+	no_of_shares++;
+	if(no_of_shares == bet->maxplayers)
+	{
+		printf("\n%s:%d: You received enough number of shares",__FUNCTION__,__LINE__);
+	}
+	return retval;
+}
+
+
+
+int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	int32_t retval,bytes;
+	cJSON *share_info=NULL;		
+	char *rendered=NULL;
+	share_info=cJSON_CreateObject();
+	cJSON_AddStringToObject(share_info,"method","share_info");
+	cJSON_AddNumberToObject(share_info,"playerid",bet->myplayerid);
+
+	rendered=cJSON_Print(argjson);
+	bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
+	
+	if(bytes<0)
+		retval=-1;
+	else
+		retval=1;
+	
+	return retval;
+}
+
+int32_t BET_p2p_client_turn(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	int32_t retval,playerid;
+
+	playerid=jint(argjson,"playerid");
+	
+	if(playerid == bet->myplayerid)
+	{
+		printf("\nIt's %d players turn",bet->myplayerid);
+	}
+	else 
+	{
+		BET_p2p_client_give_share(argjson,bet,vars);
+	}
+	
 	
 	return retval;
 }
@@ -1222,6 +1267,14 @@ int32_t BET_p2p_clientupdate(cJSON *argjson,struct privatebet_info *bet,struct p
 		else if(strcmp(method,"turn") == 0)
 		{
 			retval=BET_p2p_client_turn(argjson,bet,vars);
+		}
+		else if(strcmp(method,"ask_share") == 0)
+		{
+			retval=BET_p2p_client_give_share(argjson,bet,vars);
+		}
+		else if(strcmp(method,"receive_share") == 0)
+		{
+			retval=BET_p2p_client_receive_share(argjson,bet,vars);
 		}
         else
         {
