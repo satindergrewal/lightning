@@ -17,7 +17,7 @@ struct privatebet_rawpeerln Rawpeersln[CARDS777_MAXPLAYERS+1],oldRawpeersln[CARD
 struct privatebet_peerln Peersln[CARDS777_MAXPLAYERS+1];
 int32_t Num_rawpeersln,oldNum_rawpeersln,Num_peersln,Numgames;
 int32_t players_joined=0;
-
+int32_t turn=0;
 struct deck_dcv_info dcv_info;
 
 struct privatebet_peerln *BET_peerln_find(char *peerid)
@@ -564,6 +564,25 @@ int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struc
 		return 1;
  }
 
+int32_t BET_p2p_dcv_start(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	int32_t retval=1,bytes;
+	cJSON *turninfo=NULL;
+	char *rendered=NULL;
+
+	turninfo=cJSON_CreateObject();
+	cJSON_AddStringToObject(turninfo,"method","turn");
+	cJSON_AddNumberToObject(turninfo,"playerid",(turn++)%bet->maxplayers);
+	rendered=cJSON_Print(turninfo);
+	bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
+
+	if(bytes<0)
+		retval=-1;	
+	
+	return retval;
+}
+
+
 int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     char *method; int32_t bytes,retval=1;
@@ -593,6 +612,12 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 				printf("\n%s:%d:DCV deck initialization is done",__FUNCTION__,__LINE__);
 				BET_p2p_host_deck_init_info(argjson,bet,vars);
 			}
+		}
+		else if((strcmp(method,"init_b") == 0) || (strcmp(method,"next_turn") == 0))
+		{
+			printf("\n%s:%d:Game Start",__FUNCTION__,__LINE__);
+			BET_p2p_dcv_start(argjson,bet,vars);
+			
 		}
         else
     	{

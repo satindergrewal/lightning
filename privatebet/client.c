@@ -1007,6 +1007,17 @@ void BET_p2p_bvvloop(void *_ptr)
     }
 }
 
+int32_t BET_p2p_client_turn(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	int32_t retval;
+	
+
+	
+	return retval;
+}
+
+
+
 int32_t BET_p2p_client_bvv_init(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 
 {
@@ -1042,6 +1053,9 @@ int32_t BET_p2p_client_bvv_init(cJSON *argjson,struct privatebet_info *bet,struc
 	            }
 	        }
 		}
+
+		#if 0
+		
 		for(int i=0;i<bet->range;i++)
 		{
 			for(int j=0;j<bet->range;j++)
@@ -1076,7 +1090,7 @@ int32_t BET_p2p_client_bvv_init(cJSON *argjson,struct privatebet_info *bet,struc
 	decodebad += errs;
 	decodegood+= (bet->range- errs);
 	printf("\nCards Decoded:%d, errored:%d",decodegood,decodebad);					
-
+	#endif
 	return retval;
 }
 
@@ -1204,6 +1218,10 @@ int32_t BET_p2p_clientupdate(cJSON *argjson,struct privatebet_info *bet,struct p
 		else if(strcmp(method,"init_b") == 0)
 		{
 			retval=BET_p2p_client_bvv_init(argjson,bet,vars);
+		}
+		else if(strcmp(method,"turn") == 0)
+		{
+			retval=BET_p2p_client_turn(argjson,bet,vars);
 		}
         else
         {
