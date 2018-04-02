@@ -318,6 +318,7 @@ struct deck_player_info
 	bits256 cardpubkeys[CARDS777_MAXCARDS],cardprivkeys[CARDS777_MAXCARDS];
 	int32_t permis[CARDS777_MAXCARDS];
 	bits256 cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXPLAYERS];
+	bits256 bvvblindcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
 	bits256 dcvpubkey,bvvpubkey,deckid;
 	uint32_t numplayers,maxplayers,numcards;
 };
