@@ -1120,18 +1120,20 @@ int32_t BET_p2p_client_receive_share(cJSON *argjson,struct privatebet_info *bet,
 
 		printf("\n%s:%d:: The card received is :%d",__FUNCTION__,__LINE__,unpermi);
 		printf("\n");
-		#if 0
-		turn_status=cJSON_CreateObject();
-		cJSON_AddStringToObject(turn_status,"method","turn_status");
-		cJSON_AddStringToObject(turn_status,"status","complete");
-		rendered=cJSON_Print(turn_status);
-		bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
+		if(unpermi != -1)
+		{
+			turn_status=cJSON_CreateObject();
+			cJSON_AddStringToObject(turn_status,"method","turn_status");
+			cJSON_AddStringToObject(turn_status,"status","complete");
+			rendered=cJSON_Print(turn_status);
+			bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
 
-		if(bytes<0)
-			retval=-1;
-		else
-			retval=1;
-		#endif		
+			if(bytes<0)
+				retval=-1;
+			else
+				retval=1;
+		}
+
 	}
 	return retval;
 }
