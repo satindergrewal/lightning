@@ -1161,6 +1161,7 @@ int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,str
 
 	//temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid)];
 	printf("\n%s:%d::location:%d",__FUNCTION__,__LINE__,playerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid));
+	printf("\n%s",enc_share_str(enc_share,temp));
 	printf("\n");
 	temp=g_shares[playerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid)];
 
@@ -1199,14 +1200,16 @@ int32_t BET_p2p_get_own_share(cJSON *argjson,struct privatebet_info *bet,struct 
 	int32_t cardid,retval,playerid,recvlen;
 	uint8_t decipher[sizeof(bits256) + 1024],*ptr;
 	bits256 share;
-	
+	char enc_share[177];
 	playerid=jint(argjson,"playerid");
 	cardid=jint(argjson,"cardid");
 	
 	printf("\n%s:%d::share location:%d",__FUNCTION__,__LINE__,bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid));
 	printf("\nbet->myplayerid:%d::cardid:%d::playerid:%d",bet->myplayerid,cardid,playerid);
+	
 	temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid)];
-    recvlen = sizeof(temp);
+	printf("\n%s",enc_share_str(enc_share,temp));
+	recvlen = sizeof(temp);
 
 	if ( (ptr= BET_decrypt(decipher,sizeof(decipher),player_info.bvvpubkey,player_info.player_key.priv,temp.bytes,&recvlen)) == 0 )
 	{
