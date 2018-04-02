@@ -1008,9 +1008,10 @@ struct pair256 p2p_bvv_init(bits256 *keys,struct pair256 b_key,bits256 *blinding
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-				printf("\nlocation:%d::%s",j*numplayers*numcards + (i*numplayers + playerid),bits256_str(str,cardshares[j]));
+				printf("\nlocation:%d::%s",numplayers*numcards*playerid+ i*numplayers + playerid,bits256_str(str,cardshares[j]));
 				BET_ciphercreate(b_key.priv,keys[j],temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
-				memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
+				//memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
+				memcpy(g_shares[numplayers*numcards*playerid+ i*numplayers + playerid].bytes,temp.bytes,sizeof(temp));
 			}
         }
     // when all players have submitted their finalcards, blinding vendor can send encrypted allshares for each player, see cards777.c
