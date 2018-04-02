@@ -1091,6 +1091,8 @@ int32_t BET_p2p_client_receive_share(cJSON *argjson,struct privatebet_info *bet,
 	share=jbits256(argjson,"share");
 	cardid=jint(argjson,"cardid");
 	playerid=jint(argjson,"playerid");
+
+	printf("\n%s:%d::storing the share:%d::share:%s",__FUNCTION__,__LINE__,playerid,bits256_str(str,share));
 	
 	playershares[cardid][playerid]=share;
 	sharesflag[cardid][playerid]=1;
@@ -1200,7 +1202,7 @@ int32_t BET_p2p_get_own_share(cJSON *argjson,struct privatebet_info *bet,struct 
 	int32_t cardid,retval,playerid,recvlen;
 	uint8_t decipher[sizeof(bits256) + 1024],*ptr;
 	bits256 share;
-	char enc_share[177];
+	char enc_share[177],str[65];
 	playerid=jint(argjson,"playerid");
 	cardid=jint(argjson,"cardid");
 	
@@ -1219,8 +1221,10 @@ int32_t BET_p2p_get_own_share(cJSON *argjson,struct privatebet_info *bet,struct 
 	else
 	{
 		memcpy(share.bytes,ptr,recvlen);
-		playershares[cardid][bet->playerid]=share;
-		sharesflag[cardid][bet->playerid]=1;
+		playershares[cardid][bet->myplayerid]=share;
+		sharesflag[cardid][bet->myplayerid]=1;
+		printf("\n%s:%d::storing the share:%d :: share:%s",__FUNCTION__,__LINE__,playerid,bits256_str(str,share));
+		printf("\n");
 	}
 	return retval;
 
