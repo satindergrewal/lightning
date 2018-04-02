@@ -1198,7 +1198,8 @@ int32_t BET_p2p_get_own_share(cJSON *argjson,struct privatebet_info *bet,struct 
 	playerid=jint(argjson,"playerid");
 	cardid=jint(argjson,"cardid");
 	
-
+	printf("\n%s:%d::share location:%d",__FUNCTION__,__LINE__,bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid));
+	printf("\nbet->myplayerid:%d::cardid:%d::playerid:%d",bet->myplayerid,cardid,playerid);
 	temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid)];
     recvlen = sizeof(temp);
 
@@ -1209,9 +1210,9 @@ int32_t BET_p2p_get_own_share(cJSON *argjson,struct privatebet_info *bet,struct 
 	}
 	else
 	{
-			memcpy(share.bytes,ptr,recvlen);
-			playershares[cardid][playerid]=share;
-			sharesflag[cardid][playerid]=1;
+		memcpy(share.bytes,ptr,recvlen);
+		playershares[cardid][playerid]=share;
+		sharesflag[cardid][playerid]=1;
 	}
 	return retval;
 
