@@ -1050,10 +1050,10 @@ int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,str
 	printf("\n%s:%d",__FUNCTION__,__LINE__);
 	playerid=jint(argjson,"playerid");
 	cardid=jint(argjson,"cardid");
-	
+
 	temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid)];
     recvlen = sizeof(temp);
-
+	#if 0
 	if ( (ptr= BET_decrypt(decipher,sizeof(decipher),player_info.bvvpubkey,player_info.player_key.priv,temp.bytes,&recvlen)) == 0 )
 	{
 		retval=-1;
@@ -1077,6 +1077,7 @@ int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,str
 		else
 			retval=1;
 	}
+	#endif
 	return retval;
 }
 
@@ -1152,7 +1153,7 @@ int32_t BET_p2p_client_bvv_init(cJSON *argjson,struct privatebet_info *bet,struc
 			}
 		}
 
-    	#if 1
+    	#if 0
 	   for(int i=0;i<bet->range;i++)
 	   {
 		    decoded256 = t_sg777_player_decode(bet,i,bet->numplayers,player_info.player_key,player_info.bvvpubkey,bvvblindcards[bet->myplayerid][i],

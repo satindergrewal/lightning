@@ -612,6 +612,22 @@ int32_t BET_p2p_dcv_start(cJSON *argjson,struct privatebet_info *bet,struct priv
 }
 
 
+int32_t BET_relay(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	int32_t retval,bytes;
+	char *rendered=NULL;
+
+	rendered=cJSON_Print(argjson);
+	bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
+
+	if(bytes<0)
+		retval=-1;
+	else
+		retval=1;
+	
+	return retval;
+}
+
 int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     char *method; int32_t bytes,retval=1;
@@ -645,6 +661,13 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 		else if((strcmp(method,"init_b") == 0) || (strcmp(method,"next_turn") == 0))
 		{
 			printf("\n%s:%d:Game Start",__FUNCTION__,__LINE__);
+
+			if(strcmp(method,"init_b") == 0)
+			{
+				BET_relay(argjson,bet,vars);
+			}
+
+			
 			BET_p2p_dcv_start(argjson,bet,vars);
 			
 		}
