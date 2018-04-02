@@ -591,8 +591,10 @@ int32_t BET_p2p_dcv_turn_status(cJSON *argjson,struct privatebet_info *bet,struc
 		no_of_cards++;
 		printf("\n %s:%d::turn:%d is complete",__FUNCTION__,__LINE__,turn);
 		printf("\n");
+		#if 0
 		if(no_of_cards<2)
 			retval=BET_p2p_dcv_turn(argjson,bet,vars);
+		#endif
 	}
 	else
 	{
