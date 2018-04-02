@@ -911,6 +911,7 @@ int32_t BET_p2p_bvv_init(cJSON *argjson,struct privatebet_info *bet,struct priva
 	bvv_info.bvv_key.priv=curve25519_keypair(&bvv_info.bvv_key.prod);
 	cjsonpeerpubkeys=cJSON_GetObjectItem(argjson,"peerpubkeys");
 	cjsondcvblindcards=cJSON_GetObjectItem(argjson,"dcvblindcards");
+	
 	for(int playerID=0;playerID<bvv_info.maxplayers;playerID++) 
 	{
 		peerpubkeys[playerID]=jbits256i(cjsonpeerpubkeys,playerID);
@@ -1008,18 +1009,62 @@ void BET_p2p_bvvloop(void *_ptr)
 }
 
 
+int32_t BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t cardid)
+{
+	int32_t retval,numplayers,numcards,M;
+	bits256 recover,decoded;
+	uint8_t **shares;
+    uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
+	char str[65];
+	
+	numplayers=bet->maxplayers;
+	numcards=bet->range;
+	shares=calloc(numplayers,sizeof(uint8_t*));
+    for(int i=0;i<numplayers;i++)
+        shares[i]=calloc(sizeof(bits256),sizeof(uint8_t));
+    
+   
+
+	
+	M=(numplayers/2)+1;
+	for(int i=0;i<M;i++) 
+	{
+		memcpy(shares[i],playershares[cardid][i].bytes,sizeof(bits256));
+	}
+	gfshare_calc_sharenrs(sharenrs,numplayers,player_info.deckid.bytes,sizeof(player_info.deckid)); // same for all players for this round
+
+	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
+
+	printf("\nThe blinded value is:%s", bits256_str(str,recover));
+	printf("\n");
+	
+	return retval;
+}
+
 int32_t BET_p2p_client_receive_share(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-	int32_t retval,bytes;
+	int32_t retval,bytes,cardid,playerid;
 	cJSON *turn_status=NULL;
 	char *rendered=NULL;
+	bits256 share;
+	
+	share=jbits256(argjson,"share");
+	cardid=jint(argjson,"cardid");
+	playerid=jint(argjson,"playerid");
+	
+	playershares[cardid][playerid]=share;
+	sharesflag[cardid][playerid]=1;
+
+	
 	no_of_shares++;
 	printf("\n%s:%d::number of shares:%d",__FUNCTION__,__LINE__,no_of_shares);
 	if(no_of_shares == bet->maxplayers)
 	{
-	
+
+		BET_p2p_decode_card(argjson,bet,vars,cardid);	
 		printf("\n%s:%d: You received enough number of shares",__FUNCTION__,__LINE__);
 		printf("\n");
+		#if 0
 		turn_status=cJSON_CreateObject();
 		cJSON_AddStringToObject(turn_status,"method","turn_status");
 		cJSON_AddStringToObject(turn_status,"status","complete");
@@ -1030,7 +1075,7 @@ int32_t BET_p2p_client_receive_share(cJSON *argjson,struct privatebet_info *bet,
 			retval=-1;
 		else
 			retval=1;
-				
+		#endif		
 	}
 	return retval;
 }
@@ -1053,7 +1098,7 @@ int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,str
 
 	temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid)];
     recvlen = sizeof(temp);
-	#if 0
+
 	if ( (ptr= BET_decrypt(decipher,sizeof(decipher),player_info.bvvpubkey,player_info.player_key.priv,temp.bytes,&recvlen)) == 0 )
 	{
 		retval=-1;
@@ -1077,11 +1122,37 @@ int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,str
 		else
 			retval=1;
 	}
-	#endif
 	return retval;
 }
 
+int32_t BET_p2p_get_own_share(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	struct enc_share temp;
+	int32_t cardid,retval,playerid;
+	uint8_t decipher[sizeof(bits256) + 1024],*ptr;
+	bits256 share;
+	
+	playerid=jint(argjson,"playerid");
+	cardid=jint(argjson,"cardid");
+	
 
+	temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid)];
+    recvlen = sizeof(temp);
+
+	if ( (ptr= BET_decrypt(decipher,sizeof(decipher),player_info.bvvpubkey,player_info.player_key.priv,temp.bytes,&recvlen)) == 0 )
+	{
+		retval=-1;
+		printf("decrypt error ");
+	}
+	else
+	{
+			memcpy(share.bytes,ptr,recvlen);
+			playershares[cardid][playerid]=share;
+			sharesflag[cardid][playerid]=1;
+	}
+	return retval;
+
+}
 int32_t BET_p2p_client_turn(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
 	int32_t retval,playerid;
@@ -1094,6 +1165,7 @@ int32_t BET_p2p_client_turn(cJSON *argjson,struct privatebet_info *bet,struct pr
 	{
 		no_of_shares=1;
 		printf("\nIt's %d players turn:: number of shares:%d",bet->myplayerid,no_of_shares);
+		BET_p2p_get_own_share(argjson,bet,vars);
 	}
 	else 
 	{

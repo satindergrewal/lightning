@@ -995,9 +995,10 @@ struct pair256 p2p_bvv_init(bits256 *keys,struct pair256 b_key,bits256 *blinding
 	for (i=0; i<numcards; i++)
     {
         blindings[i] = rand256(1);
+		printf("\n%s:%d:playerid:%d:blinding value:%s",__FUNCTION__,__LINE__,playerid,bits256_str(str,blindings[i]));
 		blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
 		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
-		}
+	}
     M = (numplayers/2) + 1;
     
     gfshare_calc_sharenrs(sharenrs,numplayers,deckid.bytes,sizeof(deckid)); // same for all players for this round
