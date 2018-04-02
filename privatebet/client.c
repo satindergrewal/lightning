@@ -1041,6 +1041,9 @@ int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,str
 	int32_t retval,bytes;
 	cJSON *share_info=NULL;		
 	char *rendered=NULL;
+
+	printf("\n%s:%d",__FUNCTION__,__LINE__);
+	
 	share_info=cJSON_CreateObject();
 	cJSON_AddStringToObject(share_info,"method","share_info");
 	cJSON_AddNumberToObject(share_info,"playerid",bet->myplayerid);
