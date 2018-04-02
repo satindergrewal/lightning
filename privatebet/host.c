@@ -572,7 +572,9 @@ int32_t BET_p2p_dcv_turn(cJSON *argjson,struct privatebet_info *bet,struct priva
 
 	turninfo=cJSON_CreateObject();
 	cJSON_AddStringToObject(turninfo,"method","turn");
-	cJSON_AddNumberToObject(turninfo,"playerid",(turn++)%bet->maxplayers);
+	cJSON_AddNumberToObject(turninfo,"playerid",(turn)%bet->maxplayers);
+	cJSON_AddNumberToObject(turninfo,"cardid",turn);
+	turn++;
 	rendered=cJSON_Print(turninfo);
 	bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
 
