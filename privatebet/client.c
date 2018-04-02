@@ -1062,6 +1062,8 @@ int32_t BET_p2p_client_turn(cJSON *argjson,struct privatebet_info *bet,struct pr
 {
 	int32_t retval,playerid;
 
+	printf("\n%s:%d:data:%s",__FUNCTION__,__LINE__,cJSON_Print(argjson));			
+	
 	playerid=jint(argjson,"playerid");
 	
 	if(playerid == bet->myplayerid)
