@@ -17,7 +17,7 @@ struct privatebet_rawpeerln Rawpeersln[CARDS777_MAXPLAYERS+1],oldRawpeersln[CARD
 struct privatebet_peerln Peersln[CARDS777_MAXPLAYERS+1];
 int32_t Num_rawpeersln,oldNum_rawpeersln,Num_peersln,Numgames;
 int32_t players_joined=0;
-int32_t turn=0;
+int32_t turn=0,no_of_cards=0;
 struct deck_dcv_info dcv_info;
 
 struct privatebet_peerln *BET_peerln_find(char *peerid)
@@ -588,10 +588,10 @@ int32_t BET_p2p_dcv_turn_status(cJSON *argjson,struct privatebet_info *bet,struc
 
 	if(strcmp(jstr(argjson,"status"),"complete") == 0)
 	{
-		turn++;
+		no_of_cards++;
 		printf("\n %s:%d::turn:%d is complete",__FUNCTION__,__LINE__,turn);
 		printf("\n");
-		if(turn<2)
+		if(no_of_cards<2)
 			retval=BET_p2p_dcv_turn(argjson,bet,vars);
 	}
 	else
