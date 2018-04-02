@@ -1161,7 +1161,7 @@ int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,str
 
 	//temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid)];
 	printf("\n%s:%d::location:%d",__FUNCTION__,__LINE__,playerid*bet->numplayers*bet->range + (cardid*bet->numplayers + bet->myplayerid));
-	printf("\n%s",enc_share_str(enc_share,temp));
+	printf("\n%s",enc_share_str(enc_str,temp));
 	printf("\n");
 	temp=g_shares[playerid*bet->numplayers*bet->range + (cardid*bet->numplayers + bet->myplayerid)];
 
@@ -1219,8 +1219,8 @@ int32_t BET_p2p_get_own_share(cJSON *argjson,struct privatebet_info *bet,struct 
 	else
 	{
 		memcpy(share.bytes,ptr,recvlen);
-		playershares[cardid][playerid]=share;
-		sharesflag[cardid][playerid]=1;
+		playershares[cardid][bet->playerid]=share;
+		sharesflag[cardid][bet->playerid]=1;
 	}
 	return retval;
 
