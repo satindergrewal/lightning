@@ -590,7 +590,7 @@ int32_t BET_p2p_dcv_turn_status(cJSON *argjson,struct privatebet_info *bet,struc
 	{
 		printf("\n %s:%d::turn:%d is complete",__FUNCTION__,__LINE__,turn);
 		printf("\n");
-		//retval=BET_p2p_dcv_turn(argjson,bet,vars);
+		retval=BET_p2p_dcv_turn(argjson,bet,vars);
 	}
 	else
 	{
