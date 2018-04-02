@@ -1181,6 +1181,7 @@ int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,str
 		share_info=cJSON_CreateObject();
 		cJSON_AddStringToObject(share_info,"method","share_info");
 		cJSON_AddNumberToObject(share_info,"playerid",bet->myplayerid);
+		cJSON_AddNumberToObject(share_info,"cardid",cardid);
 		jaddbits256(share_info,"share",share);
 		
 		rendered=cJSON_Print(share_info);
