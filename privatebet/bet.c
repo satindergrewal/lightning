@@ -1008,7 +1008,7 @@ struct pair256 p2p_bvv_init(bits256 *keys,struct pair256 b_key,bits256 *blinding
             gfshare_calc_shares(cardshares[0].bytes,blindings[i].bytes,sizeof(bits256),sizeof(bits256),M,numplayers,sharenrs,space,sizeof(space));
             // create combined allshares
             for (j=0; j<numplayers; j++) {
-				printf("\n%s",bits256_str(str,cardshares[i]));
+				printf("\n%s",bits256_str(str,cardshares[j]));
 				BET_ciphercreate(b_key.priv,keys[j],temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
 				memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
 			}
