@@ -1009,7 +1009,7 @@ void BET_p2p_bvvloop(void *_ptr)
 }
 
 
-int32_t BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t cardid)
+bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t cardid)
 {
 	int32_t retval,numplayers,numcards,M,playerid,flag;
 	bits256 recover,decoded,refval,tmp,xoverz,hash,fe,basepoint;
@@ -1078,15 +1078,15 @@ int32_t BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 
 	
 	
-	return retval;
+	return tmp;
 }
 
 int32_t BET_p2p_client_receive_share(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
 {
-	int32_t retval,bytes,cardid,playerid;
+	int32_t retval,bytes,cardid,playerid,errs,unpermi;
 	cJSON *turn_status=NULL;
 	char *rendered=NULL;
-	bits256 share;
+	bits256 share,decoded256;
 	
 	share=jbits256(argjson,"share");
 	cardid=jint(argjson,"cardid");
@@ -1100,9 +1100,25 @@ int32_t BET_p2p_client_receive_share(cJSON *argjson,struct privatebet_info *bet,
 	printf("\n%s:%d::number of shares:%d",__FUNCTION__,__LINE__,no_of_shares);
 	if(no_of_shares == bet->maxplayers)
 	{
-
-		BET_p2p_decode_card(argjson,bet,vars,cardid);	
+		
 		printf("\n%s:%d: You received enough number of shares",__FUNCTION__,__LINE__);
+		decoded256 = BET_p2p_decode_card(argjson,bet,vars,cardid);	
+		if ( bits256_nonz(decoded256) == 0 )
+			errs++;
+		else
+		{
+	        unpermi=-1;
+            for(int k=0;k<bet->range;k++)
+			{
+                if(player_info.permis[k]==decoded256.bytes[30])
+				{
+                    unpermi=k;
+                    break;
+                }
+            }
+		}
+
+		printf("\n%s:%d:: The card received is :%d",__FUNCTION__,__LINE__,unpermi);
 		printf("\n");
 		#if 0
 		turn_status=cJSON_CreateObject();
