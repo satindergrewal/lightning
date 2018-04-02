@@ -385,5 +385,6 @@ bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int num
 
 struct pair256 p2p_bvv_init(bits256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid);
 
+bits256 curve25519_fieldelement(bits256 hash);
 
 

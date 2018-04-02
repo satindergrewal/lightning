@@ -1012,7 +1012,7 @@ void BET_p2p_bvvloop(void *_ptr)
 int32_t BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t cardid)
 {
 	int32_t retval,numplayers,numcards,M,playerid,flag;
-	bits256 recover,decoded,refval,tmp,xoverz,hash,fe,basepoint,;
+	bits256 recover,decoded,refval,tmp,xoverz,hash,fe,basepoint;
 	uint8_t **shares;
     uint8_t decipher[sizeof(bits256) + 1024],*ptr; int32_t recvlen;
 	char str[65];
@@ -1042,7 +1042,7 @@ int32_t BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 	{
 		for(int j=0;j<bet->range;j++)
 		{
-			bits256 temp=xoverz_donna(curve25519(player_info.player_key.priv,curve25519(player_info.cardprivkeys[i],player_info.cardprods[j])));
+			bits256 temp=xoverz_donna(curve25519(player_info.player_key.priv,curve25519(player_info.cardprivkeys[i],player_info.cardprods[bet->myplayerid][j])));
 			vcalc_sha256(0,v_hash[i][j].bytes,temp.bytes,sizeof(temp));
 		}
 	}
@@ -1055,12 +1055,12 @@ int32_t BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
         {
         	if ( bits256_cmp(v_hash[i][j],g_hash[bet->myplayerid][cardid]) == 0 )
 			{
-	            tmp = curve25519(player_info.player_key.priv,curve25519(player_info.cardprivkeys[i],player_info.cardprods[j]));
+	            tmp = curve25519(player_info.player_key.priv,curve25519(player_info.cardprivkeys[i],player_info.cardprods[bet->myplayerid][j]));
 	            xoverz = xoverz_donna(tmp);
 	            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
 	            fe = crecip_donna(curve25519_fieldelement(hash));
 	            decoded = curve25519(fmul_donna(refval,fe),basepoint);
-	            if ( bits256_cmp(decoded,player_info.cardprods[j]) == 0 )
+	            if ( bits256_cmp(decoded,player_info.cardprods[bet->myplayerid][j]) == 0 )
 	            {
 	                printf("\nplayer.%d decoded card %s value %d\n",bet->myplayerid,bits256_str(str,decoded),player_info.cardprivkeys[i].bytes[30]);
 					printf("\n");
@@ -1237,7 +1237,7 @@ int32_t BET_p2p_client_bvv_init(cJSON *argjson,struct privatebet_info *bet,struc
 		{
 			for(int j=0;j<bet->range;j++)
 			{
-				player_info.bvvblindcards[i][j]==jbits256i(cjsonbvvblindcards,i*bet->range+j);
+				player_info.bvvblindcards[i][j]=jbits256i(cjsonbvvblindcards,i*bet->range+j);
 			}
 		}
 		cjsonshamirshards=cJSON_GetObjectItem(argjson,"shamirshards");
