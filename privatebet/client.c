@@ -1264,6 +1264,8 @@ int32_t BET_p2p_client_bvv_init(cJSON *argjson,struct privatebet_info *bet,struc
 				player_info.bvvblindcards[i][j]=jbits256i(cjsonbvvblindcards,i*bet->range+j);
 			}
 		}
+
+
 		cjsonshamirshards=cJSON_GetObjectItem(argjson,"shamirshards");
 		int k=0;
 		for(int playerid=0;playerid<bet->numplayers;playerid++)
@@ -1272,7 +1274,7 @@ int32_t BET_p2p_client_bvv_init(cJSON *argjson,struct privatebet_info *bet,struc
 	        {
 	            for (int j=0; j<bet->numplayers; j++) 
 				{
-					g_shares[k]=get_API_enc_share(cJSON_GetArrayItem(cjsonshamirshards,k));
+					g_shares[j*bet->numplayers*bet->range+ (i*bet->numplayers + playerid)]=get_API_enc_share(cJSON_GetArrayItem(cjsonshamirshards,k));
 					k++;
 	            }
 	        }
