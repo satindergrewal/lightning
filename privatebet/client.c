@@ -1160,9 +1160,9 @@ int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,str
 	cardid=jint(argjson,"cardid");
 
 	//temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid)];
-	printf("\n%s:%d::location:%d",__FUNCTION__,__LINE__,bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid));
+	printf("\n%s:%d::location:%d",__FUNCTION__,__LINE__,playerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid));
 	printf("\n");
-	temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid)];
+	temp=g_shares[playerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid)];
 
     recvlen = sizeof(temp);
 
