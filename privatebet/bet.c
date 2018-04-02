@@ -1010,9 +1010,6 @@ struct pair256 p2p_bvv_init(bits256 *keys,struct pair256 b_key,bits256 *blinding
             for (j=0; j<numplayers; j++) {
 				printf("\nlocation:%d::%s",numplayers*numcards*playerid+ i*numplayers + j,bits256_str(str,cardshares[j]));
 				BET_ciphercreate(b_key.priv,keys[j],temp.bytes,cardshares[j].bytes,sizeof(cardshares[j]));
-				//memcpy(g_shares[j*numplayers*numcards + (i*numplayers + playerid)].bytes,temp.bytes,sizeof(temp));
-				printf("\n%s",enc_share_str(share_str,temp));
-				
 				memcpy(g_shares[numplayers*numcards*playerid+ i*numplayers + j].bytes,temp.bytes,sizeof(temp));
 			}
         }
