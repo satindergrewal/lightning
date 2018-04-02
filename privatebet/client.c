@@ -1072,7 +1072,7 @@ int32_t BET_p2p_client_turn(cJSON *argjson,struct privatebet_info *bet,struct pr
 	
 	if(playerid == bet->myplayerid)
 	{
-		no_of_shares++;
+		no_of_shares=1;
 		printf("\nIt's %d players turn:: number of shares:%d",bet->myplayerid,no_of_shares);
 	}
 	else 
