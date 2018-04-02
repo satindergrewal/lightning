@@ -1014,6 +1014,7 @@ int32_t BET_p2p_client_receive_share(cJSON *argjson,struct privatebet_info *bet,
 	cJSON *turn_status=NULL;
 	char *rendered=NULL;
 	no_of_shares++;
+	printf("\n%s:%d::number of shares:%d",__FUNCTION__,__LINE__,no_of_shares);
 	if(no_of_shares == bet->maxplayers)
 	{
 	
@@ -1072,7 +1073,7 @@ int32_t BET_p2p_client_turn(cJSON *argjson,struct privatebet_info *bet,struct pr
 	if(playerid == bet->myplayerid)
 	{
 		no_of_shares++;
-		printf("\nIt's %d players turn",bet->myplayerid);
+		printf("\nIt's %d players turn:: number of shares:%d",bet->myplayerid,no_of_shares);
 	}
 	else 
 	{
