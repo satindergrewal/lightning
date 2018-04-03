@@ -996,6 +996,7 @@ struct pair256 p2p_bvv_init(bits256 *keys,struct pair256 b_key,bits256 *blinding
     {
         blindings[i] = rand256(1);
 		printf("\n%s:%d:playerid:%d:blinding value:%s",__FUNCTION__,__LINE__,playerid,bits256_str(str,blindings[i]));
+		printf("\n%s:%d: The DCV card blinded is :%s",__FUNCTION__,__LINE__,bits256_str(str,finalcards[permis_b[i]]));
 		blindedcards[i] = fmul_donna(finalcards[permis_b[i]],blindings[i]);
 		g_hash[playerid][i]=temp_hash[permis_b[i]];//optimization
 	}

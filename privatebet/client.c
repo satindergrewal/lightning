@@ -1033,11 +1033,13 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 
 	printf("\nThe blinded value is:%s", bits256_str(str,recover));
-	printf("\n");
 
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 	refval = fmul_donna(player_info.bvvblindcards[bet->myplayerid][cardid],crecip_donna(recover));
 
+	printf("\nThe unblinded value is :%s",bits256_str(str,refval));
+	printf("\n");
+	
 	for(int i=0;i<bet->range;i++)
 	{
 		for(int j=0;j<bet->range;j++)
