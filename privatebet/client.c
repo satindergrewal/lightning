@@ -1049,6 +1049,18 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 		}
 	}
 
+	printf("\nComparision of hashes");
+	for(int i=0;i<bet->range;i++)
+	{
+		for(int j=0;j<bet->range;j++)
+		{
+			if(bits256_cmp(v_hash[i][j],g_hash[i][j])!=0)
+			{
+					printf("\nSomething Wrong");
+					printf("\n");
+			}
+		}
+	}
 
 	basepoint=curve25519_basepoint9();
 	for (int i=0; i<bet->range; i++)
