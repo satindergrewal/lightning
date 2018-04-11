@@ -1418,7 +1418,7 @@ int32_t BET_p2p_client_init(cJSON *argjson,struct privatebet_info *bet,struct pr
 	cJSON_AddNumberToObject(init_p,"peerid",bet->myplayerid);
 	jaddbits256(init_p,"pubkey",player_info.player_key.prod);
 	cJSON_AddItemToObject(init_p,"cardinfo",cjsonplayercards=cJSON_CreateArray());
-	for(int i=0;i<bet->maxplayers;i++) 
+	for(int i=0;i<bet->range;i++) 
 	{
 		cJSON_AddItemToArray(cjsonplayercards,cJSON_CreateString(bits256_str(str,player_info.cardpubkeys[i])));
 	}
