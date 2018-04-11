@@ -1059,10 +1059,12 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 			{
 	            tmp = curve25519(player_info.player_key.priv,curve25519(player_info.cardprivkeys[i],player_info.cardprods[bet->myplayerid][j]));
 	            xoverz = xoverz_donna(tmp);
-				printf("\nThe succeeded xoverz value is:%s",bits256_str(str,xoverz));
 	            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+				printf("\nThe hash is:%s",bits256_str(str,hash));
+
 	            fe = crecip_donna(curve25519_fieldelement(hash));
 				printf("\nThe DCV blinding value is:%s",bits256_str(str,fmul_donna(refval,fe)));
+
 	            decoded = curve25519(fmul_donna(refval,fe),basepoint);
 				printf("\nThe succeeded decoded value is:%s",bits256_str(str,decoded));
 	            if ( bits256_cmp(decoded,player_info.cardprods[bet->myplayerid][cardid]) == 0 )

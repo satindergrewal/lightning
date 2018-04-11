@@ -799,14 +799,19 @@ int32_t sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256 *final
 	else
 		retval=-1;
 	
-	printf("\nXoverZ values are:playerid:%d",playerid);	
+	printf("\nHash values are:playerid:%d",playerid);	
     for (int32_t i=0; i<numcards; i++)
     {
         xoverz = xoverz_donna(curve25519(randcards[i].priv,playercards[i]));
-		printf("\n%s",bits256_str(str,xoverz));
-        vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+		vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+		printf("\n%s",bits256_str(str,hash));
 		hash_temp[i]=hash; //optimization
 		tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
+
+		
+		
+		printf("\nSecret:%s:%s",bits256_str(str,fmul_donna(crecip_donna(curve25519_fieldelement(hash)),tmp[i])),bits256_str(str,randcards[i].priv));	
+		
     }
     printf("\nDCV blinding values:playerid:%d\n",playerid);
     for (int32_t i=0; i<numcards; i++)
