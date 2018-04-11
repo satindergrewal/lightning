@@ -506,6 +506,7 @@ int32_t BET_p2p_host_init(cJSON *argjson,struct privatebet_info *bet,struct priv
 	cJSON *cardinfo=NULL;
 	char str[65];
 
+	
   	peerid=jint(argjson,"peerid");
   	cardinfo=cJSON_GetObjectItem(argjson,"cardinfo");
 	for(int i=0;i<cJSON_GetArraySize(cardinfo);i++)

@@ -592,6 +592,13 @@ struct pair256 deckgen_common1(struct pair256 *randcards,int32_t numcards)
     return(key);
 }
 
+void deckgen_common2(struct pair256 *randcards,int32_t numcards)
+{
+	 for (int32_t i=0; i<numcards; i++)
+		randcards[i].priv=curve25519_keypair(&randcards[i].prod);
+   
+}
+
 
 void dekgen_vendor_perm(int numcards)
 {
@@ -781,32 +788,31 @@ int32_t players_init(int32_t numplayers,int32_t numcards,bits256 deckid)
     printf("numplayers.%d numcards.%d deck %s -> numgames.%d playererrs.%d ordering.(good.%d bad.%d) decode.[good %d, bad %d]\n",numplayers,numcards,bits256_str(str,deckid),numgames,playererrs,good,bad,decodegood,decodebad);
     return(playererrs);
 }
-struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid) // given playercards[], returns cardprods[] and finalcards[]
+int32_t sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid) // given playercards[], returns cardprods[] and finalcards[]
 {
-    static struct pair256 key,randcards[256]; static bits256 active_deckid,hash_temp[CARDS777_MAXCARDS];
-    int32_t i,j,permis[256]; bits256 hash,xoverz,tmp[256];
-    if ( bits256_cmp(deckid,active_deckid) != 0 )
-        key=deckgen_common1(randcards,numcards);
-        
-        for (i=0; i<numcards; i++)
-        {
-            xoverz = xoverz_donna(curve25519(randcards[i].priv,playercards[i]));
-            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
-			hash_temp[i]=hash; //optimization
-			tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
-			
-        }
+    static struct pair256 randcards[256]; static bits256 active_deckid,hash_temp[CARDS777_MAXCARDS];
+    int32_t retval=1; bits256 hash,xoverz,tmp[256];
+
+	if ( bits256_cmp(deckid,active_deckid) != 0 )
+        deckgen_common2(randcards,numcards);
+	else
+		retval=-1;
+	    
+    for (int32_t i=0; i<numcards; i++)
+    {
+        xoverz = xoverz_donna(curve25519(randcards[i].priv,playercards[i]));
+        vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+		hash_temp[i]=hash; //optimization
+		tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
+    }
     
-    for (i=0; i<numcards; i++)
+    for (int32_t i=0; i<numcards; i++)
     {
         finalcards[i] = tmp[permis_d[i]];
 		g_hash[playerid][i]=hash_temp[permis_d[i]];//optimization
 		cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
-        
-        
-    }
-    
-    return key;
+     }
+	return retval;
 }
 bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int numplayers,struct pair256 key,bits256 public_key_b,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t numcards)
 {
