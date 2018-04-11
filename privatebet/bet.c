@@ -808,12 +808,13 @@ int32_t sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256 *final
 		hash_temp[i]=hash; //optimization
 		tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
     }
-    
+    printf("\nCardprods are:playerid:%d\n",playerid);
     for (int32_t i=0; i<numcards; i++)
     {
         finalcards[i] = tmp[permis_d[i]];
 		g_hash[playerid][i]=hash_temp[permis_d[i]];//optimization
 		cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
+		printf("\n%s",bits256_str(str,cardprods[i]));
      }
 	return retval;
 }

@@ -1063,6 +1063,7 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 	            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
 	            fe = crecip_donna(curve25519_fieldelement(hash));
 	            decoded = curve25519(fmul_donna(refval,fe),basepoint);
+				printf("\nThe succeeded decoded value is:%s",bits256_str(str,decoded));
 	            if ( bits256_cmp(decoded,player_info.cardprods[bet->myplayerid][j]) == 0 )
 	            {
 	                printf("\nplayer.%d decoded card %s value %d\n",bet->myplayerid,bits256_str(str,decoded),player_info.cardprivkeys[i].bytes[30]);
