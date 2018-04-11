@@ -487,7 +487,7 @@ int32_t BET_p2p_host_deck_init_info(cJSON *argjson,struct privatebet_info *bet,s
 	  rendered=cJSON_Print(deck_init_info);
 	  bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
 
-	  printf("\n%s:%d:data:%s",__FUNCTION__,__LINE__,rendered);
+	
 
 	  if(bytes<0)
 	  	retval=-1;
@@ -538,7 +538,7 @@ int32_t BET_p2p_host_start_init(struct privatebet_info *bet)
 	rendered=cJSON_Print(init);
 	bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
 
-	printf("\n%s:%d: data:%s",__FUNCTION__,__LINE__,rendered);
+	
 	return retval;
 }
 int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
@@ -557,7 +557,7 @@ int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struc
 
 	rendered=cJSON_Print(playerinfo);
 	bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
-	printf("\n%s:%d:bytes sent:%d,bytes:%s",__FUNCTION__,__LINE__,bytes,rendered);
+	
 
 	if(bytes<0)
 		return 0;
@@ -592,8 +592,6 @@ int32_t BET_p2p_dcv_turn_status(cJSON *argjson,struct privatebet_info *bet,struc
 	if(strcmp(jstr(argjson,"status"),"complete") == 0)
 	{
 		no_of_cards++;
-		printf("\n %s:%d::turn:%d is complete",__FUNCTION__,__LINE__,turn);
-		printf("\n");
 		if(no_of_cards<bet->range)
 			retval=BET_p2p_dcv_turn(argjson,bet,vars);
 
@@ -640,9 +638,7 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 			if(bet->numplayers<bet->maxplayers)
 			{
 				BET_p2p_client_join_req(argjson,bet,vars);
-                printf("\n%s:%d:numplayers:%d,maxplayers:%d",__FUNCTION__,__LINE__,bet->numplayers,bet->maxplayers);
-                printf("\n");
-				if(bet->numplayers==bet->maxplayers)
+                if(bet->numplayers==bet->maxplayers)
 				{
 					printf("\nTable is filled");
 					BET_p2p_host_start_init(bet);
@@ -654,7 +650,6 @@ int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct pr
 			BET_p2p_host_init(argjson,bet,vars);
 			if(dcv_info.numplayers==dcv_info.maxplayers)
 			{
-				printf("\n%s:%d:DCV deck initialization is done",__FUNCTION__,__LINE__);
 				BET_p2p_host_deck_init_info(argjson,bet,vars);
 			}
 		}
@@ -691,21 +686,20 @@ void BET_p2p_hostloop(void *_ptr)
 {
     uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; double lastmilli = 0.; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
     VARS = calloc(1,sizeof(*VARS));
-    printf("hostloop pubsock.%d pullsock.%d range.%d\n",bet->pubsock,bet->pullsock,bet->range);
-
+    
 	dcv_info.numplayers=0;
 	dcv_info.maxplayers=bet->maxplayers;
 	BET_permutation(dcv_info.permis,bet->range);
     dcv_info.deckid=rand256(0);
 	dcv_info.dcv_key.priv=curve25519_keypair(&dcv_info.dcv_key.prod);
 	
-	printf("\nThe DCV permutation of range:%d:",bet->range);
+	
 	for(int i=0;i<bet->range;i++)
 	{
 		permis_d[i]=dcv_info.permis[i];
-		printf("%d\t",permis_d[i]);
+	
 	}
-	printf("\n");
+	
     while ( bet->pullsock >= 0 && bet->pubsock >= 0 )
     {
         if ( (recvlen= nn_recv(bet->pullsock,&ptr,NN_MSG,0)) > 0 )

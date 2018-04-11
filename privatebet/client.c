@@ -674,7 +674,7 @@ void* BET_clientplayer(void * _ptr)
 			
 			char *rendered=cJSON_Print(playerInfo);
 			int bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
-			printf("\n%s:%d:bytes:%d,buf:%s",__FUNCTION__,__LINE__,bytes,rendered);
+			
 			while (1) 
 			{
 				char *buf = NULL;
@@ -685,7 +685,7 @@ void* BET_clientplayer(void * _ptr)
 					gameInfo=cJSON_Parse(buf);
 					if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"method")),"decode"))
 					{
-						printf("\n%s:%d:%s",__FUNCTION__,__LINE__,buf);
+						
 						public_key_b=jbits256(gameInfo,"public_key_b");
 						g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
 						cjsonblindedcards=cJSON_GetObjectItem(gameInfo,"blindedcards");
@@ -956,7 +956,7 @@ int32_t BET_p2p_bvv_init(cJSON *argjson,struct privatebet_info *bet,struct priva
 	rendered=cJSON_Print(bvv_init_info);
 	bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
 
-	printf("\n%s:%d:bvv init data:%s",__FUNCTION__,__LINE__,rendered);
+	
 	
 	if(bytes<0)
 		retval=-1;
@@ -971,7 +971,7 @@ int32_t BET_p2p_bvvcommand(cJSON *argjson,struct privatebet_info *bet,struct pri
 	
     if ( (method= jstr(argjson,"method")) != 0 )
     {
-    	printf("\n%s:%d:method:%s",__FUNCTION__,__LINE__,method);
+    	
    		if(strcmp(method,"init_d") == 0)
 		{
 			 BET_p2p_bvv_init(argjson,bet,vars);
@@ -1032,12 +1032,12 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 
-//	printf("\nThe blinded value is:%s", bits256_str(str,recover));
+
 
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 	refval = fmul_donna(player_info.bvvblindcards[bet->myplayerid][cardid],crecip_donna(recover));
 
-//	printf("\nThe unblinded value is :%s",bits256_str(str,refval));
+
 
 	
 	for(int i=0;i<bet->range;i++)
@@ -1066,15 +1066,12 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 			            xoverz = xoverz_donna(tmp);
 			            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
 
-						//printf("\nHash:%s",bits256_str(str,hash));
-						//printf("\nCard:%s",bits256_str(str,refval));
-
+						
 			            fe = crecip_donna(curve25519_fieldelement(hash));
 
 						decoded = curve25519(fmul_donna(refval,fe),basepoint);
 
-						//printf("\ndecoded: %s",bits256_str(str,decoded));
-
+						
 						for(int k=0;k<bet->range;k++)
 						{
 				            if ( bits256_cmp(decoded,player_info.cardprods[bet->myplayerid][k]) == 0 )
@@ -1133,19 +1130,18 @@ int32_t BET_p2p_client_receive_share(cJSON *argjson,struct privatebet_info *bet,
 	cardid=jint(argjson,"cardid");
 	playerid=jint(argjson,"playerid");
 
-	printf("\n%s:%d::storing the share:%d::share:%s",__FUNCTION__,__LINE__,playerid,bits256_str(str,share));
+	
 	
 	playershares[cardid][playerid]=share;
 	sharesflag[cardid][playerid]=1;
 
 	
 	no_of_shares++;
-	printf("\n%s:%d::number of shares:%d",__FUNCTION__,__LINE__,no_of_shares);
+	
 	if(no_of_shares == bet->maxplayers)
 	{
 		
-		printf("\n%s:%d: You received enough number of shares",__FUNCTION__,__LINE__);
-		printf("\nShares are:\n");
+		
 		for(int i=0;i<bet->maxplayers;i++)
 		{
 			printf("\n%s",bits256_str(str,playershares[cardid][i]));
@@ -1166,8 +1162,6 @@ int32_t BET_p2p_client_receive_share(cJSON *argjson,struct privatebet_info *bet,
             }
 		}
 
-		printf("\n%s:%d:: The card received is :%d",__FUNCTION__,__LINE__,unpermi);
-		printf("\n");
 		if(unpermi != -1)
 		{
 			turn_status=cJSON_CreateObject();
@@ -1198,14 +1192,10 @@ int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,str
 	uint8_t decipher[sizeof(bits256) + 1024],*ptr;
 	bits256 share;
 	
-	printf("\n%s:%d",__FUNCTION__,__LINE__);
+	
 	playerid=jint(argjson,"playerid");
 	cardid=jint(argjson,"cardid");
 
-	//temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid)];
-	printf("\n%s:%d::location:%d",__FUNCTION__,__LINE__,playerid*bet->numplayers*bet->range + (cardid*bet->numplayers + bet->myplayerid));
-	printf("\n%s",enc_share_str(enc_str,temp));
-	printf("\n");
 	temp=g_shares[playerid*bet->numplayers*bet->range + (cardid*bet->numplayers + bet->myplayerid)];
 
     recvlen = sizeof(temp);
@@ -1228,8 +1218,7 @@ int32_t BET_p2p_client_give_share(cJSON *argjson,struct privatebet_info *bet,str
 		rendered=cJSON_Print(share_info);
 		bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
 		
-		printf("\n%s:%d:data:%s",__FUNCTION__,__LINE__,rendered);
-		
+			
 		if(bytes<0)
 			retval=-1;
 		else
@@ -1248,11 +1237,8 @@ int32_t BET_p2p_get_own_share(cJSON *argjson,struct privatebet_info *bet,struct 
 	playerid=jint(argjson,"playerid");
 	cardid=jint(argjson,"cardid");
 	
-	printf("\n%s:%d::share location:%d",__FUNCTION__,__LINE__,bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid));
-	printf("\nbet->myplayerid:%d::cardid:%d::playerid:%d",bet->myplayerid,cardid,playerid);
 	
 	temp=g_shares[bet->myplayerid*bet->numplayers*bet->range + (cardid*bet->numplayers + playerid)];
-	printf("\n%s",enc_share_str(enc_share,temp));
 	recvlen = sizeof(temp);
 
 	if ( (ptr= BET_decrypt(decipher,sizeof(decipher),player_info.bvvpubkey,player_info.player_key.priv,temp.bytes,&recvlen)) == 0 )
@@ -1265,8 +1251,7 @@ int32_t BET_p2p_get_own_share(cJSON *argjson,struct privatebet_info *bet,struct 
 		memcpy(share.bytes,ptr,recvlen);
 		playershares[cardid][bet->myplayerid]=share;
 		sharesflag[cardid][bet->myplayerid]=1;
-		printf("\n%s:%d::storing the share:%d :: share:%s",__FUNCTION__,__LINE__,playerid,bits256_str(str,share));
-		printf("\n");
+		
 	}
 	return retval;
 
@@ -1275,14 +1260,12 @@ int32_t BET_p2p_client_turn(cJSON *argjson,struct privatebet_info *bet,struct pr
 {
 	int32_t retval,playerid;
 
-	printf("\n%s:%d:data:%s",__FUNCTION__,__LINE__,cJSON_Print(argjson));			
 	
 	playerid=jint(argjson,"playerid");
 	
 	if(playerid == bet->myplayerid)
 	{
 		no_of_shares=1;
-		printf("\nIt's %d players turn:: number of shares:%d",bet->myplayerid,no_of_shares);
 		BET_p2p_get_own_share(argjson,bet,vars);
 	}
 	else 
@@ -1306,7 +1289,7 @@ int32_t BET_p2p_client_bvv_init(cJSON *argjson,struct privatebet_info *bet,struc
 		cJSON *cjsonbvvblindcards,*cjsonshamirshards;
 		bits256 temp,playerprivs[CARDS777_MAXCARDS];
 		
-		printf("\n%s:%d",__FUNCTION__,__LINE__);
+		
 		player_info.bvvpubkey=jbits256(argjson,"bvvpubkey");
 		g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
 		cjsonbvvblindcards=cJSON_GetObjectItem(argjson,"bvvblindcards");
@@ -1380,7 +1363,7 @@ int32_t BET_p2p_client_dcv_init(cJSON *dcv_info,struct privatebet_info *bet,stru
 	int32_t retval=-1;
 	cJSON *cjsoncardprods,*cjsong_hash;
 	
-	printf("\n%s:%d",__FUNCTION__,__LINE__);
+	
 	player_info.deckid=jbits256(dcv_info,"deckid");
 	cjsoncardprods=cJSON_GetObjectItem(dcv_info,"cardprods");
 	
@@ -1426,7 +1409,7 @@ int32_t BET_p2p_client_init(cJSON *argjson,struct privatebet_info *bet,struct pr
     rendered=cJSON_Print(init_p);
     bytes=nn_send(bet->pushsock,rendered,strlen(rendered),0);
 
-    printf("\n%s:%d: data:%s",__FUNCTION__,__LINE__,rendered);
+    
 
     if(bytes<0)
         retval=-1;
@@ -1465,7 +1448,7 @@ int32_t BET_p2p_client_join(cJSON *argjson,struct privatebet_info *bet,struct pr
 
         if(bytes>0)
             retval=1;
-        printf("\n%s:%d:data:%s",__FUNCTION__,__LINE__,rendered);
+        
     }
     return retval;	
 }
