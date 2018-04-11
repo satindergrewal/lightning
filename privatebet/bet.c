@@ -792,15 +792,18 @@ int32_t sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256 *final
 {
     static struct pair256 randcards[256]; static bits256 active_deckid,hash_temp[CARDS777_MAXCARDS];
     int32_t retval=1; bits256 hash,xoverz,tmp[256];
-
+	char str[65];
+	
 	if ( bits256_cmp(deckid,active_deckid) != 0 )
         deckgen_common2(randcards,numcards);
 	else
 		retval=-1;
-	    
+	
+	printf("\nXoverZ values are:playerid:%d",playerid);	
     for (int32_t i=0; i<numcards; i++)
     {
         xoverz = xoverz_donna(curve25519(randcards[i].priv,playercards[i]));
+		printf("\n%s",bits256_str(str,xoverz));
         vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
 		hash_temp[i]=hash; //optimization
 		tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
