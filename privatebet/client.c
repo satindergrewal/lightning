@@ -1032,13 +1032,13 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 
-	printf("\nThe blinded value is:%s", bits256_str(str,recover));
+//	printf("\nThe blinded value is:%s", bits256_str(str,recover));
 
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 	refval = fmul_donna(player_info.bvvblindcards[bet->myplayerid][cardid],crecip_donna(recover));
 
-	printf("\nThe unblinded value is :%s",bits256_str(str,refval));
-	printf("\n");
+//	printf("\nThe unblinded value is :%s",bits256_str(str,refval));
+
 	
 	for(int i=0;i<bet->range;i++)
 	{
@@ -1066,14 +1066,14 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 			            xoverz = xoverz_donna(tmp);
 			            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
 
-						printf("\nHash:%s",bits256_str(str,hash));
-						printf("\nCard:%s",bits256_str(str,refval));
+						//printf("\nHash:%s",bits256_str(str,hash));
+						//printf("\nCard:%s",bits256_str(str,refval));
 
 			            fe = crecip_donna(curve25519_fieldelement(hash));
 
 						decoded = curve25519(fmul_donna(refval,fe),basepoint);
 
-						printf("\ndecoded: %s",bits256_str(str,decoded));
+						//printf("\ndecoded: %s",bits256_str(str,decoded));
 
 						for(int k=0;k<bet->range;k++)
 						{
