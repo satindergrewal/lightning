@@ -1059,6 +1059,7 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 			{
 	            tmp = curve25519(player_info.player_key.priv,curve25519(player_info.cardprivkeys[i],player_info.cardprods[bet->myplayerid][j]));
 	            xoverz = xoverz_donna(tmp);
+				printf("\nThe succeeded xoverz value is:%s",bits256_str(str,xoverz));
 	            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
 	            fe = crecip_donna(curve25519_fieldelement(hash));
 	            decoded = curve25519(fmul_donna(refval,fe),basepoint);
