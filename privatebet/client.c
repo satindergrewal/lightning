@@ -1074,15 +1074,18 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 						decoded = curve25519(fmul_donna(refval,fe),basepoint);
 
 						printf("\ndecoded: %s",bits256_str(str,decoded));
-						
-			            if ( bits256_cmp(decoded,player_info.cardprods[bet->myplayerid][cardid]) == 0 )
-			            {
-			                printf("\nplayer.%d decoded card %s value %d\n",bet->myplayerid,bits256_str(str,decoded),player_info.cardprivkeys[m].bytes[30]);
-							printf("\n");
-			        		tmp=player_info.cardprivkeys[m];
-							flag=1;
-							goto end;
-			            }		
+
+						for(int k=0;k<bet->range;k++)
+						{
+				            if ( bits256_cmp(decoded,player_info.cardprods[bet->myplayerid][k]) == 0 )
+				            {
+				                printf("\nplayer.%d decoded card %s value %d\n",bet->myplayerid,bits256_str(str,decoded),player_info.cardprivkeys[m].bytes[30]);
+								printf("\n");
+				        		tmp=player_info.cardprivkeys[m];
+								flag=1;
+								goto end;
+				            }
+						}
 					}
 				}
 				#if 0
