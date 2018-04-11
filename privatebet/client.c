@@ -1062,7 +1062,7 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 				{
 					for(int n=0;n<bet->range;n++)	
 					{
-						tmp = curve25519(player_info.player_key.priv,curve25519(player_info.cardprivkeys[i],player_info.cardprods[bet->myplayerid][j]));
+						tmp = curve25519(player_info.player_key.priv,curve25519(player_info.cardprivkeys[m],player_info.cardprods[bet->myplayerid][n]));
 			            xoverz = xoverz_donna(tmp);
 			            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
 
@@ -1075,9 +1075,9 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 						
 			            if ( bits256_cmp(decoded,player_info.cardprods[bet->myplayerid][cardid]) == 0 )
 			            {
-			                printf("\nplayer.%d decoded card %s value %d\n",bet->myplayerid,bits256_str(str,decoded),player_info.cardprivkeys[i].bytes[30]);
+			                printf("\nplayer.%d decoded card %s value %d\n",bet->myplayerid,bits256_str(str,decoded),player_info.cardprivkeys[m].bytes[30]);
 							printf("\n");
-			        		tmp=player_info.cardprivkeys[i];
+			        		tmp=player_info.cardprivkeys[m];
 							flag=1;
 							goto end;
 			            }		
