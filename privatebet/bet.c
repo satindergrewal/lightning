@@ -804,22 +804,18 @@ int32_t sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256 *final
     {
         xoverz = xoverz_donna(curve25519(randcards[i].priv,playercards[i]));
 		vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
-		printf("\n%s",bits256_str(str,hash));
 		hash_temp[i]=hash; //optimization
 		tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
-
-		
-		
-		printf("\nSecret:%s:%s",bits256_str(str,fmul_donna(crecip_donna(curve25519_fieldelement(hash)),tmp[i])),bits256_str(str,randcards[i].priv));	
-		
+		printf("\nHash:%s, card:%s",bits256_str(str,hash),bits256_str(str,tmp[i]));
+	
     }
-    printf("\nDCV blinding values:playerid:%d\n",playerid);
+
     for (int32_t i=0; i<numcards; i++)
     {
         finalcards[i] = tmp[permis_d[i]];
 		g_hash[playerid][i]=hash_temp[permis_d[i]];//optimization
 		cardprods[i] = randcards[i].prod; // same cardprods[] returned for each player
-		printf("\n%s",bits256_str(str,randcards[i].priv));
+
      }
 	return retval;
 }
