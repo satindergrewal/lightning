@@ -1038,8 +1038,8 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 	gfshare_recoverdata(shares,sharenrs, M,recover.bytes,sizeof(bits256),M);
 	refval = fmul_donna(player_info.bvvblindcards[bet->myplayerid][cardid],crecip_donna(recover));
 
-
-
+	printf("\nDCV blinded card:%s",bits256_str(str,refval));
+	
 	
 	for(int i=0;i<bet->range;i++)
 	{
@@ -1058,7 +1058,8 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
         {
         	if ( bits256_cmp(v_hash[i][j],g_hash[bet->myplayerid][cardid]) == 0 )
 			{
-
+				
+				#if 0
 				for(int m=0;m<bet->range;m++)
 				{
 					for(int n=0;n<bet->range;n++)	
@@ -1086,13 +1087,32 @@ bits256 BET_p2p_decode_card(cJSON *argjson,struct privatebet_info *bet,struct pr
 						}
 					}
 				}
+				#endif
+				#if 1
+	            tmp = curve25519(player_info.player_key.priv,curve25519(player_info.cardprivkeys[i],player_info.cardprods[bet->myplayerid][j]));
+	            xoverz = xoverz_donna(tmp);
+	            vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
+
+	            fe = crecip_donna(curve25519_fieldelement(hash));
+
+				decoded = curve25519(fmul_donna(refval,fe),basepoint);
+				
+	            if ( bits256_cmp(decoded,player_info.cardprods[bet->myplayerid][cardid]) == 0 )
+	            {
+	                printf("\nplayer.%d decoded card %s value %d\n",bet->myplayerid,bits256_str(str,decoded),player_info.cardprivkeys[i].bytes[30]);
+					printf("\n");
+	        		tmp=player_info.cardprivkeys[i];
+					flag=1;
+					goto end;
+	            }
+				#endif
         	}
         }
     }
 	
 	end:
-		if(!flag)
-			printf("\nDocoding Error");
+		if(!flag)	
+			printf("\nDecoding Failed\n");
 			
 	return tmp;
 }
