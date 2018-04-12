@@ -799,15 +799,12 @@ int32_t sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256 *final
 	else
 		retval=-1;
 	
-	printf("\nHash values are:playerid:%d",playerid);	
-    for (int32_t i=0; i<numcards; i++)
+	for (int32_t i=0; i<numcards; i++)
     {
         xoverz = xoverz_donna(curve25519(randcards[i].priv,playercards[i]));
 		vcalc_sha256(0,hash.bytes,xoverz.bytes,sizeof(xoverz));
 		hash_temp[i]=hash; //optimization
 		tmp[i] = fmul_donna(curve25519_fieldelement(hash),randcards[i].priv);
-		printf("\nHash:%s",bits256_str(str,hash));
-		printf("\nCard:%s",bits256_str(str,tmp[i]));
 	
     }
 
