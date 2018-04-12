@@ -917,7 +917,7 @@ int32_t BET_p2p_bvv_init(cJSON *argjson,struct privatebet_info *bet,struct priva
 		peerpubkeys[playerID]=jbits256i(cjsonpeerpubkeys,playerID);
 		for(int i=0;i<bet->range;i++) 
 		{
-			dcvblindcards[playerID][i]=jbits256i(cjsondcvblindcards,playerID*bvv_info.maxplayers+i);
+			dcvblindcards[playerID][i]=jbits256i(cjsondcvblindcards,playerID*bet->range+i); //bvv_info.maxplayers
 		}
 	}
     g_shares=(struct enc_share*)malloc(CARDS777_MAXPLAYERS*CARDS777_MAXPLAYERS*CARDS777_MAXCARDS*sizeof(struct enc_share));
