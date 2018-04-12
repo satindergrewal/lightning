@@ -989,6 +989,14 @@ void BET_p2p_bvvloop(void *_ptr)
     uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; double lastmilli = 0.; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
     VARS = calloc(1,sizeof(*VARS));
 
+	BET_permutation(bvv_info.permis,bet->range);
+    
+	for(int i=0;i<bet->range;i++)
+	{
+		permis_b[i]=bvv_info.permis[i];
+	
+	}
+
 	while ( bet->pushsock>= 0 && bet->subsock>= 0 )
     {
         if ( (recvlen= nn_recv(bet->subsock,&ptr,NN_MSG,0)) > 0 )

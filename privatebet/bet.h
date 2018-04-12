@@ -338,6 +338,7 @@ struct deck_dcv_info
 struct deck_bvv_info
 {
 	bits256 deckid;
+	int32_t permis[CARDS777_MAXCARDS];
 	struct pair256 bvv_key;
 	int32_t permis[CARDS777_MAXCARDS];
 	bits256 bvvblindcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
