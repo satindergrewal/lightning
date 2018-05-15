@@ -48,17 +48,21 @@ $(LIGHTNINGD_ONCHAIN_OBJS): $(LIGHTNINGD_HEADERS)
 # Common source we use.
 ONCHAIND_COMMON_OBJS :=				\
 	common/daemon_conn.o			\
-	common/debug.o				\
 	common/derive_basepoints.o		\
 	common/dev_disconnect.o			\
+	common/gen_status_wire.o		\
 	common/htlc_tx.o			\
 	common/htlc_wire.o			\
 	common/initial_commit_tx.o		\
 	common/keyset.o				\
 	common/key_derive.o			\
+	common/memleak.o			\
 	common/msg_queue.o			\
+	common/peer_billboard.o			\
 	common/permute_tx.o			\
 	common/status.o				\
+	common/status_wire.o			\
+	common/subdaemon.o			\
 	common/type_to_string.o			\
 	common/utils.o				\
 	common/version.o
@@ -86,6 +90,6 @@ check-whitespace: $(LIGHTNINGD_ONCHAIN_SRC_NOGEN:%=check-whitespace/%) $(LIGHTNI
 clean: onchaind-clean
 
 onchaind-clean:
-	$(RM) $(LIGHTNINGD_ONCHAIN_OBJS) gen_*
+	$(RM) $(LIGHTNINGD_ONCHAIN_OBJS) onchaind/gen_*
 
--include onchaind/test/Makefile 
+-include onchaind/test/Makefile

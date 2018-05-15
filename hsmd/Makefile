@@ -11,14 +11,9 @@ LIGHTNINGD_HSM_CLIENT_HEADERS := hsmd/client.h
 LIGHTNINGD_HSM_CLIENT_SRC := hsmd/client.c hsmd/gen_hsm_client_wire.c
 LIGHTNINGD_HSM_CLIENT_OBJS := $(LIGHTNINGD_HSM_CLIENT_SRC:.c=.o)
 
-# Control daemon uses this:
-LIGHTNINGD_HSM_CONTROL_HEADERS := hsmd/gen_hsm_wire.h
-LIGHTNINGD_HSM_CONTROL_SRC := hsmd/gen_hsm_wire.c
-LIGHTNINGD_HSM_CONTROL_OBJS := $(LIGHTNINGD_HSM_CONTROL_SRC:.c=.o)
-
 # lightningd/hsm needs these:
-LIGHTNINGD_HSM_HEADERS := hsmd/gen_hsm_client_wire.h	\
-	hsmd/gen_hsm_wire.h
+LIGHTNINGD_HSM_HEADERS := hsmd/gen_hsm_client_wire.h
+
 LIGHTNINGD_HSM_SRC := hsmd/hsm.c	\
 	$(LIGHTNINGD_HSM_HEADERS:.h=.c)
 LIGHTNINGD_HSM_OBJS := $(LIGHTNINGD_HSM_SRC:.c=.o)
@@ -27,13 +22,18 @@ LIGHTNINGD_HSM_OBJS := $(LIGHTNINGD_HSM_SRC:.c=.o)
 HSMD_COMMON_OBJS :=				\
 	common/bip32.o				\
 	common/daemon_conn.o			\
-	common/debug.o				\
+	common/derive_basepoints.o		\
 	common/funding_tx.o			\
+	common/gen_status_wire.o		\
+	common/hash_u5.o			\
 	common/io_debug.o			\
 	common/key_derive.o			\
 	common/msg_queue.o			\
 	common/permute_tx.o			\
 	common/status.o				\
+	common/status_wire.o			\
+	common/subdaemon.o			\
+	common/type_to_string.o			\
 	common/utils.o				\
 	common/utxo.o				\
 	common/version.o			\
@@ -47,8 +47,6 @@ LIGHTNINGD_HSM_ALLHEADERS_NOGEN := $(filter-out hsmd/gen_%, $(LIGHTNINGD_HSM_CLI
 LIGHTNINGD_HEADERS_GEN += $(LIGHTNINGD_HSM_HEADERS) $(LIGHTNINGD_HSM_CLIENT_HEADERS)
 
 $(LIGHTNINGD_HSM_OBJS) $(LIGHTNINGD_HSM_CLIENT_OBJS): $(LIGHTNINGD_HEADERS)
-
-$(LIGHTNINGD_HSM_CONTROL_OBJS) : $(LIGHTNINGD_HSM_CONTROL_HEADERS)
 
 # Make sure these depend on everything.
 ALL_OBJS += $(LIGHTNINGD_HSM_OBJS) $(LIGHTNINGD_HSM_CLIENT_OBJS)
@@ -79,6 +77,6 @@ check-whitespace: $(LIGHTNINGD_HSM_ALLSRC_NOGEN:%=check-whitespace/%) $(LIGHTNIN
 clean: lightningd/hsm-clean
 
 lightningd/hsm-clean:
-	$(RM) $(LIGHTNINGD_HSM_OBJS) gen_*
+	$(RM) $(LIGHTNINGD_HSM_OBJS) hsmd/gen_*
 
--include hsmd/test/Makefile 
+-include hsmd/test/Makefile

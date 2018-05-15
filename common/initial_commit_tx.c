@@ -55,20 +55,19 @@ u8 *to_self_wscript(const tal_t *ctx,
 }
 
 struct bitcoin_tx *initial_commit_tx(const tal_t *ctx,
-				     const struct sha256_double *funding_txid,
+				     const struct bitcoin_txid *funding_txid,
 				     unsigned int funding_txout,
 				     u64 funding_satoshis,
 				     enum side funder,
 				     u16 to_self_delay,
 				     const struct keyset *keyset,
-				     u64 feerate_per_kw,
+				     u32 feerate_per_kw,
 				     u64 dust_limit_satoshis,
 				     u64 self_pay_msat,
 				     u64 other_pay_msat,
 				     u64 obscured_commitment_number,
 				     enum side side)
 {
-	const tal_t *tmpctx = tal_tmpctx(ctx);
 	u64 base_fee_msat;
 	struct bitcoin_tx *tx;
 	size_t n, untrimmed;
@@ -195,6 +194,5 @@ struct bitcoin_tx *initial_commit_tx(const tal_t *ctx,
 	/* Input amount needed for signature code. */
 	tx->input[0].amount = tal_dup(tx->input, u64, &funding_satoshis);
 
-	tal_free(tmpctx);
 	return tx;
 }

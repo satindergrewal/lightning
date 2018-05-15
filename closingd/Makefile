@@ -47,17 +47,25 @@ CLOSINGD_COMMON_OBJS :=				\
 	common/crypto_sync.o			\
 	common/cryptomsg.o			\
 	common/daemon_conn.o			\
-	common/debug.o				\
 	common/dev_disconnect.o			\
 	common/derive_basepoints.o		\
+	common/gen_peer_status_wire.o		\
+	common/gen_status_wire.o		\
 	common/htlc_wire.o			\
+	common/memleak.o			\
 	common/msg_queue.o			\
+	common/peer_billboard.o			\
 	common/peer_failed.o			\
 	common/permute_tx.o			\
+	common/ping.o				\
+	common/read_peer_msg.o			\
 	common/status.o				\
+	common/status_wire.o			\
+	common/subdaemon.o			\
 	common/type_to_string.o			\
 	common/utils.o				\
-	common/version.o
+	common/version.o			\
+	common/wire_error.o
 
 closingd/gen_closing_wire.h: $(WIRE_GEN) closingd/closing_wire.csv
 	$(WIRE_GEN) --header $@ closing_wire_type < closingd/closing_wire.csv > $@
@@ -77,6 +85,6 @@ check-whitespace: $(LIGHTNINGD_CLOSING_SRC_NOGEN:%=check-whitespace/%) $(LIGHTNI
 clean: closingd-clean
 
 closingd-clean:
-	$(RM) $(LIGHTNINGD_CLOSING_OBJS) gen_*
+	$(RM) $(LIGHTNINGD_CLOSING_OBJS) closingd/gen_*
 
--include closingd/test/Makefile 
+-include closingd/test/Makefile

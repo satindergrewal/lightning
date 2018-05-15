@@ -1,7 +1,9 @@
 #include "wire.h"
 #include <bitcoin/preimage.h>
 #include <bitcoin/shadouble.h>
+#include <bitcoin/tx.h>
 #include <ccan/crypto/ripemd160/ripemd160.h>
+#include <ccan/crypto/siphash24/siphash24.h>
 #include <ccan/endian/endian.h>
 #include <ccan/mem/mem.h>
 #include <ccan/tal/tal.h>
@@ -38,6 +40,11 @@ void towire_u64(u8 **pptr, u64 v)
 	towire(pptr, &l, sizeof(l));
 }
 
+void towire_double(u8 **pptr, const double *v)
+{
+	towire(pptr, v, sizeof(*v));
+}
+
 void towire_bool(u8 **pptr, bool v)
 {
 	u8 val = v;
@@ -49,12 +56,9 @@ void towire_pubkey(u8 **pptr, const struct pubkey *pubkey)
 	u8 output[PUBKEY_DER_LEN];
 	size_t outputlen = sizeof(output);
 
-	if (pubkey)
-		secp256k1_ec_pubkey_serialize(secp256k1_ctx, output, &outputlen,
-					      &pubkey->pubkey,
-					      SECP256K1_EC_COMPRESSED);
-	else
-		memset(output, 0, sizeof(output));
+	secp256k1_ec_pubkey_serialize(secp256k1_ctx, output, &outputlen,
+				      &pubkey->pubkey,
+				      SECP256K1_EC_COMPRESSED);
 
 	towire(pptr, output, outputlen);
 }
@@ -79,6 +83,20 @@ void towire_secp256k1_ecdsa_signature(u8 **pptr,
 	towire(pptr, compact, sizeof(compact));
 }
 
+void towire_secp256k1_ecdsa_recoverable_signature(u8 **pptr,
+			const secp256k1_ecdsa_recoverable_signature *rsig)
+{
+	u8 compact[64];
+	int recid;
+
+	secp256k1_ecdsa_recoverable_signature_serialize_compact(secp256k1_ctx,
+								compact,
+								&recid,
+								rsig);
+	towire(pptr, compact, sizeof(compact));
+	towire_u8(pptr, recid);
+}
+
 void towire_channel_id(u8 **pptr, const struct channel_id *channel_id)
 {
 	towire(pptr, channel_id, sizeof(*channel_id));
@@ -87,12 +105,7 @@ void towire_channel_id(u8 **pptr, const struct channel_id *channel_id)
 void towire_short_channel_id(u8 **pptr,
 			     const struct short_channel_id *short_channel_id)
 {
-	be32 txnum = cpu_to_be32(short_channel_id->txnum);
-	be32 blocknum = cpu_to_be32(short_channel_id->blocknum);
-
-	towire(pptr, (char *)&blocknum + 1, 3);
-	towire(pptr, (char *)&txnum + 1, 3);
-	towire_u16(pptr, short_channel_id->outnum);
+	towire_u64(pptr, short_channel_id->u64);
 }
 
 void towire_sha256(u8 **pptr, const struct sha256 *sha256)
@@ -105,6 +118,16 @@ void towire_sha256_double(u8 **pptr, const struct sha256_double *sha256d)
 	towire_sha256(pptr, &sha256d->sha);
 }
 
+void towire_bitcoin_txid(u8 **pptr, const struct bitcoin_txid *txid)
+{
+	towire_sha256_double(pptr, &txid->shad);
+}
+
+void towire_bitcoin_blkid(u8 **pptr, const struct bitcoin_blkid *blkid)
+{
+	towire_sha256_double(pptr, &blkid->shad);
+}
+
 void towire_preimage(u8 **pptr, const struct preimage *preimage)
 {
 	towire(pptr, preimage, sizeof(*preimage));
@@ -113,13 +136,6 @@ void towire_preimage(u8 **pptr, const struct preimage *preimage)
 void towire_ripemd160(u8 **pptr, const struct ripemd160 *ripemd)
 {
 	towire(pptr, ripemd, sizeof(*ripemd));
-}
-
-void towire_ipaddr(u8 **pptr, const struct ipaddr *addr)
-{
-	towire_u8(pptr, addr->type);
-	towire(pptr, addr->addr, addr->addrlen);
-	towire_u16(pptr, addr->port);
 }
 
 void towire_u8_array(u8 **pptr, const u8 *arr, size_t num)
@@ -134,4 +150,20 @@ void towire_pad(u8 **pptr, size_t num)
 
 	tal_resize(pptr, oldsize + num);
 	memset(*pptr + oldsize, 0, num);
+}
+
+void towire_wirestring(u8 **pptr, const char *str)
+{
+	towire(pptr, str, strlen(str) + 1);
+}
+
+void towire_bitcoin_tx(u8 **pptr, const struct bitcoin_tx *tx)
+{
+	u8 *lin = linearize_tx(tmpctx, tx);
+	towire_u8_array(pptr, lin, tal_len(lin));
+}
+
+void towire_siphash_seed(u8 **pptr, const struct siphash_seed *seed)
+{
+	towire(pptr, seed, sizeof(*seed));
 }
