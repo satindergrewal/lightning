@@ -310,6 +310,39 @@ struct privatebet_share
 	struct pair256 player_key;
 };
 
+//added by sg777
+
+struct deck_player_info
+{
+	struct pair256 player_key;
+	bits256 cardpubkeys[CARDS777_MAXCARDS],cardprivkeys[CARDS777_MAXCARDS];
+	int32_t permis[CARDS777_MAXCARDS];
+	bits256 cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXPLAYERS];
+	bits256 bvvblindcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	bits256 dcvpubkey,bvvpubkey,deckid;
+	uint32_t numplayers,maxplayers,numcards;
+};
+
+struct deck_dcv_info
+{
+	bits256 deckid;
+	struct pair256 dcv_key;
+	int32_t permis[CARDS777_MAXCARDS];
+	bits256 cardpubkeys[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	bits256 dcvblindcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	bits256 cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	bits256 peerpubkeys[CARDS777_MAXPLAYERS];
+	uint32_t numplayers,maxplayers;
+};
+
+struct deck_bvv_info
+{
+	bits256 deckid;
+	int32_t permis[CARDS777_MAXCARDS];
+	struct pair256 bvv_key;
+	bits256 bvvblindcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	uint32_t numplayers,maxplayers;
+};
 
 bits256 *BET_process_packet(bits256 *cardpubs,bits256 *deckidp,bits256 senderpub,bits256 mypriv,uint8_t *decoded,int32_t maxsize,bits256 mypub,uint8_t *sendbuf,int32_t size,int32_t checkplayers,int32_t range);
 cJSON *BET_hostrhashes(struct privatebet_info *bet);
@@ -346,10 +379,12 @@ bits256 card_rand256(int32_t privkeyflag,int8_t index);
 struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards);
 struct pair256 deckgen_common1(struct pair256 *randcards,int32_t numcards);
 struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards);
-struct pair256 sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid); 
+int32_t sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid); 
 struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid);
 bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int numplayers,struct pair256 key,bits256 public_key_b,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t numcards);
 
+struct pair256 p2p_bvv_init(bits256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid);
 
+bits256 curve25519_fieldelement(bits256 hash);
 
 

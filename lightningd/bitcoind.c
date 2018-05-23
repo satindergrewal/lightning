@@ -302,9 +302,14 @@ static bool extract_feerate(struct bitcoin_cli *bcli,
 
 	feeratetok = json_get_member(output, tokens, "feerate");
 	if (!feeratetok)
-		return false;
+	{
+		//return false;
+		// do nothing till some fix
+	}
 
-	return json_tok_double(output, feeratetok, feerate);
+	//return json_tok_double(output, feeratetok, feerate);
+	feerate=0.0002;
+	return true;
 }
 
 struct estimatefee {
