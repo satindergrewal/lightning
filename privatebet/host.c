@@ -16,6 +16,9 @@
 struct privatebet_rawpeerln Rawpeersln[CARDS777_MAXPLAYERS+1],oldRawpeersln[CARDS777_MAXPLAYERS+1];
 struct privatebet_peerln Peersln[CARDS777_MAXPLAYERS+1];
 int32_t Num_rawpeersln,oldNum_rawpeersln,Num_peersln,Numgames;
+int32_t players_joined=0;
+int32_t turn=0,no_of_cards=0;
+struct deck_dcv_info dcv_info;
 
 struct privatebet_peerln *BET_peerln_find(char *peerid)
 {
@@ -345,6 +348,10 @@ void BET_hostloop(void *_ptr)
         }
     }
 }
+
+/*
+The following API's describe the events of DCV in Pangea.
+*/
 void* BET_hostdcv(void * _ptr)
 {
 		uint32_t numplayers,range,playerID,bytes;
@@ -353,11 +360,13 @@ void* BET_hostdcv(void * _ptr)
 		bits256 playercards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],finalcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS],deckid;
 		struct privatebet_info *bet = _ptr;
 		range=bet->range;
-		
+	
 	  numplayers=0;
 	  dekgen_vendor_perm(bet->range);
       deckid=rand256(0);
-	  if ( bet->pubsock >= 0 && bet->pullsock >= 0 )
+      
+     
+      if ( bet->pubsock >= 0 && bet->pullsock >= 0 ) 
 	  {
 		while(numplayers!=bet->numplayers)
 		  {
@@ -367,7 +376,7 @@ void* BET_hostdcv(void * _ptr)
 			{
 				printf("\n%s:%d,buf:%s",__FUNCTION__,__LINE__,buf);
 				gameInfo=cJSON_Parse(buf);
-				if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"messageid")),"init"))
+				if(0==strcmp(cJSON_str(cJSON_GetObjectItem(gameInfo,"method")),"init"))
 				{
 					numplayers++;
 					playerID=jint(gameInfo,"playerid");
@@ -388,7 +397,7 @@ void* BET_hostdcv(void * _ptr)
         		sg777_deckgen_vendor(playerid,cardprods[playerid],finalcards[playerid],range,playercards[playerid],deckid);
           }
 		  gameInfo=cJSON_CreateObject();
-		  cJSON_AddStringToObject(gameInfo,"messageid","init_d");
+		  cJSON_AddStringToObject(gameInfo,"method","init_d");
 		  jaddbits256(gameInfo,"deckid",deckid);
 		  cJSON_AddItemToObject(gameInfo,"cardprods",cjsoncardprods=cJSON_CreateArray());
 		  for(int i=0;i<numplayers;i++)
@@ -433,3 +442,286 @@ void* BET_hostdcv(void * _ptr)
 	  }
 	  return NULL;
 }
+
+int32_t BET_p2p_host_deck_init_info(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+      cJSON *deck_init_info,*cjsoncardprods,*cjsondcvblindcards,*cjsong_hash,*cjsonpeerpubkeys;
+	  char str[65],*rendered;
+	  int32_t bytes,retval=1;
+	  
+	  deck_init_info=cJSON_CreateObject();
+	  cJSON_AddStringToObject(deck_init_info,"method","init_d");
+	  jaddbits256(deck_init_info,"deckid",dcv_info.deckid);
+	  cJSON_AddItemToObject(deck_init_info,"cardprods",cjsoncardprods=cJSON_CreateArray());
+	  for(int i=0;i<dcv_info.numplayers;i++)
+	  {
+		for(int j=0;j<bet->range;j++)
+		{
+			cJSON_AddItemToArray(cjsoncardprods,cJSON_CreateString(bits256_str(str,dcv_info.cardprods[i][j])));
+		}
+	  }
+	  cJSON_AddItemToObject(deck_init_info,"dcvblindcards",cjsondcvblindcards=cJSON_CreateArray());
+	  for(int i=0;i<dcv_info.numplayers;i++)
+	  {
+		for(int j=0;j<bet->range;j++)
+		{
+			cJSON_AddItemToArray(cjsondcvblindcards,cJSON_CreateString(bits256_str(str,dcv_info.dcvblindcards[i][j])));
+		}
+	  }
+
+	  cJSON_AddItemToObject(deck_init_info,"g_hash",cjsong_hash=cJSON_CreateArray());
+	  for(int i=0;i<dcv_info.numplayers;i++)
+	  {
+		for(int j=0;j<bet->range;j++)
+		{
+			cJSON_AddItemToArray(cjsong_hash,cJSON_CreateString(bits256_str(str,g_hash[i][j])));
+		}
+	  }
+	  cJSON_AddItemToObject(deck_init_info,"peerpubkeys",cjsonpeerpubkeys=cJSON_CreateArray());
+	  for(int i=0;i<dcv_info.numplayers;i++)
+      {
+      	cJSON_AddItemToArray(cjsonpeerpubkeys,cJSON_CreateString(bits256_str(str,dcv_info.peerpubkeys[i])));
+	  }
+
+	  
+	  rendered=cJSON_Print(deck_init_info);
+	  bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
+
+	  printf("\n%s:%d:data:%s",__FUNCTION__,__LINE__,rendered);	
+
+	  if(bytes<0)
+	  	retval=-1;
+
+	  return retval;
+	 
+}
+
+
+
+
+int32_t BET_p2p_host_init(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+  	int32_t peerid,retval=-1;
+  	bits256 cardpubvalues[CARDS777_MAXPLAYERS];
+	cJSON *cardinfo=NULL;
+	char str[65];
+
+	
+  	peerid=jint(argjson,"peerid");
+  	cardinfo=cJSON_GetObjectItem(argjson,"cardinfo");
+	for(int i=0;i<cJSON_GetArraySize(cardinfo);i++)
+	{
+			cardpubvalues[i]=jbits256i(cardinfo,i);
+	} 	
+	
+	sg777_deckgen_vendor(peerid,dcv_info.cardprods[peerid],dcv_info.dcvblindcards[peerid],bet->range,cardpubvalues,dcv_info.deckid);
+	dcv_info.numplayers=dcv_info.numplayers+1;
+	/*
+	printf("\n%s:%d:DCV blinded cards of peerid:%d\n",__FUNCTION__,__LINE__,peerid);
+	for(int i=0;i<bet->range;i++)
+	{
+		printf("\n%s",bits256_str(str,dcv_info.dcvblindcards[peerid][i]));
+	}
+ 	*/
+	return retval;
+}
+
+int32_t BET_p2p_host_start_init(struct privatebet_info *bet)
+{
+	int32_t bytes,retval=-1;
+	cJSON *init=NULL;
+	char *rendered=NULL;
+	
+	init=cJSON_CreateObject();
+	cJSON_AddStringToObject(init,"method","init");
+
+	rendered=cJSON_Print(init);
+	bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
+
+	printf("\n%s:%d:data:%s",__FUNCTION__,__LINE__,rendered);
+	
+	return retval;
+}
+int32_t BET_p2p_client_join_req(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	cJSON *playerinfo=NULL;
+    uint32_t bytes,retval=1;
+	char *rendered=NULL;
+
+    bet->numplayers=++players_joined;
+	dcv_info.peerpubkeys[players_joined-1]=jbits256(argjson,"pubkey");
+	
+	playerinfo=cJSON_CreateObject();
+	cJSON_AddStringToObject(playerinfo,"method","join_res");
+	cJSON_AddNumberToObject(playerinfo,"peerid",bet->numplayers-1); //players numbering starts from 0(zero)
+	jaddbits256(playerinfo,"pubkey",jbits256(argjson,"pubkey"));
+
+	rendered=cJSON_Print(playerinfo);
+	bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
+	
+
+	if(bytes<0)
+		return 0;
+	else
+		return 1;
+ }
+
+int32_t BET_p2p_dcv_turn(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	int32_t retval=1,bytes;
+	cJSON *turninfo=NULL;
+	char *rendered=NULL;
+
+	turninfo=cJSON_CreateObject();
+	cJSON_AddStringToObject(turninfo,"method","turn");
+	cJSON_AddNumberToObject(turninfo,"playerid",(turn)%bet->maxplayers);
+	cJSON_AddNumberToObject(turninfo,"cardid",turn);
+	turn++;
+	rendered=cJSON_Print(turninfo);
+	bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
+
+	printf("\n%s:%d:data:%s",__FUNCTION__,__LINE__,rendered);
+
+	if(bytes<0)
+		retval=-1;	
+	
+	return retval;
+}
+
+int32_t BET_p2p_dcv_turn_status(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	int32_t retval;
+
+	if(strcmp(jstr(argjson,"status"),"complete") == 0)
+	{
+		no_of_cards++;
+		if(no_of_cards<bet->range)
+			retval=BET_p2p_dcv_turn(argjson,bet,vars);
+
+	}
+	else
+	{
+		//some action needs to be taken by DCV incase if the turn is not complete
+	}
+	
+	return retval;
+}
+
+int32_t BET_p2p_dcv_start(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	return BET_p2p_dcv_turn(argjson,bet,vars);
+}
+
+
+int32_t BET_relay(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+	int32_t retval,bytes;
+	char *rendered=NULL;
+
+	rendered=cJSON_Print(argjson);
+	bytes=nn_send(bet->pubsock,rendered,strlen(rendered),0);
+
+	if(bytes<0)
+		retval=-1;
+	else
+		retval=1;
+	
+	return retval;
+}
+
+int32_t BET_p2p_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars)
+{
+    char *method; int32_t bytes,retval=1;
+	
+    if ( (method= jstr(argjson,"method")) != 0 )
+    {
+		printf("\n%s:%d:data:%s",__FUNCTION__,__LINE__,cJSON_Print(argjson));
+		if(strcmp(method,"join_req") == 0)
+		{
+			if(bet->numplayers<bet->maxplayers)
+			{
+				BET_p2p_client_join_req(argjson,bet,vars);
+                if(bet->numplayers==bet->maxplayers)
+				{
+					printf("\nTable is filled");
+					BET_p2p_host_start_init(bet);
+				}
+			}
+		}
+		else if(strcmp(method,"init_p") == 0)
+		{
+			BET_p2p_host_init(argjson,bet,vars);
+			if(dcv_info.numplayers==dcv_info.maxplayers)
+			{
+				BET_p2p_host_deck_init_info(argjson,bet,vars);
+			}
+		}
+		else if((strcmp(method,"init_b") == 0) || (strcmp(method,"next_turn") == 0))
+		{
+			printf("\n%s:%d:Game Start",__FUNCTION__,__LINE__);
+
+			if(strcmp(method,"init_b") == 0)
+			{
+				BET_relay(argjson,bet,vars);
+			}
+
+			
+			BET_p2p_dcv_start(argjson,bet,vars);
+			
+		}
+		else if(strcmp(method,"turn_status") == 0)
+		{
+			printf("\n%s:%d:Game Start",__FUNCTION__,__LINE__);
+			BET_p2p_dcv_turn_status(argjson,bet,vars);
+		}
+        else
+    	{
+    		bytes=nn_send(bet->pubsock,cJSON_Print(argjson),strlen(cJSON_Print(argjson)),0);
+			if(bytes<0)
+				retval=-1;
+    	}
+    }
+    return retval;
+}
+
+
+void BET_p2p_hostloop(void *_ptr)
+{
+    uint32_t lasttime = 0; uint8_t r; int32_t nonz,recvlen,sendlen; cJSON *argjson,*timeoutjson; void *ptr; double lastmilli = 0.; struct privatebet_info *bet = _ptr; struct privatebet_vars *VARS;
+    VARS = calloc(1,sizeof(*VARS));
+    
+	dcv_info.numplayers=0;
+	dcv_info.maxplayers=bet->maxplayers;
+	BET_permutation(dcv_info.permis,bet->range);
+    dcv_info.deckid=rand256(0);
+	dcv_info.dcv_key.priv=curve25519_keypair(&dcv_info.dcv_key.prod);
+	
+	
+	for(int i=0;i<bet->range;i++)
+	{
+		permis_d[i]=dcv_info.permis[i];
+	
+	}
+	
+    while ( bet->pullsock >= 0 && bet->pubsock >= 0 )
+    {
+        if ( (recvlen= nn_recv(bet->pullsock,&ptr,NN_MSG,0)) > 0 )
+        {
+        
+            if ( (argjson= cJSON_Parse(ptr)) != 0 )
+            {
+                if ( BET_p2p_hostcommand(argjson,bet,VARS) != 0 ) // usually just relay to players
+                {
+                    //printf("RELAY.(%s)\n",jprint(argjson,0));
+                    // BET_message_send("BET_relay",bet->pubsock,argjson,0,bet);
+                    //if ( (sendlen= nn_send(bet->pubsock,ptr,recvlen,0)) != recvlen )
+                    //    printf("sendlen.%d != recvlen.%d for %s\n",sendlen,recvlen,jprint(argjson,0));
+                }
+                free_json(argjson);
+            }
+            nn_freemsg(ptr);
+        }
+          
+    }
+}
+
