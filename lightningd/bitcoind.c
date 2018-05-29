@@ -283,6 +283,7 @@ static bool extract_feerate(struct bitcoin_cli *bcli,
 			    const char *output, size_t output_bytes,
 			    double *feerate)
 {
+    static double _feerate = 0.0001;
 	const jsmntok_t *tokens, *feeratetok;
 	bool valid;
 
@@ -308,7 +309,7 @@ static bool extract_feerate(struct bitcoin_cli *bcli,
 	}
 
 	//return json_tok_double(output, feeratetok, feerate);
-	feerate=0.0002;
+	feerate = &_feerate;
 	return true;
 }
 
