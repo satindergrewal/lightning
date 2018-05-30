@@ -306,7 +306,7 @@ static bool extract_feerate(struct bitcoin_cli *bcli,
 	}
 
 	//return json_tok_double(output, feeratetok, feerate);
-	feerate=0.0002;
+	*feerate=0.0001;
 	return true;
 }
 
