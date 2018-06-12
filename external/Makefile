@@ -73,10 +73,10 @@ external/libbase58.a: external/base58.o
 external/libbacktrace/backtrace.h: submodcheck-libbacktrace
 
 # Need separate build dir: changes inside submodule make git think it's dirty.
-external/libbacktrace.a: external/libbacktrace/backtrace.h
-	@mkdir external/libbacktrace-build 2>/dev/null || true
-	cd external/libbacktrace-build && ../libbacktrace/configure CC="$(CC)" --enable-static=yes --host="$(HOST)" --build="$(BUILD)" --enable-shared=no --prefix=/ --libdir=/ && $(MAKE)
-	$(MAKE) -C external/libbacktrace-build DESTDIR=$$(pwd)/external install-exec
+#external/libbacktrace.a: external/libbacktrace/backtrace.h
+#	@mkdir external/libbacktrace-build 2>/dev/null || true
+#	cd external/libbacktrace-build && ../libbacktrace/configure CC="$(CC)" --enable-static=yes --host="$(HOST)" --build="$(BUILD)" --enable-shared=no --prefix=/ --libdir=/ && $(MAKE)
+#	$(MAKE) -C external/libbacktrace-build DESTDIR=$$(pwd)/external install-exec
 
 distclean: external-distclean
 clean: external-clean
