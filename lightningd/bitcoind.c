@@ -252,6 +252,8 @@ start_bitcoin_cli(struct bitcoind *bitcoind,
 {
 	va_list ap;
 	struct bitcoin_cli *bcli = tal(bitcoind, struct bitcoin_cli);
+    //fprintf(stderr,"call cli.(%s)\n",cmd);
+
 	bcli->bitcoind = bitcoind;
 	bcli->process = process;
 	bcli->cb = cb;
@@ -281,6 +283,7 @@ static bool extract_feerate(struct bitcoin_cli *bcli,
 			    const char *output, size_t output_bytes,
 			    double *feerate)
 {
+    static double _feerate = 0.0001;
 	const jsmntok_t *tokens, *feeratetok;
 	bool valid;
 
@@ -306,6 +309,7 @@ static bool extract_feerate(struct bitcoin_cli *bcli,
 	}
 
 	//return json_tok_double(output, feeratetok, feerate);
+	feerate = &_feerate;
 	*feerate=0.0001;
 	return true;
 }
