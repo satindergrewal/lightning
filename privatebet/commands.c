@@ -31,7 +31,7 @@ char *chipsln_command(void *ctx,cJSON *argjson,char *remoteaddr,uint16_t port)
     //for (i=0; i<numargs; i++)
     //    printf("(%s) ",args[i]);
     //printf(" <- %s\n",jprint(argjson,0));
-    cli_main(buffer,maxsize,numargs,args,0);
+    cli_main(buffer,maxsize,numargs,args);
     if ( numargs > 2 )
     {
         for (i=2; i<numargs; i++)
@@ -178,9 +178,13 @@ cJSON *chipsln_getroute(char *idstr,uint64_t msatoshi)
 
 cJSON *chipsln_connect(char *ipaddr,uint16_t port,char *destid)
 {
-    char buf[4096];
+    char buf[4096],*retstr; cJSON *retjson;
     sprintf(buf,"{ \"method\":\"connect\", \"id\":\"chipsln-%d\", \"params\":[\"%s\", %u, \"%s\"] }",getpid(),ipaddr,port,destid);
-    return(chipsln_issue(buf));
+    retjson = chipsln_issue(buf);
+    retstr = jprint(retjson,0);
+    printf("(%s) -> %s\n",buf,retstr);
+    free(retstr);
+    return(retjson);
 }
 
 cJSON *chipsln_sendpay(cJSON *routejson,bits256 rhash)
@@ -231,7 +235,7 @@ char *stats_JSON(void *ctx,char *myipaddr,int32_t mypubsock,cJSON *argjson,char 
 
 int32_t BET_peer_state(char *peerid,char *statestr)
 {
-    cJSON *retjson,*array,*item; int32_t i,n,retval = -1;
+    cJSON *retjson,*array,*item,*obj; int32_t i,n,retval = -1;
     if ( (retjson= chipsln_getpeers()) != 0 )
     {
         if ( (array= jarray(&n,retjson,"peers")) != 0 && n > 0 )
@@ -239,9 +243,41 @@ int32_t BET_peer_state(char *peerid,char *statestr)
             for (i=0; i<n; i++)
             {
                 item = jitem(array,i);
-                if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),Host_peerid) != 0 )
+                if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),peerid) != 0 )
                     continue;
                 if ( jstr(item,"state") != 0 && strcmp(jstr(item,"state"),statestr) == 0 )
+                {
+                    if ( (obj= jobj(item,"connected")) != 0 && is_cJSON_True(obj) != 0 )
+                        retval = 0;
+                    //else printf("not connected\n");
+                }
+                break;
+            }
+        }
+        free_json(retjson);
+    }
+    return(retval);
+}
+
+int32_t BET_channel_status(char *peerid,char *channel,char *status)
+{
+    cJSON *retjson,*array,*item,*obj; char *s; int32_t i,n,retval = -1;
+    if ( (retjson= chipsln_getchannels()) != 0 )
+    {
+        //printf("HOST.(%s) mine.(%s) channel.(%s)\n",peerid,LN_idstr,channel);
+        if ( (array= jarray(&n,retjson,"channels")) != 0 && n > 0 )
+        {
+            for (i=0; i<n; i++)
+            {
+                item = jitem(array,i);
+                if ( (s= jstr(item,"source")) == 0 || strcmp(s,LN_idstr) != 0 )
+                    continue;
+                if ( (s= jstr(item,"destination")) == 0 || strcmp(s,peerid) != 0 )
+                    continue;
+                if ( (s= jstr(item,"short_id")) == 0 || strncmp(s,channel,strlen(channel)) != 0 )
+                    continue;
+                printf("channel.(%s)\n",jprint(item,0));
+                if ( (obj= jobj(item,"active")) != 0 && is_cJSON_True(obj) != 0 )
                     retval = 0;
                 break;
             }
@@ -256,15 +292,17 @@ int64_t BET_peer_chipsavail(char *peerid,int32_t chipsize)
     cJSON *retjson,*array,*item; uint64_t total; int32_t i,n,retval = 0;
     if ( (retjson= chipsln_getpeers()) != 0 )
     {
+        //printf("H.%s chipsavail.(%s)\n",Host_peerid,jprint(retjson,0));
         if ( (array= jarray(&n,retjson,"peers")) != 0 && n > 0 )
         {
             for (i=0; i<n; i++)
             {
                 item = jitem(array,i);
-                if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),Host_peerid) != 0 )
+                if ( jstr(item,"peerid") == 0 || strcmp(jstr(item,"peerid"),peerid) != 0 )
                     continue;
-                total = j64bits(item,"msatoshi_to_us");
-                retval = (total / 1000) / chipsize;
+                total = j64bits(item,"msatoshi_to_us");// / BET_RESERVERATE;
+                retval = ((total / 1000) / chipsize);// - 12;
+                printf("numchips.%d <- total.%llu / chipsize.%d\n",retval,(long long)total,chipsize);
                 break;
             }
         }

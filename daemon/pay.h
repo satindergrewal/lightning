@@ -2,6 +2,7 @@
 #define LIGHTNING_DAEMON_PAY_H
 #include "config.h"
 
+#define LIGHTNING_BLOCKSMARGIN 10
 struct htlc;
 struct lightningd_state;
 struct preimage;

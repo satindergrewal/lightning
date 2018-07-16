@@ -4,34 +4,27 @@
 wallet-wrongdir:
 	$(MAKE) -C .. lightningd-all
 
-check: wallet/tests
-
 WALLET_LIB_SRC :=		\
 	wallet/db.c		\
+	wallet/invoices.c	\
+	wallet/txfilter.c	\
 	wallet/wallet.c		\
 	wallet/walletrpc.c
 
 WALLET_LIB_OBJS := $(WALLET_LIB_SRC:.c=.o)
 WALLET_LIB_HEADERS := $(WALLET_LIB_SRC:.c=.h)
 
-$(WALLET_LIB_OBJS): $(CCAN_OBJS)
-
-WALLET_TEST_SRC := $(wildcard wallet/*_tests.c)
-WALLET_TEST_OBJS := $(WALLET_TEST_SRC:.c=.o)
-WALLET_TEST_PROGRAMS := $(WALLET_TEST_OBJS:.o=)
-
-$(WALLET_TEST_OBJS): $(WALLET_LIB_OBJS)
-
-$(WALLET_TEST_PROGRAMS): $(BITCOIN_OBJS) $(CCAN_OBJS) $(LIBBASE58_OBJS) daemon/log.o type_to_string.o daemon/pseudorand.o ccan-crypto-shachain-48.o utils.o libwallycore.a libsecp256k1.a libsodium.a
-
-$(WALLET_TEST_OBJS): $(CCAN_HEADERS)
-wallet/tests: $(WALLET_TEST_PROGRAMS:%=unittest/%)
+# Make sure these depend on everything.
+ALL_OBJS += $(LIGHTNINGD_OBJS)
 
 check-whitespace: $(WALLET_LIB_SRC:%=check-whitespace/%) $(WALLET_LIB_HEADERS:%=check-whitespace/%)
-
-check-makefile: check-lightningd-makefile
+check-source: $(WALLET_LIB_SRC:%=check-src-include-order/%)
+check-source: $(WALLET_LIB_HEADERS:%=check-hdr-include-order/%)
+check-source-bolt: $(WALLET_LIB_SRC:%=bolt-check/%) $(WALLET_LIB_HEADERS:%=bolt-check/%)
 
 clean: wallet-clean
 
 wallet-clean:
 	$(RM) $(WALLET_LIB_OBJS)
+
+include wallet/test/Makefile

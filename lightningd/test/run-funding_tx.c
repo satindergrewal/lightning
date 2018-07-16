@@ -1,16 +1,17 @@
+#include <assert.h>
 #include <bitcoin/address.h>
 #include <bitcoin/base58.h>
 #include <bitcoin/privkey.h>
 #include <bitcoin/pubkey.h>
 #include <ccan/str/hex/hex.h>
+#include <common/type_to_string.h>
+#include <common/utils.h>
 #include <inttypes.h>
 #include <stdio.h>
-#include <type_to_string.h>
-#include <utils.h>
 #define SUPERVERBOSE printf
-  #include "../funding_tx.c"
+  #include "../../common/funding_tx.c"
 #undef SUPERVERBOSE
-  #include "../key_derive.c"
+  #include "../../common/key_derive.c"
 
 #if 0
 static struct sha256 sha256_from_hex(const char *hex)
@@ -40,7 +41,6 @@ static struct privkey privkey_from_hex(const char *hex)
 
 int main(void)
 {
-	tal_t *tmpctx = tal_tmpctx(NULL);
 	struct bitcoin_tx *input, *funding;
 	u64 fee;
 	struct pubkey local_funding_pubkey, remote_funding_pubkey;
@@ -48,7 +48,7 @@ int main(void)
 	struct pubkey inputkey;
 	bool testnet;
 	struct utxo utxo;
-	const struct utxo **utxomap = tal_arr(tmpctx, const struct utxo *, 1);
+	const struct utxo **utxomap;
 	u64 funding_satoshis;
 	u16 funding_outnum;
 	u8 *subscript;
@@ -57,6 +57,7 @@ int main(void)
 
 	secp256k1_ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY
 						 | SECP256K1_CONTEXT_SIGN);
+	setup_tmpctx();
 
 	/* BOLT #3:
 	 *
@@ -68,14 +69,14 @@ int main(void)
 	assert(input);
 
 	/* BOLT #3:
-	 *    Block 1 coinbase privkey: 6bd078650fcee8444e4e09825227b801a1ca928debb750eb36e6d56124bb20e80101
+	 *    Block 1 coinbase privkey: 6bd078650fcee8444e4e09825227b801a1ca928debb750eb36e6d56124bb20e801
 	 *    # privkey in base58: cRCH7YNcarfvaiY1GWUKQrRGmoezvfAiqHtdRvxe16shzbd7LDMz
 	 */
 	if (!key_from_base58("cRCH7YNcarfvaiY1GWUKQrRGmoezvfAiqHtdRvxe16shzbd7LDMz", strlen("cRCH7YNcarfvaiY1GWUKQrRGmoezvfAiqHtdRvxe16shzbd7LDMz"),
 			     &testnet, &input_privkey, &inputkey))
 		abort();
 	assert(testnet);
-	printf("* Block 1 coinbase privkey: %s01\n",
+	printf("* Block 1 coinbase privkey: %s\n",
 	       type_to_string(tmpctx, struct privkey, &input_privkey));
 
 	/* BOLT #3:
@@ -98,6 +99,7 @@ int main(void)
 	utxo.outnum = 0;
 	utxo.amount = 5000000000;
 	utxo.is_p2sh = false;
+	utxo.close_info = NULL;
 	funding_satoshis = 10000000;
 	fee = 13920;
 
@@ -107,6 +109,7 @@ int main(void)
 	printf("input[0] satoshis: %"PRIu64"\n", utxo.amount);
 	printf("funding satoshis: %"PRIu64"\n", funding_satoshis);
 
+	utxomap = tal_arr(tmpctx, const struct utxo *, 1);
 	utxomap[0] = &utxo;
 	funding = funding_tx(tmpctx, &funding_outnum, utxomap,
 			     funding_satoshis,

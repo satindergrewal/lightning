@@ -1,14 +1,11 @@
 #define SUPERVERBOSE
-static void *tmpctx;
 
-#include <stdio.h>
-#include <utils.h>
-#include <type_to_string.h>
-#include "../key_derive.c"
 #include <assert.h>
 #include <ccan/str/hex/hex.h>
+#include <common/type_to_string.h>
+#include <common/utils.h>
 #include <stdio.h>
-#include <type_to_string.h>
+#include "../../common/key_derive.c"
 
 static struct secret secret_from_hex(const char *hex)
 {
@@ -25,7 +22,7 @@ int main(void)
 	struct secret base_secret, per_commitment_secret;
 	struct pubkey base_point, per_commitment_point, pubkey, pubkey2;
 
-	tmpctx = tal_tmpctx(NULL);
+	setup_tmpctx();
 	secp256k1_ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY
 						 | SECP256K1_CONTEXT_SIGN);
 

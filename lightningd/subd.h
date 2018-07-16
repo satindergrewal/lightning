@@ -5,8 +5,11 @@
 #include <ccan/list/list.h>
 #include <ccan/short_types/short_types.h>
 #include <ccan/tal/tal.h>
-#include <lightningd/msg_queue.h>
+#include <ccan/typesafe_cb/typesafe_cb.h>
+#include <common/msg_queue.h>
+#include <wire/wire.h>
 
+struct crypto_state;
 struct io_conn;
 
 /* By convention, replies are requests + 100 */
@@ -16,7 +19,7 @@ struct io_conn;
 
 /* One of our subds. */
 struct subd {
-	/* Name, like John, or "lightningd_hsm" */
+	/* Name, like John, or "lightning_hsmd" */
 	const char *name;
 	/* The Big Cheese. */
 	struct lightningd *ld;
@@ -25,16 +28,29 @@ struct subd {
 	/* Connection. */
 	struct io_conn *conn;
 
-	/* If we are associated with a single peer, this points to it. */
-	struct peer *peer;
+	/* If we are associated with a single channel, this points to it. */
+	void *channel;
 
 	/* For logging */
 	struct log *log;
 
-	/* Callback when non-reply message comes in. */
-	int (*msgcb)(struct subd *, const u8 *, const int *);
+	/* Callback when non-reply message comes in (inside db transaction) */
+	unsigned (*msgcb)(struct subd *, const u8 *, const int *);
 	const char *(*msgname)(int msgtype);
-	void (*finished)(struct subd *sd, int status);
+
+	/* If peer_fd == -1, it was a disconnect/crash.  Otherwise,
+	 * sufficient information to hand back to gossipd, including the
+	 * error message we sent them if any. */
+	void (*errcb)(void *channel,
+		      int peer_fd, int gossip_fd,
+		      const struct crypto_state *cs,
+		      u64 gossip_index,
+		      const struct channel_id *channel_id,
+		      const char *desc,
+		      const u8 *err_for_them);
+
+	/* Callback to display information for listpeers RPC */
+	void (*billboardcb)(void *channel, bool perm, const char *happenings);
 
 	/* Buffer for input. */
 	u8 *msg_in;
@@ -42,6 +58,9 @@ struct subd {
 	/* While we're reading fds in. */
 	size_t num_fds_in_read;
 	int *fds_in;
+
+	/* For global daemons: we fail if they fail. */
+	bool must_not_exit;
 
 	/* Messages queue up here. */
 	struct msg_queue outq;
@@ -51,14 +70,35 @@ struct subd {
 };
 
 /**
- * new_subd - create a new subdaemon.
- * @ctx: context to allocate from
+ * new_global_subd - create a new global subdaemon.
  * @ld: global state
  * @name: basename of daemon
- * @peer: peer to associate (if any).
  * @msgname: function to get name from messages
- * @msgcb: function to call when non-fatal message received (or NULL)
- * @finished: function to call when it's finished (with exit status).
+ * @msgcb: function to call (inside db transaction) when non-fatal message received (or NULL)
+ * @...: NULL-terminated list of pointers to  fds to hand as fd 3, 4...
+ *	(can be take, if so, set to -1)
+ *
+ * @msgcb gets called with @fds set to NULL: if it returns a positive number,
+ * that many @fds are received before calling again.  @msgcb can free subd
+ * to shut it down.
+ */
+struct subd *new_global_subd(struct lightningd *ld,
+			     const char *name,
+			     const char *(*msgname)(int msgtype),
+			     unsigned int (*msgcb)(struct subd *, const u8 *,
+						   const int *fds),
+			     ...);
+
+/**
+ * new_channel_subd - create a new subdaemon for a specific channel.
+ * @ld: global state
+ * @name: basename of daemon
+ * @channel: channel to associate.
+ * @base_log: log to use (actually makes a copy so it has name in prefix)
+ * @msgname: function to get name from messages
+ * @msgcb: function to call (inside db transaction) when non-fatal message received (or NULL)
+ * @errcb: function to call on errors.
+ * @billboardcb: function to call for billboard updates.
  * @...: NULL-terminated list of pointers to  fds to hand as fd 3, 4...
  *	(can be take, if so, set to -1)
  *
@@ -66,14 +106,37 @@ struct subd {
  * that many @fds are received before calling again.  If it returns -1, the
  * subdaemon is shutdown.
  */
-struct subd *new_subd(const tal_t *ctx,
-		      struct lightningd *ld,
-		      const char *name,
-		      struct peer *peer,
-		      const char *(*msgname)(int msgtype),
-		      int (*msgcb)(struct subd *, const u8 *, const int *fds),
-		      void (*finished)(struct subd *, int), ...);
+struct subd *new_channel_subd_(struct lightningd *ld,
+			       const char *name,
+			       void *channel,
+			       struct log *base_log,
+			       const char *(*msgname)(int msgtype),
+			       unsigned int (*msgcb)(struct subd *, const u8 *,
+						     const int *fds),
+			       void (*errcb)(void *channel,
+					     int peer_fd, int gossip_fd,
+					     const struct crypto_state *cs,
+					     u64 gossip_index,
+					     const struct channel_id *channel_id,
+					     const char *desc,
+					     const u8 *err_for_them),
+			       void (*billboardcb)(void *channel, bool perm,
+						   const char *happenings),
+			       ...);
 
+#define new_channel_subd(ld, name, channel, log, msgname, \
+			 msgcb, errcb, billboardcb, ...)		\
+	new_channel_subd_((ld), (name), (channel), (log), (msgname), (msgcb), \
+			  typesafe_cb_postargs(void, void *, (errcb),	\
+					       (channel), int, int,	\
+					       const struct crypto_state *, \
+					       u64,			\
+					       const struct channel_id *, \
+					       const char *, const u8 *), \
+			  typesafe_cb_postargs(void, void *, (billboardcb), \
+					       (channel), bool,		\
+					       const char *),		\
+			  __VA_ARGS__)
 /**
  * subd_raw - raw interface to get a subdaemon on an fd (for HSM)
  * @ld: global state
@@ -102,7 +165,7 @@ void subd_send_fd(struct subd *sd, int fd);
  * @msg_out: request message (can be take)
  * @fd_out: if >=0 fd to pass at the end of the message (closed after)
  * @num_fds_in: how many fds to read in to hand to @replycb if it's a reply.
- * @replycb: callback when reply comes in, returns false to shutdown daemon.
+ * @replycb: callback (inside db transaction) when reply comes in (can free subd)
  * @replycb_data: final arg to hand to @replycb
  *
  * @replycb cannot free @sd, so it returns false to remove it.
@@ -111,7 +174,7 @@ void subd_send_fd(struct subd *sd, int fd);
  */
 #define subd_req(ctx, sd, msg_out, fd_out, num_fds_in, replycb, replycb_data) \
 	subd_req_((ctx), (sd), (msg_out), (fd_out), (num_fds_in),	\
-		  typesafe_cb_preargs(bool, void *,			\
+		  typesafe_cb_preargs(void, void *,			\
 				      (replycb), (replycb_data),	\
 				      struct subd *,			\
 				      const u8 *, const int *),		\
@@ -120,8 +183,18 @@ void subd_req_(const tal_t *ctx,
 	       struct subd *sd,
 	       const u8 *msg_out,
 	       int fd_out, size_t num_fds_in,
-	       bool (*replycb)(struct subd *, const u8 *, const int *, void *),
+	       void (*replycb)(struct subd *, const u8 *, const int *, void *),
 	       void *replycb_data);
+
+/**
+ * subd_release_channel - shut down a subdaemon which no longer owns the channel.
+ * @owner: subd which owned channel.
+ * @channel: channel to release.
+ *
+ * If the subdaemon is not already shutting down, and it is a per-channel
+ * subdaemon, this shuts it down.
+ */
+void subd_release_channel(struct subd *owner, void *channel);
 
 /**
  * subd_shutdown - try to politely shut down a subdaemon.
@@ -133,8 +206,10 @@ void subd_req_(const tal_t *ctx,
  */
 void subd_shutdown(struct subd *subd, unsigned int seconds);
 
+#if DEVELOPER
 char *opt_subd_debug(const char *optarg, struct lightningd *ld);
 char *opt_subd_dev_disconnect(const char *optarg, struct lightningd *ld);
 
 bool dev_disconnect_permanent(struct lightningd *ld);
+#endif /* DEVELOPER */
 #endif /* LIGHTNING_LIGHTNINGD_SUBD_H */

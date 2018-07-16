@@ -61,24 +61,13 @@ void BET_betinfo_set(struct privatebet_info *bet,char *game,int32_t range,int32_
     bet->maxplayers = maxplayers;
 }
 
-void BET_betvars_parse(struct privatebet_info *bet,struct privatebet_vars *vars,cJSON *argjson)
-{
-    vars->turni = jint(argjson,"turni");
-    vars->round = jint(argjson,"round");
-    if ( bits256_cmp(bet->tableid,Mypubkey) != 0 )
-    {
-        Gamestart = juint(argjson,"gamestart");
-        Gamestarted = juint(argjson,"gamestarted");
-    }
-    //printf("TURNI.(%s)\n",jprint(argjson,0));
-}
-
 cJSON *BET_betinfo_json(struct privatebet_info *bet,struct privatebet_vars *vars)
 {
     int32_t i,n; cJSON *array,*betjson = cJSON_CreateObject();
     jaddstr(betjson,"method","tablestatus");
     jaddstr(betjson,"game",bet->game);
     jaddbits256(betjson,"tableid",bet->tableid);
+    jaddnum(betjson,"timestamp",bet->timestamp);
     jaddnum(betjson,"maxplayers",bet->maxplayers);
     array = cJSON_CreateArray();
     bet->myplayerid = -1;
@@ -116,6 +105,18 @@ cJSON *BET_betinfo_json(struct privatebet_info *bet,struct privatebet_vars *vars
     return(betjson);
 }
 
+void BET_betvars_parse(struct privatebet_info *bet,struct privatebet_vars *vars,cJSON *argjson)
+{
+    vars->turni = jint(argjson,"turni");
+    vars->round = jint(argjson,"round");
+    if ( bits256_cmp(bet->tableid,Mypubkey) != 0 )
+    {
+        Gamestart = juint(argjson,"gamestart");
+        Gamestarted = juint(argjson,"gamestarted");
+    }
+    //printf("TURNI.(%s)\n",jprint(argjson,0));
+}
+
 int32_t BET_betinfo_parse(struct privatebet_info *bet,struct privatebet_vars *vars,cJSON *msgjson)
 {
     int32_t i,n; cJSON *players;
@@ -138,6 +139,7 @@ int32_t BET_betinfo_parse(struct privatebet_info *bet,struct privatebet_vars *va
         bet->numplayers = 0;
         printf("Numplayers %d mismatch %d\n",bet->numplayers,n);
     }
+    bet->timestamp = juint(msgjson,"timestamp");
     bet->tableid = jbits256(msgjson,"tableid");
     bet->numrounds = jint(msgjson,"numrounds");
     bet->range = jint(msgjson,"range");

@@ -131,7 +131,7 @@ struct io_plan_arg *io_plan_arg(struct io_conn *conn, enum io_direction dir)
 {
 	assert(conn->plan[dir].status == IO_UNSET);
 
-	conn->plan[dir].status = IO_POLLING;
+	conn->plan[dir].status = IO_POLLING_NOTSTARTED;
 	return &conn->plan[dir].arg;
 }
 
@@ -363,17 +363,25 @@ void io_wake(const void *wait)
 	backend_wake(wait);
 }
 
-/* Returns false if this has been freed. */
-static bool do_plan(struct io_conn *conn, struct io_plan *plan)
+/* Returns false if this should not be touched (eg. freed). */
+static bool do_plan(struct io_conn *conn, struct io_plan *plan,
+		    bool idle_on_epipe)
 {
 	/* We shouldn't have polled for this event if this wasn't true! */
-	assert(plan->status == IO_POLLING);
+	assert(plan->status == IO_POLLING_NOTSTARTED
+	       || plan->status == IO_POLLING_STARTED);
 
 	switch (plan->io(conn->fd.fd, &plan->arg)) {
 	case -1:
+		if (errno == EPIPE && idle_on_epipe) {
+			plan->status = IO_UNSET;
+			backend_new_plan(conn);
+			return false;
+		}
 		io_close(conn);
 		return false;
 	case 0:
+		plan->status = IO_POLLING_STARTED;
 		return true;
 	case 1:
 		return next_plan(conn, plan);
@@ -386,11 +394,15 @@ static bool do_plan(struct io_conn *conn, struct io_plan *plan)
 void io_ready(struct io_conn *conn, int pollflags)
 {
 	if (pollflags & POLLIN)
-		if (!do_plan(conn, &conn->plan[IO_IN]))
+		if (!do_plan(conn, &conn->plan[IO_IN], false))
 			return;
 
 	if (pollflags & POLLOUT)
-		do_plan(conn, &conn->plan[IO_OUT]);
+		/* If we're writing to a closed pipe, we need to wait for
+		 * read to fail if we're duplex: we want to drain it! */
+		do_plan(conn, &conn->plan[IO_OUT],
+			conn->plan[IO_IN].status == IO_POLLING_NOTSTARTED
+			|| conn->plan[IO_IN].status == IO_POLLING_STARTED);
 }
 
 void io_do_always(struct io_conn *conn)
@@ -500,13 +512,24 @@ struct io_plan *io_set_plan(struct io_conn *conn, enum io_direction dir,
 	return plan;
 }
 
+bool io_plan_in_started(const struct io_conn *conn)
+{
+	return conn->plan[IO_IN].status == IO_POLLING_STARTED;
+}
+
+bool io_plan_out_started(const struct io_conn *conn)
+{
+	return conn->plan[IO_OUT].status == IO_POLLING_STARTED;
+}
+
 bool io_flush_sync(struct io_conn *conn)
 {
 	struct io_plan *plan = &conn->plan[IO_OUT];
 	bool ok;
 
 	/* Not writing?  Nothing to do. */
-	if (plan->status != IO_POLLING)
+	if (plan->status != IO_POLLING_STARTED
+	    && plan->status != IO_POLLING_NOTSTARTED)
 		return true;
 
 	/* Synchronous please. */
@@ -519,6 +542,7 @@ again:
 		break;
 	/* Incomplete, try again. */
 	case 0:
+		plan->status = IO_POLLING_STARTED;
 		goto again;
 	case 1:
 		ok = true;

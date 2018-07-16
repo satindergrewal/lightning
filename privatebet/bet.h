@@ -222,6 +222,9 @@ https://crypto.stanford.edu/~pgolle/papers/poker.pdf
 
 #include "../../SuperNET/crypto777/OS_portable.h"
 #include "../../SuperNET/iguana/exchanges/LP_include.h"
+//#include "../../SuperNET/iguana/exchanges/LP_nativeDEX.c"
+
+
 #if defined(WIN32) || defined(USE_STATIC_NANOMSG)
 #include "../../SuperNET/crypto777/nanosrc/nn.h"
 #include "../../SuperNET/crypto777/nanosrc/bus.h"
@@ -243,11 +246,12 @@ https://crypto.stanford.edu/~pgolle/papers/poker.pdf
 #define CARDS777_MAXCARDS 255 //52    //
 #define CARDS777_MAXPLAYERS 10 //9   //
 #define CARDS777_MAXROUNDS 3 //9   //
-#define CARDS777_MAXCHIPS 100
-#define CARDS777_CHIPSIZE (SATOSHIDEN / 1000)
+#define CARDS777_MAXCHIPS 1000
+#define CARDS777_CHIPSIZE (SATOSHIDEN / CARDS777_MAXCHIPS)
 #define BET_PLAYERTIMEOUT 15
-#define BET_GAMESTART_DELAY 0
-#define BET_RESERVERATE 1.0125
+#define BET_GAMESTART_DELAY 10
+#define BET_RESERVERATE 1.025
+#define LN_FUNDINGERROR "\"Cannot afford funding transaction\""
 
 struct BET_shardsinfo
 {
@@ -269,6 +273,7 @@ struct privatebet_info
     bits256 MofN[CARDS777_MAXCARDS * CARDS777_MAXPLAYERS],cardpubs[CARDS777_MAXCARDS],playerpubs[CARDS777_MAXPLAYERS+1],tableid,deckid;
     int32_t numplayers,maxplayers,numrounds,range,myplayerid,maxchips,chipsize;
     int32_t pullsock,pubsock,subsock,pushsock;
+    uint32_t timestamp;
     char peerids[CARDS777_MAXPLAYERS+1][67];
 };
 
@@ -290,10 +295,55 @@ struct privatebet_vars
 {
     bits256 myhash,hashes[CARDS777_MAXPLAYERS+1][2];
     int32_t permis[CARDS777_MAXPLAYERS+1][CARDS777_MAXCARDS];
-    uint32_t endround[CARDS777_MAXPLAYERS+1];
+    uint32_t endround[CARDS777_MAXPLAYERS+1],evalcrcs[CARDS777_MAXPLAYERS+1],consensus;
     cJSON *actions[CARDS777_MAXROUNDS][CARDS777_MAXPLAYERS+1];
-    int32_t mypermi[CARDS777_MAXCARDS],permi[CARDS777_MAXCARDS],turni,round,validperms,roundready;
+    int32_t mypermi[CARDS777_MAXCARDS],permi[CARDS777_MAXCARDS],turni,round,validperms,roundready,lastround,numconsensus;
 };
+
+struct pair256 { bits256 priv,prod; };
+
+struct privatebet_share
+{
+	int32_t numplayers,range,myplayerid;
+	int32_t pullsock,pubsock,subsock,pushsock;
+	bits256 bvv_public_key;
+	struct pair256 player_key;
+};
+
+//added by sg777
+
+struct deck_player_info
+{
+	struct pair256 player_key;
+	bits256 cardpubkeys[CARDS777_MAXCARDS],cardprivkeys[CARDS777_MAXCARDS];
+	int32_t permis[CARDS777_MAXCARDS];
+	bits256 cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXPLAYERS];
+	bits256 bvvblindcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	bits256 dcvpubkey,bvvpubkey,deckid;
+	uint32_t numplayers,maxplayers,numcards;
+};
+
+struct deck_dcv_info
+{
+	bits256 deckid;
+	struct pair256 dcv_key;
+	int32_t permis[CARDS777_MAXCARDS];
+	bits256 cardpubkeys[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	bits256 dcvblindcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	bits256 cardprods[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	bits256 peerpubkeys[CARDS777_MAXPLAYERS];
+	uint32_t numplayers,maxplayers;
+};
+
+struct deck_bvv_info
+{
+	bits256 deckid;
+	int32_t permis[CARDS777_MAXCARDS];
+	struct pair256 bvv_key;
+	bits256 bvvblindcards[CARDS777_MAXPLAYERS][CARDS777_MAXCARDS];
+	uint32_t numplayers,maxplayers;
+};
+
 bits256 *BET_process_packet(bits256 *cardpubs,bits256 *deckidp,bits256 senderpub,bits256 mypriv,uint8_t *decoded,int32_t maxsize,bits256 mypub,uint8_t *sendbuf,int32_t size,int32_t checkplayers,int32_t range);
 cJSON *BET_hostrhashes(struct privatebet_info *bet);
 bits256 BET_clientrhash();
@@ -303,15 +353,38 @@ int32_t BET_hostcommand(cJSON *argjson,struct privatebet_info *bet,struct privat
 //void BET_cmdloop(bits256 privkey,char *smartaddr,uint8_t *pubkey33,bits256 pubkey,struct privatebet_info *bet);
 cJSON *BET_statemachine_gamestart_actions(struct privatebet_info *bet,struct privatebet_vars *vars);
 cJSON *BET_statemachine_turni_actions(struct privatebet_info *bet,struct privatebet_vars *vars);
-void BET_statemachine_endround(struct privatebet_info *bet,struct privatebet_vars *vars);
+//void BET_statemachine_deali(struct privatebet_info *bet,struct privatebet_vars *vars,int32_t deali,int32_t playerj);
+
+void BET_statemachine_joined_table(struct privatebet_info *bet,struct privatebet_vars *vars);
+void BET_statemachine_unjoined_table(struct privatebet_info *bet,struct privatebet_vars *vars);
 void BET_statemachine_roundstart(struct privatebet_info *bet,struct privatebet_vars *vars);
-void BET_statemachine_deali(struct privatebet_info *bet,struct privatebet_vars *vars,int32_t deali,int32_t playerj);
-int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[],char *cmdstr);
+void BET_statemachine_roundend(struct privatebet_info *bet,struct privatebet_vars *vars);
+void BET_statemachine_gameend(struct privatebet_info *bet,struct privatebet_vars *vars);
+void BET_statemachine(struct privatebet_info *bet,struct privatebet_vars *vars);
+int32_t BET_client_turni(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid);
+int32_t BET_statemachine_validate(struct privatebet_info *bet,struct privatebet_vars *vars,int32_t round,int32_t senderid);
+int32_t BET_client_gameeval(cJSON *argjson,struct privatebet_info *bet,struct privatebet_vars *vars,int32_t senderid);
+void BET_statemachine_consensus(struct privatebet_info *bet,struct privatebet_vars *vars);
+int32_t BET_statemachine_outofgame(struct privatebet_info *bet,struct privatebet_vars *vars,int32_t round,int32_t senderid);
+int32_t BET_statemachine_turnivalidate(struct privatebet_info *bet,struct privatebet_vars *vars,int32_t round,int32_t senderid);
+
+int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[]);
 struct privatebet_peerln *BET_peerln_find(char *peerid);
 
 void stats_rpcloop(void *args);
 bits256 xoverz_donna(bits256 a);
 bits256 crecip_donna(bits256 a);
 bits256 fmul_donna(bits256 a,bits256 b);
+bits256 card_rand256(int32_t privkeyflag,int8_t index);
+struct pair256 deckgen_common(struct pair256 *randcards,int32_t numcards);
+struct pair256 deckgen_common1(struct pair256 *randcards,int32_t numcards);
+struct pair256 deckgen_player(bits256 *playerprivs,bits256 *playercards,int32_t *permis,int32_t numcards);
+int32_t sg777_deckgen_vendor(int32_t playerid, bits256 *cardprods,bits256 *finalcards,int32_t numcards,bits256 *playercards,bits256 deckid); 
+struct pair256 sg777_blinding_vendor(struct pair256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid);
+bits256 t_sg777_player_decode(struct privatebet_info *bet,int32_t cardID,int numplayers,struct pair256 key,bits256 public_key_b,bits256 blindedcard,bits256 *cardprods,bits256 *playerprivs,int32_t numcards);
+
+struct pair256 p2p_bvv_init(bits256 *keys,struct pair256 b_key,bits256 *blindings,bits256 *blindedcards,bits256 *finalcards,int32_t numcards,int32_t numplayers,int32_t playerid,bits256 deckid);
+
+bits256 curve25519_fieldelement(bits256 hash);
 
 

@@ -13,7 +13,7 @@
  *                                                                            *
  ******************************************************************************/
 
-bits256 Host_rhashes[256]; int32_t Num_hostrhashes;
+bits256 Host_rhashes[256]; int32_t Num_hostrhashes,Chips_paid;
 
 bits256 BET_clientrhash()
 {
@@ -35,7 +35,7 @@ void BET_chip_recv(char *label,struct privatebet_info *bet)
 void BET_hostrhash_update(bits256 rhash)
 {
     int32_t i;
-    char str[65]; printf("hostrhash update.(%s)\n",bits256_str(str,rhash));
+    //char str[65]; printf("hostrhash update.(%s)\n",bits256_str(str,rhash));
     if ( Num_hostrhashes < sizeof(Host_rhashes)/sizeof(*Host_rhashes) )
     {
         for (i=0; i<Num_hostrhashes; i++)
@@ -118,48 +118,103 @@ struct privatebet_peerln *BET_invoice_complete(char *nextlabel,cJSON *item,struc
 
 int32_t BET_clientpay(uint64_t chipsize)
 {
-    bits256 rhash,preimage; cJSON *routejson,*retjson,*array; int32_t n,retval = -1;
-    if ( Host_channel[0] != 0 && (n= Num_hostrhashes) > 0 )
+    bits256 rhash,preimage; cJSON *routejson,*retjson,*array; int32_t avail,n=0,retval = -1;
+    printf("BET_clientpay.%llu %.8f -> (%s)\n",(long long)chipsize,dstr(chipsize),Host_peerid);
+    if ( Host_peerid[0] != 0 && Host_channel[0] != 0 && (n= Num_hostrhashes) > 0 )
     {
-        if ( BET_peer_chipsavail(Host_peerid,chipsize) <= 2 )
+        if ( (avail= (int32_t)BET_peer_chipsavail(Host_peerid,chipsize)) < 2 )
         {
-            // addfunds
-            return(-2);
-        }
-        rhash = Host_rhashes[n-1];
-        if ( bits256_nonz(rhash) != 0 )
-        {
-            array = cJSON_CreateArray();
-            routejson = cJSON_CreateObject();
-            jaddstr(routejson,"id",Host_peerid);
-            jaddstr(routejson,"channel",Host_channel);
-            jaddnum(routejson,"msatoshi",chipsize*1000);
-            jaddnum(routejson,"delay",10);
-            jaddi(array,routejson);
-            // route { "id" : "02779b57b66706778aa1c7308a817dc080295f3c2a6af349bb1114b8be328c28dc", "channel" : "27446:1:0", "msatoshi" : 1000000, "delay" : 10 }
-            // replace rhash in route
-            if ( (retjson= chipsln_sendpay(array,rhash)) != 0 )
+            if ( (retjson= chipsln_close(Host_channel)) != 0 )
             {
-                char str[65],str2[65];
-                preimage = jbits256(retjson,"preimage");
-                printf("sendpay rhash.(%s) %.8f to %s -> %s preimage.%s\n",bits256_str(str,rhash),dstr(chipsize),jprint(array,0),jprint(retjson,0),bits256_str(str2,preimage));
-                // if valid, reduce Host_rhashes[]
-                if ( Num_hostrhashes > 0 )
-                {
-                    Num_hostrhashes--;
-                    retval = 0;
-                }
+                printf("close.(%s) -> (%s)\n",Host_channel,jprint(retjson,0));
                 free_json(retjson);
             }
-            free_json(array);
+            printf("%s numchips.%d error\n",Host_peerid,avail);
+            Host_channel[0] = 0;
+            system("./fund"); // addfunds
+            return(-2);
         }
-    }
+        printf("chips avail.%d\n",avail);
+        rhash = Host_rhashes[n-1];
+        if ( bits256_nonz(rhash) != 0 && BET_peer_state(Host_peerid,"CHANNELD_NORMAL") == 0 )
+        {
+            if ( BET_channel_status(Host_peerid,Host_channel,"active") == 0 )
+            {
+                array = routejson = 0;
+                if ( 0 )
+                {
+                    array = cJSON_CreateArray();
+                    routejson = cJSON_CreateObject();
+                    jaddstr(routejson,"id",Host_peerid);
+                    jaddstr(routejson,"channel",Host_channel);
+                    jaddnum(routejson,"msatoshi",chipsize*1000);
+                    jaddnum(routejson,"delay",100);
+                    jaddi(array,routejson);
+                }
+                else
+                {
+                    if ( (retjson= chipsln_getroute(Host_peerid,chipsize*1000)) != 0 )
+                    {
+                        printf("getroute.(%s)\n",jprint(retjson,0));
+                        if ( (routejson= jarray(&n,retjson,"route")) != 0 )
+                            array = jduplicate(routejson);
+                    }
+                }
+                // route { "id" : "02779b57b66706778aa1c7308a817dc080295f3c2a6af349bb1114b8be328c28dc", "channel" : "27446:1:0", "msatoshi" : 1000000, "delay" : 10 }
+                // replace rhash in route
+                if ( array != 0 )
+                {
+                    if ( (retjson= chipsln_sendpay(array,rhash)) != 0 )
+                    {
+                        char str[65],str2[65];
+                        preimage = jbits256(retjson,"preimage");
+                        printf("sendpay rhash.(%s) %.8f to %s -> %s preimage.%s\n",bits256_str(str,rhash),dstr(chipsize),jprint(array,0),jprint(retjson,0),bits256_str(str2,preimage));
+                        if ( bits256_nonz(preimage) != 0 )
+                        {
+                            Chips_paid++;
+                            // if valid, reduce Host_rhashes[]
+                            if ( Num_hostrhashes > 0 )
+                            {
+                                Num_hostrhashes--;
+                                retval = 0;
+                            }
+                        } else printf("ERROR doing sendpay.%s <- %.8f\n",bits256_str(str,rhash),dstr(chipsize));
+                        free_json(retjson);
+                    } else printf("sendpay null return?\n");
+                } else printf("no route\n");
+                free_json(array);
+            } else printf("channel not ready\n");
+        } else printf("peer not ready\n");
+    } else printf("cant pay Host_channel.(%s) numchips.%d\n",Host_channel,n);
     return(retval);
 }
 
 void BET_channels_parse()
 {
-    cJSON *channels,*array,*item; int32_t i,n,len; char *source,*dest,*short_id;
+    cJSON *channels,*array,*item,*peers; int32_t i,n,len; char *channel,*peerid,*source,*dest,*short_id;
+    if ( (peers= chipsln_getpeers()) != 0 )
+    {
+        //printf("got.(%s)\n",jprint(channels,0));
+        if ( (array= jarray(&n,peers,"peers")) != 0 )
+        {
+            for (i=0; i<n; i++)
+            {
+                item = jitem(array,i);
+                if ( (peerid= jstr(item,"peerid")) != 0 && strcmp(peerid,Host_peerid) == 0 )
+                {
+                    if ( (channel= jstr(item,"channel")) != 0 )
+                    {
+                        safecopy(Host_channel,channel,sizeof(Host_channel));
+                        printf("Got Host_channel from channel.(%s)\n",channel);
+                        free_json(peers);
+                        return;
+                    }
+                    break;
+                }
+            }
+        }
+        free_json(peers);
+    }
     if ( (channels= chipsln_getchannels()) != 0 )
     {
         //printf("got.(%s)\n",jprint(channels,0));
