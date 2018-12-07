@@ -14,7 +14,7 @@
 #include <sodium/randombytes.h>
 #include <sqlite3.h>
 #include <string.h>
-
+#include <stdio.h>
 struct invoice_waiter {
 	/* Is this waiter already triggered? */
 	bool triggered;
