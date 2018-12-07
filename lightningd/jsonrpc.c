@@ -167,6 +167,17 @@ static const struct json_command getinfo_command = {
 	json_getinfo,
 	"Show information about this node"
 };
+static void json_bet(struct command *cmd,
+			 const char *buffer UNUSED, const jsmntok_t *params UNUSED)
+{
+	printf("\nThis is for testing");
+}
+static const struct json_command bet_command = {
+	"bet",
+	json_bet,
+	"This is a testing command"
+};
+
 AUTODATA(json_command, &getinfo_command);
 
 static size_t num_cmdlist;
