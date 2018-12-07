@@ -636,7 +636,7 @@ int invoices_count(struct invoices *invoices)
 {
 	sqlite3_stmt *stmt;
 	int invoice_count;
-	stmt = db_prepare(invoices_db->db,
+	stmt = db_prepare(invoices->db,
 					  "SELECT count(*)"
 					  "  FROM invoices;");
 	printf("Got results:\n");
