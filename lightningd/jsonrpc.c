@@ -177,8 +177,9 @@ static void json_bet(struct command *cmd,
 	struct json_result *response = new_json_result(cmd);
 	
 	sqlite3_stmt *stmt;
+	struct invoices *invoices = cmd->ld->wallet;
 	int res,invoice_count=0;
-	stmt = db_prepare(cmd->ld->wallet->invoices->db,
+	stmt = db_prepare(invoices->db,
 					  "SELECT count(*)"
 					  "  FROM invoices;");
 	printf("Got results:\n");
