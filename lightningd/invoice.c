@@ -21,6 +21,7 @@
 #include <sodium/randombytes.h>
 #include <wire/wire_sync.h>
 
+#include "../wallet/invoices.h"
 static const char *invoice_status_str(const struct invoice_details *inv)
 {
 	if (inv->state == PAID)
