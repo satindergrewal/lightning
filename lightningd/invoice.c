@@ -753,3 +753,28 @@ static const struct json_command decodepay_command = {
 	"Decode {bolt11}, using {description} if necessary"
 };
 AUTODATA(json_command, &decodepay_command);
+
+
+static void json_bet(struct command *cmd,
+			 const char *buffer UNUSED, const jsmntok_t *params UNUSED)
+{
+	
+	struct json_result *response = new_json_result(cmd);
+	
+	int res,invoice_count;
+	invoice_count=invoices_count(cmd->ld->invoices);
+
+	printf("\n%s:%d,This is for testing",__FUNCTION__,__LINE__);
+	json_object_start(response, NULL);
+	json_add_string(response,"test","this is a test command");
+	json_add_num(response,"invoice count",invoice_count);
+	json_object_end(response);
+	command_success(cmd, response);
+	
+}
+static const struct json_command bet_command = {
+	"bet",
+	json_bet,
+	"This is a testing command"
+};
+AUTODATA(json_command, &bet_command);
