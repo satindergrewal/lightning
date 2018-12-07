@@ -209,7 +209,6 @@ static void json_bet(struct command *cmd,
 	}
 	if (res == SQLITE_DONE) {
 		sqlite3_finalize(stmt);
-		sqlite3_close(db);
 	} 
 	
 	printf("\n%s:%d,This is for testing",__FUNCTION__,__LINE__);
