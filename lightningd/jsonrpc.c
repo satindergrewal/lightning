@@ -167,18 +167,29 @@ static const struct json_command getinfo_command = {
 	json_getinfo,
 	"Show information about this node"
 };
+AUTODATA(json_command, &getinfo_command);
+
+
 static void json_bet(struct command *cmd,
 			 const char *buffer UNUSED, const jsmntok_t *params UNUSED)
 {
-	printf("\nThis is for testing");
+	
+	struct json_result *response = new_json_result(cmd);
+	printf("\n%s:%d,This is for testing",__FUNCTION__,__LINE__);
+	json_object_start(response, NULL);
+	json_add_string(response,"test","this is a test command");
+	json_object_end(response);
+	command_success(cmd, response);
+	
 }
 static const struct json_command bet_command = {
 	"bet",
 	json_bet,
 	"This is a testing command"
 };
+AUTODATA(json_command, &bet_command);
 
-AUTODATA(json_command, &getinfo_command);
+
 
 static size_t num_cmdlist;
 
