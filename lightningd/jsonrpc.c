@@ -176,42 +176,9 @@ static void json_bet(struct command *cmd,
 	
 	struct json_result *response = new_json_result(cmd);
 	
-	sqlite3_stmt *stmt;
-	struct invoices *invoices_db = cmd->ld->invoices;
-	int res,invoice_count=0;
-	stmt = db_prepare(invoices_db->db,
-					  "SELECT count(*)"
-					  "  FROM invoices;");
-	printf("Got results:\n");
-	while (sqlite3_step(stmt) != SQLITE_DONE) {
-		int i;
-		int num_cols = sqlite3_column_count(stmt);
-		
-		for (i = 0; i < num_cols; i++)
-		{
-			switch (sqlite3_column_type(stmt, i))
-			{
-			case (SQLITE3_TEXT):
-				printf("%s, ", sqlite3_column_text(stmt, i));
-				break;
-			case (SQLITE_INTEGER):
-				invoice_count=sqlite3_column_int(stmt, i);
-				printf("%d, ", invoice_count);
-				break;
-			case (SQLITE_FLOAT):
-				printf("%g, ", sqlite3_column_double(stmt, i));
-				break;
-			default:
-				break;
-			}
-		}
-		printf("\n");
+	int res,invoice_count;
+	invoice_count=invoices_count(cmd->ld->invoices);
 
-	}
-	if (res == SQLITE_DONE) {
-		sqlite3_finalize(stmt);
-	} 
-	
 	printf("\n%s:%d,This is for testing",__FUNCTION__,__LINE__);
 	json_object_start(response, NULL);
 	json_add_string(response,"test","this is a test command");
