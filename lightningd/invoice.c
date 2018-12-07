@@ -763,7 +763,7 @@ static void json_bet(struct command *cmd,
 	struct json_result *response = new_json_result(cmd);
 	
 	int invoice_count;
-	invoice_count=invoices_count(cmd->ld->invoices);
+	invoice_count=wallet_invoice_count(cmd->ld->wallet);
 
 	printf("\n%s:%d,This is for testing",__FUNCTION__,__LINE__);
 	json_object_start(response, NULL);
