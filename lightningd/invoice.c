@@ -765,7 +765,6 @@ static void json_bet(struct command *cmd,
 	int invoice_count;
 	invoice_count=wallet_invoice_count(cmd->ld->wallet);
 
-	printf("\n%s:%d,This is for testing",__FUNCTION__,__LINE__);
 	json_object_start(response, NULL);
 	json_add_num(response,"invoice count",invoice_count);
 	json_object_end(response);

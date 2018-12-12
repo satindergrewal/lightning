@@ -44,6 +44,7 @@
 #include <wally_bip32.h>
 #include <wire/gen_onion_wire.h>
 
+#include <stdio.h>
 static void destroy_peer(struct peer *peer)
 {
 	list_del_from(&peer->ld->peers, &peer->list);
@@ -1211,4 +1212,25 @@ static const struct json_command dev_forget_channel_command = {
 	"Forget the channel with peer {id}. Checks if the channel is still active by checking its funding transaction. Check can be ignored by setting {force} to 'true'"
 };
 AUTODATA(json_command, &dev_forget_channel_command);
+
+static void json_peer_channel_state(struct command *cmd, const char *buffer,
+				    const jsmntok_t *params)
+{
+	char buf[200];
+	jsmntok_t *nodeidtok;	
+		if (!json_get_params(cmd, buffer, params,"id", &nodeidtok,NULL)) {
+		return -1;
+	}
+	strcpy(buf,buffer+nodeidtok->start,nodeidtok->end-nodeidtok->start);
+	printf("\nThe parameter is:%s",buf);
+		
+		
+}
+
+static const struct json_command peer_channel_state = {
+	"peer-channel-state", json_peer_channel_state,
+	"Find the state of the channel with the peer id"
+};
+AUTODATA(json_command, &peer_channel_state);
+
 #endif /* DEVELOPER */
