@@ -639,7 +639,6 @@ int invoices_count(struct invoices *invoices)
 	stmt = db_prepare(invoices->db,
 					  "SELECT count(*)"
 					  "  FROM invoices;");
-	printf("Got results:\n");
 	while (sqlite3_step(stmt) != SQLITE_DONE) {
 		int i;
 		int num_cols = sqlite3_column_count(stmt);
@@ -653,7 +652,6 @@ int invoices_count(struct invoices *invoices)
 				break;
 			case (SQLITE_INTEGER):
 				invoice_count=sqlite3_column_int(stmt, i);
-				printf("%d, ", invoice_count);
 				break;
 			case (SQLITE_FLOAT):
 				printf("%g, ", sqlite3_column_double(stmt, i));
@@ -662,8 +660,6 @@ int invoices_count(struct invoices *invoices)
 				break;
 			}
 		}
-		printf("\n");
-
 	}
 		sqlite3_finalize(stmt);
 	return invoice_count;

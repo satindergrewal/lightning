@@ -767,15 +767,14 @@ static void json_bet(struct command *cmd,
 
 	printf("\n%s:%d,This is for testing",__FUNCTION__,__LINE__);
 	json_object_start(response, NULL);
-	json_add_string(response,"test","this is a test command");
 	json_add_num(response,"invoice count",invoice_count);
 	json_object_end(response);
 	command_success(cmd, response);
 	
 }
 static const struct json_command bet_command = {
-	"bet",
+	"invoice-count",
 	json_bet,
-	"This is a testing command"
+	"Gives the count of the invoices"
 };
 AUTODATA(json_command, &bet_command);
