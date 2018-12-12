@@ -1227,7 +1227,7 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 	}
 	memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
 	buf[idtok->end - idtok->start]='\0';
-	
+	printf("\n%s:%d:id:%s",__FUNCTION__,__LINE__,buf);
 	stmt = db_prepare(cmd->ld->wallet->db,
 						  "SELECT id"
 						  "  FROM invoices"
