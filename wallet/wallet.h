@@ -648,6 +648,11 @@ void wallet_invoice_details(const tal_t *ctx,
 			    struct invoice_details *details);
 
 /**
+* Gives the invoice count
+**/
+int wallet_invoice_count(struct wallet *wallet);
+
+/**
  * wallet_htlc_stubs - Retrieve HTLC stubs for the given channel
  *
  * Load minimal necessary information about HTLCs for the on-chain
