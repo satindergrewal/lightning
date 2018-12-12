@@ -1217,7 +1217,6 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 				    const jsmntok_t *params)
 {
 	jsmntok_t *idtok;
-	struct pubkey id;
 	char buf[100];
 	sqlite3_stmt *stmt;
 	int peer_id=-1;
@@ -1260,9 +1259,6 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 	sqlite3_finalize(stmt);
 	printf("\n%s:%d, peer id:%d",__FUNCTION__,__LINE__,peer_id);	
 	//return peer_id;
-}
-
-	
 }
 
 static const struct json_command peer_channel_state = {
