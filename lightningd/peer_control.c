@@ -1230,7 +1230,7 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 	printf("\n%s:%d:id:%s",__FUNCTION__,__LINE__,buf);
 	stmt = db_prepare(cmd->ld->wallet->db,
 						  "SELECT id"
-						  "  FROM invoices"
+						  "  FROM peers"
 						  "  WHERE lower(hex(node_id))=?;");
 	sqlite3_bind_text(stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
 	
