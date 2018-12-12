@@ -1218,13 +1218,16 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 {
 	jsmntok_t *idtok;
 	struct pubkey id;
+	char buf[100];
 	
 	if (!json_get_params(cmd, buffer, params,
 			     "id", &idtok,
 			     NULL)) {
 		return;
 	}
-
+	memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
+	buf[idtok->end - idtok->start]='\0';
+	printf("\nThe parameter is:%s",buf);
 	if (!json_tok_pubkey(buffer, idtok, &id)) {
 		command_fail(cmd, "id %.*s not valid",
 			     idtok->end - idtok->start,
