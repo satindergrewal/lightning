@@ -1225,12 +1225,13 @@ static int json_peer_channel_state(struct command *cmd, const char *buffer,
 	buf[nodeidtok->end-nodeidtok->start]='\0';
 	printf("\nThe parameter is:%s",buf);
 		
-		
+	return 1;	
 }
 
 static const struct json_command peer_channel_state = {
-	"peer-channel-state", json_peer_channel_state,
-	"Find the state of the channel with the peer id"
+	"peer-channel-state", 
+	json_peer_channel_state,
+	"Find the state of the channel with the peer {id}"
 };
 AUTODATA(json_command, &peer_channel_state);
 
