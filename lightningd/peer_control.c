@@ -1219,7 +1219,8 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 	jsmntok_t *idtok;
 	struct pubkey id;
 	char buf[100];
-	
+	sqlite3_stmt *stmt;
+	int peer_id=-1;
 	if (!json_get_params(cmd, buffer, params,
 			     "id", &idtok,
 			     NULL)) {
@@ -1227,18 +1228,41 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 	}
 	memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
 	buf[idtok->end - idtok->start]='\0';
-	printf("\nThe parameter is:%s",buf);
-	if (!json_tok_pubkey(buffer, idtok, &id)) {
-		command_fail(cmd, "id %.*s not valid",
-			     idtok->end - idtok->start,
-			     buffer + idtok->start);
-		return;
+	
+	stmt = db_prepare(cmd->ld->wallet->db,
+						  "SELECT id"
+						  "  FROM invoices"
+						  "  WHERE lower(hex(node_id))=?;");
+	sqlite3_bind_text(stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
+	
+	while (sqlite3_step(stmt) != SQLITE_DONE) {
+		int i;
+		int num_cols = sqlite3_column_count(stmt);
+		
+		for (i = 0; i < num_cols; i++)
+		{
+			switch (sqlite3_column_type(stmt, i))
+			{
+			case (SQLITE3_TEXT):
+				printf("%s, ", sqlite3_column_text(stmt, i));
+				break;
+			case (SQLITE_INTEGER):
+				peer_id=sqlite3_column_int(stmt, i);
+				break;
+			case (SQLITE_FLOAT):
+				printf("%g, ", sqlite3_column_double(stmt, i));
+				break;
+			default:
+				break;
+			}
+		}
 	}
-	printf("\npub key is:\n");
-	for(int i=0;i<64;i++)
-	{
-		printf("0x%02X",(id.pubkey.data[i]&0xFF));
-	}
+	sqlite3_finalize(stmt);
+	printf("\n%s:%d, peer id:%d",__FUNCTION__,__LINE__,peer_id);	
+	//return peer_id;
+}
+
+	
 }
 
 static const struct json_command peer_channel_state = {
