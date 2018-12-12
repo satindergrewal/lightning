@@ -5,7 +5,6 @@
 
 bool write_all(int fd, const void *data, size_t size)
 {
-	printf("\n%s:%d:%s",__FUNCTION__,__LINE__,data);
 	while (size) {
 		ssize_t done;
 
@@ -34,7 +33,6 @@ bool read_all(int fd, void *data, size_t size)
 		data = (char *)data + done;
 		size -= done;
 	}
-	printf("\n%s:%d:%s",__FUNCTION__,__LINE__,data);
 	return true;
 }
 
