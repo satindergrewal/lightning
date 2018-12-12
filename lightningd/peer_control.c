@@ -1217,24 +1217,16 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 				    const jsmntok_t *params)
 {
 	jsmntok_t *idtok;
-	struct pubkey id;
 	char *id_str;
-	char *atptr;
-	char *ataddr = NULL;
-	const char *name;
-	struct wireaddr addr;
-	u8 *msg;
-	const char *err_msg;
 
-	if (!json_get_params(cmd, buffer, params,
-			     "id", &idtok,
-			      NULL)) {
+	if (!json_get_params(cmd, buffer, params,"id", &idtok,NULL)) 
+	{
 		return;
 	}
 
-	/* Check for id@addrport form */
 	id_str = tal_strndup(cmd, buffer + idtok->start,
 			     idtok->end - idtok->start);
+
 	printf("\n%s:%d,id:%s",__FUNCTION__,__LINE__,id_str);
 }
 
