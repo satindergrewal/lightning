@@ -1217,17 +1217,25 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 				    const jsmntok_t *params)
 {
 	jsmntok_t *idtok;
-	char *id_str;
-
-	if (!json_get_params(cmd, buffer, params,"id", &idtok,NULL)) 
-	{
+	struct pubkey id;
+	
+	if (!json_get_params(cmd, buffer, params,
+			     "id", &idtok,
+			     NULL)) {
 		return;
 	}
 
-	id_str = tal_strndup(cmd, buffer + idtok->start,
-			     idtok->end - idtok->start);
-
-	printf("\n%s:%d,id:%s",__FUNCTION__,__LINE__,id_str);
+	if (!json_tok_pubkey(buffer, idtok, &id)) {
+		command_fail(cmd, "id %.*s not valid",
+			     idtok->end - idtok->start,
+			     buffer + idtok->start);
+		return;
+	}
+	printf("\npub key is:\n");
+	for(int i=0;i<64;i++)
+	{
+		printf("0x%02X",(id.pubkey.data[i]&0xFF));
+	}
 }
 
 static const struct json_command peer_channel_state = {
