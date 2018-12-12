@@ -1213,19 +1213,19 @@ static const struct json_command dev_forget_channel_command = {
 };
 AUTODATA(json_command, &dev_forget_channel_command);
 
-static int json_peer_channel_state(struct command *cmd, const char *buffer,
+static void json_peer_channel_state(struct command *cmd, const char *buffer,
 				    const jsmntok_t *params)
 {
 	char buf[200];
 	jsmntok_t *nodeidtok;	
-		if (!json_get_params(cmd, buffer, params,"id", &nodeidtok,NULL)) {
-		return -1;
+
+	if (!json_get_params(cmd, buffer, params,"id", &nodeidtok,NULL)) {
+			printf("\n%s:%d",__FUNCTION__,__LINE__);
 	}
 	memcpy(buf,buffer+nodeidtok->start,nodeidtok->end-nodeidtok->start);
 	buf[nodeidtok->end-nodeidtok->start]='\0';
+
 	printf("\nThe parameter is:%s",buf);
-		
-	return 1;	
 }
 
 static const struct json_command peer_channel_state = {
