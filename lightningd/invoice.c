@@ -757,7 +757,7 @@ AUTODATA(json_command, &decodepay_command);
 
 
 static void json_bet(struct command *cmd,
-			 const char *buffer UNUSED, const jsmntok_t *params UNUSED)
+			 const char *buffer, const jsmntok_t *params)
 {
 	
 	struct json_result *response = new_json_result(cmd);
