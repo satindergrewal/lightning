@@ -1216,6 +1216,7 @@ AUTODATA(json_command, &dev_forget_channel_command);
 static void json_peer_channel_state(struct command *cmd, const char *buffer,
 				    const jsmntok_t *params)
 {
+	#if 0
 	jsmntok_t *idtok;
 	char buf[100];
 	sqlite3_stmt *stmt;
@@ -1257,7 +1258,9 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 		}
 	}
 	sqlite3_finalize(stmt);
-	printf("\n%s:%d, peer id:%d",__FUNCTION__,__LINE__,peer_id);	
+	printf("\n%s:%d, peer id:%d",__FUNCTION__,__LINE__,peer_id);
+	#endif
+	command_still_pending(cmd);
 	//return peer_id;
 }
 
