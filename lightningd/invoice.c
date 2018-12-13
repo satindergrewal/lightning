@@ -756,7 +756,7 @@ static const struct json_command decodepay_command = {
 AUTODATA(json_command, &decodepay_command);
 
 
-static void json_bet(struct command *cmd,
+static void json_invoice_count(struct command *cmd,
 			 const char *buffer, const jsmntok_t *params)
 {
 	
@@ -773,7 +773,7 @@ static void json_bet(struct command *cmd,
 }
 static const struct json_command bet_command = {
 	"invoice-count",
-	json_bet,
+	json_invoice_count,
 	"Gives the count of the invoices"
 };
 AUTODATA(json_command, &bet_command);
