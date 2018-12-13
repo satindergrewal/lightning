@@ -1217,7 +1217,6 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 				    const jsmntok_t *params)
 {
 	struct json_result *response = new_json_result(cmd);
-	#if 1
 	jsmntok_t *idtok;
 	char buf[100];
 	sqlite3_stmt *stmt;
@@ -1261,14 +1260,10 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 		}
 	}
 	sqlite3_finalize(stmt);
-	printf("\n%s:%d, peer id:%d",__FUNCTION__,__LINE__,channel_state);
-	#endif
 	json_object_start(response, NULL);
-	json_add_num(response, "channel state", peer_id);
+	json_add_num(response, "channel-state", channel_state);
 	json_object_end(response);
 	command_success(cmd, response);
-	
-	//return peer_id;
 }
 
 static const struct json_command peer_channel_state = {
