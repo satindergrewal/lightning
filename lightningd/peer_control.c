@@ -1221,7 +1221,7 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 	jsmntok_t *idtok;
 	char buf[100];
 	sqlite3_stmt *stmt;
-	int peer_id=-1;
+	int channel_state=-1;
 	if (!json_get_params(cmd, buffer, params,
 			     "id", &idtok,
 			     NULL)) {
@@ -1231,11 +1231,13 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 	buf[idtok->end - idtok->start]='\0';
 	printf("\n%s:%d:id:%s",__FUNCTION__,__LINE__,buf);
 	stmt = db_prepare(cmd->ld->wallet->db,
-						  "SELECT id"
+						  "SELECT state"
+						  " FROM channels"
+						  " Where id IN "
+						  " (SELECT id"
 						  "  FROM peers"
-						  "  WHERE lower(hex(node_id))=?;");
+						  "  WHERE lower(hex(node_id))=?);");
 	sqlite3_bind_text(stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
-	
 	while (sqlite3_step(stmt) != SQLITE_DONE) {
 		int i;
 		int num_cols = sqlite3_column_count(stmt);
@@ -1248,7 +1250,7 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 				printf("%s, ", sqlite3_column_text(stmt, i));
 				break;
 			case (SQLITE_INTEGER):
-				peer_id=sqlite3_column_int(stmt, i);
+				channel_state=sqlite3_column_int(stmt, i);
 				break;
 			case (SQLITE_FLOAT):
 				printf("%g, ", sqlite3_column_double(stmt, i));
@@ -1259,10 +1261,10 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 		}
 	}
 	sqlite3_finalize(stmt);
-	printf("\n%s:%d, peer id:%d",__FUNCTION__,__LINE__,peer_id);
+	printf("\n%s:%d, peer id:%d",__FUNCTION__,__LINE__,channel_state);
 	#endif
 	json_object_start(response, NULL);
-	json_add_num(response, "state", peer_id);
+	json_add_num(response, "channel state", peer_id);
 	json_object_end(response);
 	command_success(cmd, response);
 	
