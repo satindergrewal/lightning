@@ -559,7 +559,7 @@ static void json_pay(struct command *cmd,
 	jsmntok_t *bolt11tok, *msatoshitok, *desctok, *riskfactortok, *maxfeetok;
 	jsmntok_t *retryfortok;
 	double riskfactor = 1.0;
-	double maxfeepercent = 0.5;
+	double maxfeepercent = 0; //This is for experimental purpose, making nodes to sacrifice their energy
 	u64 msatoshi;
 	struct pay *pay = tal(cmd, struct pay);
 	struct bolt11 *b11;
