@@ -434,7 +434,7 @@ static void json_pay_getroute_reply(struct subd *gossip UNUSED,
 	 * payments are limited to 4294967295 msatoshi. */
 	feepercent = ((double) fee) * 100.0 / ((double) pay->msatoshi);
 	fee_too_high = (feepercent > pay->maxfeepercent);
-	printf("\nfeepercent:%f, fee: %f , pay->msatoshi : %lu ",feepercent,fee,pay->msatoshi);
+	printf("\nfeepercent:%f, fee: %lu , pay->msatoshi : %lu ",feepercent,fee,pay->msatoshi);
 	/* compare fuzz to range */
 	if (fee_too_high && pay->fuzz < 0.01) {
 		data = new_json_result(pay);
