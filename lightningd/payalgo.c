@@ -434,7 +434,6 @@ static void json_pay_getroute_reply(struct subd *gossip UNUSED,
 	 * payments are limited to 4294967295 msatoshi. */
 	feepercent = ((double) fee) * 100.0 / ((double) pay->msatoshi);
 	fee_too_high = (feepercent > pay->maxfeepercent);
-	printf("\nfeepercent:%f, fee: %lu , pay->msatoshi : %lu msatoshi_sent : %lu ",feepercent,fee,pay->msatoshi,msatoshi_sent);
 	/* compare fuzz to range */
 	if (fee_too_high && pay->fuzz < 0.01) {
 		data = new_json_result(pay);
@@ -559,7 +558,7 @@ static void json_pay(struct command *cmd,
 	jsmntok_t *bolt11tok, *msatoshitok, *desctok, *riskfactortok, *maxfeetok;
 	jsmntok_t *retryfortok;
 	double riskfactor = 1.0;
-	double maxfeepercent = 0; //This is for experimental purpose, making nodes to sacrifice their energy
+	double maxfeepercent = 0.5;
 	u64 msatoshi;
 	struct pay *pay = tal(cmd, struct pay);
 	struct bolt11 *b11;
