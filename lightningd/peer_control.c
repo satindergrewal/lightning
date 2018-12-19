@@ -1266,7 +1266,7 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 	else
 	{
 		
-			stmt1 = db_prepare(cmd->ld->wallet->db,"SELECT state FROM channels WHERE id IN (SELECT id, FROM peers WHERE lower(hex(node_id))=?);");
+			stmt1 = db_prepare(cmd->ld->wallet->db,"SELECT state FROM channels WHERE peer_id IN (SELECT id FROM peers WHERE lower(hex(node_id))=?);");
 			sqlite3_bind_text(stmt1, 1, buf, strlen(buf), SQLITE_TRANSIENT);
 			
 			while (sqlite3_step(stmt1) == SQLITE_ROW) {
