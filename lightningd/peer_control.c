@@ -1257,10 +1257,10 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 	sqlite3_finalize(stmt);
 	json_object_start(response, NULL);
 	json_array_start(response,"channel-states");
-	if(peer_exits != 0)
+	if(peer_exits == 0)
 	{
 		json_object_start(response,NULL);
-		json_add_num(response, "channel-state", channel_state);
+		json_add_num(response, "channel-state", 0);
 		json_object_end(response);
 	}
 	else
