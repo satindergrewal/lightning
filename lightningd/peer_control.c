@@ -1279,6 +1279,7 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 					{
 					case (SQLITE_INTEGER):
 						json_object_start(response,NULL);
+						channel_state=sqlite3_column_int(stmt1, i);
 						json_add_num(response, "channel-state", channel_state);
 						json_object_end(response);
 						break;
