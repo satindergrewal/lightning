@@ -425,6 +425,7 @@ static void json_pay_getroute_reply(struct subd *gossip UNUSED,
 
 	msatoshi_sent = route[0].amount;
 	fee = msatoshi_sent - pay->msatoshi;
+	printf("\n%s::%d::fee:%ld::msatoshi_sent:%ld::pay->msatoshi::%ld",__FUNCTION__,__LINE__,fee,msatoshi_sent,pay->msatoshi);
 	/* FIXME: IEEE Double-precision floating point has only 53 bits
 	 * of precision. Total satoshis that can ever be created is
 	 * slightly less than 2100000000000000. Total msatoshis that
