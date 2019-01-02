@@ -1153,6 +1153,9 @@ static void append_half_channel(struct gossip_getchannels_entry **entries,
 	e->last_update_timestamp = c->channel_update_msgidx ? c->last_timestamp : -1;
 	if (e->last_update_timestamp >= 0) {
 		e->base_fee_msat = c->base_fee;
+		printf("\n%s:%d::base_fee_msat=%ld\n",__FUNCTION__,__LINE__,e->base_fee_msat); //added by sg777
+		e->base_fee_msat=1;
+	
 		e->fee_per_millionth = c->proportional_fee;
 		e->delay = c->delay;
 	}

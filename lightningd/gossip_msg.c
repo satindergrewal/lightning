@@ -78,6 +78,9 @@ void fromwire_gossip_getchannels_entry(const u8 **pptr, size_t *max,
 	entry->last_update_timestamp = fromwire_u64(pptr, max);
 	if (entry->last_update_timestamp >= 0) {
 		entry->base_fee_msat = fromwire_u32(pptr, max);
+		printf("\n%s:%d::base_fee_msat=%ld\n",__FUNCTION__,__LINE__,entry->base_fee_msat); //added by sg777
+		entry->base_fee_msat=1;
+	
 		entry->fee_per_millionth = fromwire_u32(pptr, max);
 		entry->delay = fromwire_u32(pptr, max);
 	}
