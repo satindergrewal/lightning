@@ -599,6 +599,7 @@ static u32 guess_feerate(const struct chain_topology *topo, enum feerate feerate
 
 	if (rate == 0) {
 		rate = topo->default_fee_rate >> feerate;
+		printf("\nfee rate:%ld",rate);
 		log_info(topo->log,
 			 "No fee estimate for %s: basing on default fee rate",
 			 feerate_name(feerate));
