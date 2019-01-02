@@ -6,6 +6,7 @@
 #include <common/keyset.h>
 #include <common/permute_tx.h>
 #include <common/utils.h>
+#include <stdio.h>
 
 #ifndef SUPERVERBOSE
 #define SUPERVERBOSE(...)
