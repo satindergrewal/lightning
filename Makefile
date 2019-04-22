@@ -175,7 +175,7 @@ CONFIGURATOR_CC := $(CC)
 LDFLAGS = $(PIE_LDFLAGS)
 LDLIBS = -L/usr/local/lib -lm -lgmp -lsqlite3 $(COVFLAGS)
 
-default: all-programs all-test-programs lightning-cli-all build-bet
+default: all-programs all-test-programs lightning-cli-all
 
 include external/Makefile
 include bitcoin/Makefile
