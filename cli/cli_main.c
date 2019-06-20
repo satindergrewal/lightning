@@ -151,9 +151,11 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
         /* Result is OK, so dump it */
         resp += strlen("{ \"result\" : ");
         printf("%.*s\n", (int)(strlen(resp) - strlen(result_end)), resp);
+		/*
 		if(ctx) {
 			tal_free(ctx);
-		}	
+		}
+		*/
         return 0;
     }
     
@@ -198,18 +200,19 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
             sprintf(buffer,"%.*s\n",json_tok_len(result), json_tok_contents(resp, result));
         else strcpy(buffer,"{\"error\":\"return too big\"}");
         //printf("%.*s\n",json_tok_len(result),json_tok_contents(resp, result));
-       if(ctx) {
+       /*if(ctx) {
 			tal_free(ctx);
 		}
+		*/
         close(fd);
         return 0;
     }
     if ( strlen(json_tok_contents(resp, error)) < maxsize )
         sprintf(buffer,"%.*s\n",json_tok_len(error), json_tok_contents(resp, error));
     else strcpy(buffer,"{\"error\":\"return too big\"}");
-	if(ctx) {
+	/*if(ctx) {
 		tal_free(ctx);
-	}
+	}*/
     close(fd);
     return 1;
 }
