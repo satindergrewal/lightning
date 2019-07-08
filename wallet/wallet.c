@@ -12,6 +12,8 @@
 #include <lightningd/peer_control.h>
 #include <lightningd/peer_htlcs.h>
 
+#define COMPAT_V052
+
 #define SQLITE_MAX_UINT 0x7FFFFFFFFFFFFFFF
 #define DIRECTION_INCOMING 0
 #define DIRECTION_OUTGOING 1
@@ -787,6 +789,7 @@ static bool wallet_ever_used(struct wallet *w)
  * chaintopology actually subtracts another 100 blocks to make sure we
  * catch chain forks.
  */
+
 u32 wallet_first_blocknum(struct wallet *w, u32 first_possible)
 {
 	int err;
