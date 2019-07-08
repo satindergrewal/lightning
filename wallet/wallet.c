@@ -12,8 +12,6 @@
 #include <lightningd/peer_control.h>
 #include <lightningd/peer_htlcs.h>
 
-#define COMPAT_V052
-
 #define SQLITE_MAX_UINT 0x7FFFFFFFFFFFFFFF
 #define DIRECTION_INCOMING 0
 #define DIRECTION_OUTGOING 1
