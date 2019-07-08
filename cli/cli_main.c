@@ -40,7 +40,7 @@ static void *tal_reallocfn(void *ptr, size_t size)
 
 static void tal_freefn(void *ptr)
 {
-    tal_free(ptr);
+    //tal_free(ptr);
 }
 
 struct netaddr;
