@@ -65,7 +65,11 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
     const tal_t *ctx = tal(NULL, char);
     size_t num_opens, num_closes;
     bool valid;
-    
+
+	printf("Arguments of the command received from bet\n");
+	for(int i=0;i<argc;i++)
+		printf("%s\n",argv[i]);
+	
     err_set_progname(argv[0]);
     
     opt_set_alloc(opt_allocfn, tal_reallocfn, tal_freefn);
