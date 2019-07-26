@@ -34,8 +34,12 @@ static void *tal_reallocfn(void *ptr, size_t size)
 {
     if (!ptr)
         return opt_allocfn(size);
-    tal_resize_(&ptr, 1, size, false);
-    return ptr;
+    else
+    {
+	return opt_allocfn(size);	    
+	//tal_resize_(&ptr, 1, size, false);
+    	//return ptr;
+    }
 }
 
 static void tal_freefn(void *ptr)
