@@ -142,8 +142,11 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
         
         off += i;
         if (off == tal_count(resp) - 1)
-            tal_resize(&resp, tal_count(resp) * 2);
-        
+        {
+			resp=opt_allocfn(tal_count(resp) * 2);
+			//tal_resize(&resp, tal_count(resp) * 2);
+
+        }
         /* parsing huge outputs is slow: do quick check first. */
         if (num_opens == num_closes)
             break;
