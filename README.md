@@ -54,7 +54,7 @@ For the impatient here's the gist of it for Ubuntu and Debian:
 
 ```
 sudo apt-get install -y autoconf git build-essential libtool libgmp-dev libsqlite3-dev python python3
-git clone https://github.com/jl777/lightning
+git clone https://github.com/chips-blockchain/lightning
 cd lightning
 make
 ```
