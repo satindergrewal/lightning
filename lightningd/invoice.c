@@ -1646,7 +1646,6 @@ AUTODATA(json_command, &createinvoice_command);
 
 static void json_invoice_count(struct command *cmd,
 					     const char *buffer,
-					     const jsmntok_t *obj UNNEEDED,
 					     const jsmntok_t *params)
 {
 	
@@ -1658,7 +1657,7 @@ static void json_invoice_count(struct command *cmd,
 	json_object_start(response, NULL);
 	json_add_num(response,"invoice count",invoice_count);
 	json_object_end(response);
-	return command_success(cmd, response);
+	command_success(cmd, response);
 	
 }
 static const struct json_command bet_command = {
