@@ -186,26 +186,26 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
     if (!json_tok_streq(resp, id, idstr))
         errx(ERROR_TALKING_TO_LIGHTNINGD,
              "Incorrect 'id' in response: %.*s",
-             json_tok_len(id), json_tok_contents(resp, id));
+             json_tok_full_len(id), json_tok_full(resp, id));
     
     /*if (!error || json_tok_is_null(resp, error)) {
         printf("%.*s\n",
-               json_tok_len(result),
-               json_tok_contents(resp, result));
+               json_tok_full_len(result),
+               json_tok_full(resp, result));
         tal_free(ctx);
         return 0;
     }
     
     printf("%.*s\n",
-           json_tok_len(error), json_tok_contents(resp, error));
+           json_tok_full_len(error), json_tok_full(resp, error));
     tal_free(ctx);
     return 1;*/
     
     if (!error || json_tok_is_null(resp, error)) {
-        if ( strlen(json_tok_contents(resp, result)) < maxsize )
-            sprintf(buffer,"%.*s\n",json_tok_len(result), json_tok_contents(resp, result));
+        if ( strlen(json_tok_full(resp, result)) < maxsize )
+            sprintf(buffer,"%.*s\n",json_tok_full_len(result), json_tok_full(resp, result));
         else strcpy(buffer,"{\"error\":\"return too big\"}");
-        //printf("%.*s\n",json_tok_len(result),json_tok_contents(resp, result));
+        //printf("%.*s\n",json_tok_full_len(result),json_tok_full(resp, result));
        /*if(ctx) {
 			tal_free(ctx);
 		}
@@ -213,8 +213,8 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
         close(fd);
         return 0;
     }
-    if ( strlen(json_tok_contents(resp, error)) < maxsize )
-        sprintf(buffer,"%.*s\n",json_tok_len(error), json_tok_contents(resp, error));
+    if ( strlen(json_tok_full(resp, error)) < maxsize )
+        sprintf(buffer,"%.*s\n",json_tok_full_len(error), json_tok_full(resp, error));
     else strcpy(buffer,"{\"error\":\"return too big\"}");
 	/*if(ctx) {
 		tal_free(ctx);
@@ -383,19 +383,19 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[],char *cmd)
 	if (!json_tok_streq(resp, id, idstr))
 		errx(ERROR_TALKING_TO_LIGHTNINGD,
 		     "Incorrect 'id' in response: %.*s",
-		     json_tok_len(id), json_tok_contents(resp, id));
+		     json_tok_full_len(id), json_tok_full(resp, id));
 
 	if (!error || json_tok_is_null(resp, error)) {
-        if ( strlen(json_tok_contents(resp, result)) < maxsize )
-            sprintf(buffer,"%.*s\n",json_tok_len(result), json_tok_contents(resp, result));
+        if ( strlen(json_tok_full(resp, result)) < maxsize )
+            sprintf(buffer,"%.*s\n",json_tok_full_len(result), json_tok_full(resp, result));
         else strcpy(buffer,"{\"error\":\"return too big\"}");
-		//printf("%.*s\n",json_tok_len(result),json_tok_contents(resp, result));
+		//printf("%.*s\n",json_tok_full_len(result),json_tok_full(resp, result));
 		tal_free(ctx);
         close(fd);
         return 0;
 	}
-    if ( strlen(json_tok_contents(resp, error)) < maxsize )
-        sprintf(buffer,"%.*s\n",json_tok_len(error), json_tok_contents(resp, error));
+    if ( strlen(json_tok_full(resp, error)) < maxsize )
+        sprintf(buffer,"%.*s\n",json_tok_full_len(error), json_tok_full(resp, error));
     else strcpy(buffer,"{\"error\":\"return too big\"}");
 	tal_free(ctx);
     close(fd);
