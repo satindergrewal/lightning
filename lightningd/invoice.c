@@ -1645,10 +1645,12 @@ static const struct json_command createinvoice_command = {
 AUTODATA(json_command, &createinvoice_command);
 
 static void json_invoice_count(struct command *cmd,
-			 const char *buffer, const jsmntok_t *params)
+					     const char *buffer,
+					     const jsmntok_t *obj UNNEEDED,
+					     const jsmntok_t *params)
 {
 	
-	struct json_result *response = new_json_result(cmd);
+	struct json_stream *response = json_stream_success(cmd);
 	
 	int invoice_count;
 	invoice_count=wallet_invoice_count(cmd->ld->wallet);
