@@ -164,11 +164,13 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
         return 0;
     }
     
-    // toks = json_parse_input(resp, off, &valid);
-    toks = json_parse_simple(tmpctx, resp, strlen(resp));
-    if (!toks || !valid)
+    bool ok;
+    jsmn_parser parser;
+    ok = json_parse_input(&parser, &toks, resp, off, &valid);
+    if (!ok || !valid)
         errx(ERROR_TALKING_TO_LIGHTNINGD,
              "Malformed response '%s'", resp);
+    toks = json_parse_simple(tmpctx, resp, strlen(resp));
     
     if (toks->type != JSMN_OBJECT)
         errx(ERROR_TALKING_TO_LIGHTNINGD,
