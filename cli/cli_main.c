@@ -26,7 +26,7 @@
 /* Tal wrappers for opt. */
 static void *opt_allocfn(size_t size)
 {
-    return tal_alloc_(NULL, size, false, false,
+    return tal_alloc_(NULL, size, false,
                       TAL_LABEL("opt_allocfn", ""));
 }
 
@@ -128,6 +128,7 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
     
     resp = tal_arr(cmd, char, 100);
     off = 0;
+    bool complete;
     num_opens = num_closes = 0;
     while ((i = read(fd, resp + off, tal_count(resp) - 1 - off)) > 0) {
         resp[off + i] = '\0';
@@ -163,7 +164,7 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
         return 0;
     }
     
-    toks = json_parse_input(resp, off, &valid);
+    toks = json_parse_input(resp, off, &valid, strlen(&valid),&complete);
     if (!toks || !valid)
         errx(ERROR_TALKING_TO_LIGHTNINGD,
              "Malformed response '%s'", resp);
