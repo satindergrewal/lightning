@@ -8,6 +8,7 @@
 #include <ccan/tal/str/str.h>
 #include <common/configdir.h>
 #include <common/json.h>
+#include <common/utils.h>
 #include <common/version.h>
 #include <stdio.h>
 #include <sys/socket.h>
@@ -128,7 +129,6 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
     
     resp = tal_arr(cmd, char, 100);
     off = 0;
-    bool complete;
     num_opens = num_closes = 0;
     while ((i = read(fd, resp + off, tal_count(resp) - 1 - off)) > 0) {
         resp[off + i] = '\0';
@@ -164,7 +164,8 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
         return 0;
     }
     
-    toks = json_parse_input(resp, off, &valid, strlen(&valid),&complete);
+    // toks = json_parse_input(resp, off, &valid);
+    toks = json_parse_simple(tmpctx, resp, strlen(resp));
     if (!toks || !valid)
         errx(ERROR_TALKING_TO_LIGHTNINGD,
              "Malformed response '%s'", resp);
