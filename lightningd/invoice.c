@@ -1657,7 +1657,8 @@ static void json_invoice_count(struct command *cmd,
 	json_object_start(response, NULL);
 	json_add_num(response,"invoice count",invoice_count);
 	json_object_end(response);
-	command_success(cmd, response);
+	command_raw_complete(cmd, response);
+	// command_success(cmd, response);
 	
 }
 static const struct json_command bet_command = {
