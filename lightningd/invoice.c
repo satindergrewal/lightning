@@ -1648,7 +1648,7 @@ static void json_invoice_count(struct command *cmd,
 			 const char *buffer, const jsmntok_t *params)
 {
 	
-	struct json_result *response = new_json_stream(cmd);
+	struct json_result *response = new_json_result(cmd);
 	
 	int invoice_count;
 	invoice_count=wallet_invoice_count(cmd->ld->wallet);
