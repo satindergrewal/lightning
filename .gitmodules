@@ -17,3 +17,6 @@
 [submodule "external/libsodium"]
 	path = external/libsodium
 	url = https://github.com/jedisct1/libsodium.git
+[submodule "external/gheap"]
+	path = external/gheap
+	url = https://github.com/valyala/gheap
