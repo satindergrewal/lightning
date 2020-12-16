@@ -512,7 +512,6 @@ static struct route_info **select_inchan(const tal_t *ctx,
 			continue;
 
 		/* Channel balance as seen by our node:
-
 		        |<----------------- capacity ----------------->|
 		        .                                              .
 		        .             |<------------------ their_msat -------------------->|
@@ -1645,3 +1644,24 @@ static const struct json_command createinvoice_command = {
 };
 AUTODATA(json_command, &createinvoice_command);
 
+static void json_invoice_count(struct command *cmd,
+			 const char *buffer, const jsmntok_t *params)
+{
+	
+	struct json_result *response = new_json_result(cmd);
+	
+	int invoice_count;
+	invoice_count=wallet_invoice_count(cmd->ld->wallet);
+
+	json_object_start(response, NULL);
+	json_add_num(response,"invoice count",invoice_count);
+	json_object_end(response);
+	command_success(cmd, response);
+	
+}
+static const struct json_command bet_command = {
+	"invoice-count",
+	json_invoice_count,
+	"Gives the count of the invoices"
+};
+AUTODATA(json_command, &bet_command);

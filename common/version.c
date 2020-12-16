@@ -4,9 +4,11 @@
 /* Only common/version.c can safely include this.  */
 # include "version_gen.h"
 
+#define chipsVERSION "chipsln.0.0.0"
+
 const char *version(void)
 {
-	return VERSION;
+	return chipsVERSION;
 }
 
 char *version_and_exit(const void *unused UNUSED)

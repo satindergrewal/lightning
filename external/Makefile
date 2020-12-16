@@ -28,6 +28,8 @@ LIBBACKTRACE_HEADERS := external/libbacktrace/backtrace.h
 EXTERNAL_HEADERS := $(LIBSODIUM_HEADERS) $(LIBWALLY_HEADERS) $(LIBSECP_HEADERS) $(JSMN_HEADERS) $(GHEAP_HEADERS) $(LIBBACKTRACE_HEADERS)
 EXTERNAL_LIBS := ${TARGET_DIR}/libwallycore.a ${TARGET_DIR}/libsecp256k1.a ${TARGET_DIR}/libjsmn.a ${TARGET_DIR}/libbacktrace.a
 
+EXTERNAL_LIBS_CLEAN := ${TARGET_DIR}/libwallycore.a ${TARGET_DIR}/libsecp256k1.a ${TARGET_DIR}/libjsmn.a
+
 EXTERNAL_INCLUDE_FLAGS :=					\
 	-I external/libwally-core/include/			\
 	-I external/libwally-core/src/secp256k1/include/	\
@@ -86,16 +88,16 @@ $(TARGET_DIR)/libjsmn.a: $(TARGET_DIR)/jsmn-build/jsmn.o
 	$(AR) rc $@ $<
 
 # Need separate build dir: changes inside submodule make git think it's dirty.
-$(TARGET_DIR)/libbacktrace.a: external/libbacktrace/backtrace.h
-	mkdir -p $(TARGET_DIR)/libbacktrace-build
-	cd $(TARGET_DIR)/libbacktrace-build && $(TOP)/libbacktrace/configure CC="$(CC)" --enable-static=yes $(CROSSCOMPILE_OPTS) --enable-shared=no --prefix=/ --libdir=/ && $(MAKE)
-	$(MAKE) -C $(TARGET_DIR)/libbacktrace-build DESTDIR=$$(pwd)/$(TARGET_DIR) install-exec
+# $(TARGET_DIR)/libbacktrace.a: external/libbacktrace/backtrace.h
+# 	mkdir -p $(TARGET_DIR)/libbacktrace-build
+# 	cd $(TARGET_DIR)/libbacktrace-build && $(TOP)/libbacktrace/configure CC="$(CC)" --enable-static=yes $(CROSSCOMPILE_OPTS) --enable-shared=no --prefix=/ --libdir=/ && $(MAKE)
+# 	$(MAKE) -C $(TARGET_DIR)/libbacktrace-build DESTDIR=$$(pwd)/$(TARGET_DIR) install-exec
 
 distclean: external-distclean
 clean: external-clean
 
 external-clean:
-	$(RM) $(EXTERNAL_LIBS) $(TARGET_DIR)/*.la $(TARGET_DIR)/*.o
+	$(RM) $(EXTERNAL_LIBS_CLEAN) $(TARGET_DIR)/*.la $(TARGET_DIR)/*.o
 	$(RM) $(TARGET_DIR)/jsmn-build/jsmn.o
 	if [ -f ${TARGET_DIR}/libsodium-build/Makefile ]; then make -C ${TARGET_DIR}/libsodium-build clean; fi
 	if [ -f ${TARGET_DIR}/libwally-core-build/Makefile ]; then make -C ${TARGET_DIR}/libwally-core-build clean; fi

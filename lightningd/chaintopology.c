@@ -1154,15 +1154,18 @@ void setup_topology(struct chain_topology *topo,
 
 	topo->min_blockheight = min_blockheight;
 	topo->max_blockheight = max_blockheight;
+	printf("topo 0\n");
 
 	/* This waits for bitcoind. */
 	bitcoind_check_commands(topo->bitcoind);
+	printf("topo 1\n");
 
 	/* For testing.. */
 	log_debug(topo->ld->log, "All Bitcoin plugin commands registered");
 
 	/* Sanity checks, then topology initialization. */
 	bitcoind_getchaininfo(topo->bitcoind, true, check_chain, topo);
+	printf("topo 2\n");
 
 	tal_add_destructor(topo, destroy_chain_topology);
 

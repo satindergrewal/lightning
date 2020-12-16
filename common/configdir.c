@@ -169,13 +169,13 @@ static char *default_base_configdir(const tal_t *ctx)
 	if (!env)
 		return path_cwd(ctx);
 
-	path = path_join(ctx, env, ".lightning");
+	path = path_join(ctx, env, ".chipsln");
 	return path;
 }
 
 static char *default_rpcfile(const tal_t *ctx)
 {
-	return tal_strdup(ctx, "lightning-rpc");
+	return tal_strdup(ctx, "chipsln-rpc");
 }
 
 static char *opt_set_network(const char *arg, void *unused)
