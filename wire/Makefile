@@ -1,66 +1,107 @@
 #! /usr/bin/make
 
-# Designed to be run one level up
-wire-wrongdir:
-	$(MAKE) -C .. wire-all
-
-WIRE_HEADERS_NOGEN := wire/peer_wire.h		\
+WIRE_HEADERS :=	wire/onion_defs.h		\
+		wire/peer_wire.h		\
+		wire/onion_wire.h		\
+		wire/tlvstream.h		\
 		wire/wire.h			\
 		wire/wire_sync.h		\
-		wire/wire_io.h
-WIRE_GEN_HEADERS := wire/gen_peer_wire.h wire/gen_onion_wire.h
-WIRE_GEN_SRC := wire/gen_peer_wire.c
-WIRE_GEN_ONION_SRC := wire/gen_onion_wire.c
+		wire/wire_io.h			\
+		wire/peer$(EXP)_wiregen.h	\
+		wire/onion$(EXP)_wiregen.h	\
+		wire/common_wiregen.h		\
+		wire/peer$(EXP)_printgen.h	\
+		wire/onion$(EXP)_printgen.h
+
+# We don't include peer_printgen/onion_printgen here since most don't need it.
 WIRE_SRC := wire/wire_sync.c			\
 		wire/wire_io.c			\
+		wire/wire_dummy.c		\
 		wire/fromwire.c			\
 		wire/peer_wire.c		\
-		wire/towire.c
-WIRE_HEADERS := $(WIRE_HEADERS_NOGEN) $(WIRE_GEN_HEADERS)
+		wire/tlvstream.c		\
+		wire/towire.c			\
+		wire/common_wiregen.c		\
+		wire/peer$(EXP)_wiregen.c	\
+		wire/onion$(EXP)_wiregen.c	
 
-WIRE_OBJS := $(WIRE_SRC:.c=.o) $(WIRE_GEN_SRC:.c=.o)
-WIRE_ONION_OBJS := $(WIRE_GEN_ONION_SRC:.c=.o)
+WIRE_PRINT_SRC :=				\
+		wire/onion$(EXP)_printgen.c	\
+		wire/peer$(EXP)_printgen.c
 
-ALL_OBJS += $(WIRE_OBJS) $(WIRE_ONION_OBJS)
-ALL_GEN_HEADERS += $(WIRE_GEN_HEADERS)
+ifeq ($(EXPERIMENTAL_FEATURES),1)
+WIRE_HEADERS += wire/bolt12$(EXP)_wiregen.h
+WIRE_SRC += wire/bolt12$(EXP)_wiregen.c
+endif
+
+WIRE_OBJS := $(WIRE_SRC:.c=.o)
+WIRE_PRINT_OBJS := $(WIRE_PRINT_SRC:.c=.o)
+$(WIRE_OBJS) $(WIRE_PRINT_OBJS): $(WIRE_HEADERS)
+
+# Make sure these depend on everything.
+ALL_C_SOURCES += $(WIRE_SRC) $(WIRE_PRINT_SRC)
+ALL_C_HEADERS += $(WIRE_HEADERS)
 
 # They may not have the bolts.
-BOLT_EXTRACT=$(BOLTDIR)/tools/extract-formats.py
-# FIXME: Re-enable --check-alignment!
-wire/gen_peer_wire_csv: FORCE
-	@set -e; if [ -f $(BOLT_EXTRACT) ]; then for f in $(BOLTDIR)/0[127]*.md $(BOLT_EXTRACT); do if [ $$f -nt $@ -o ! -f $@ ]; then $(BOLT_EXTRACT) --message-fields --message-types $(BOLTDIR)/0[127]*.md > $@; break; fi; done; fi
+BOLT_EXTRACT=$(LOCAL_BOLTDIR)/tools/extract-formats.py
 
-wire/gen_onion_wire_csv: FORCE
-	@set -e; if [ -f $(BOLT_EXTRACT) ]; then for f in $(BOLTDIR)/04*.md $(BOLT_EXTRACT); do if [ $$f -nt $@ -o ! -f $@ ]; then echo '#include <wire/onion_defs.h>' > $@ && $(BOLT_EXTRACT) --message-fields --message-types --check-alignment $(BOLTDIR)/04*.md >> $@; break; fi; done; fi
+WIRE_BOLT_DEPS := $(BOLT_DEPS) tools/gen/impl_template tools/gen/header_template
 
-wire/gen_peer_wire.h: $(WIRE_GEN) wire/gen_peer_wire_csv
-	$(WIRE_GEN) --bolt --header $@ wire_type < wire/gen_peer_wire_csv > $@
+# Explicit command to re-extract CSV from BOLTs.
+extract-bolt-csv: bolt-precheck
+	@$(BOLT_EXTRACT) $(LOCAL_BOLTDIR)/0[127]*.md > wire/peer_wire.csv
+	@echo '#include <wire/onion_defs.h>' > wire/onion_wire.csv
+	@$(BOLT_EXTRACT) $(LOCAL_BOLTDIR)/04*.md >> wire/onion_wire.csv
 
-wire/gen_peer_wire.c: $(WIRE_GEN) wire/gen_peer_wire_csv
-	$(WIRE_GEN) --bolt ${@:.c=.h} wire_type < wire/gen_peer_wire_csv > $@
+extract-bolt12-csv: bolt-precheck
+	$(BOLT_EXTRACT) $(LOCAL_BOLTDIR)/12*.md > wire/bolt12_exp_wire.csv
 
-wire/gen_onion_wire.h: $(WIRE_GEN) wire/gen_onion_wire_csv
-	$(WIRE_GEN) --bolt --header $@ onion_type < wire/gen_onion_wire_csv > $@
+ifeq ($(EXPERIMENTAL_FEATURES),1)
+extract-bolt-csv: extract-bolt12-csv
+endif
 
-wire/gen_onion_wire.c: $(WIRE_GEN) wire/gen_onion_wire_csv
-	$(WIRE_GEN) --bolt ${@:.c=.h} onion_type < wire/gen_onion_wire_csv > $@
+# Explicit command to add patchfile for BOLT CSV's
+extract-experimental-bolt-csv: bolt-precheck
+	@$(BOLT_EXTRACT) $(LOCAL_BOLTDIR)/0[127]*.md | diff -u wire/peer_exp_wire.csv - >wire/extracted_peer_experimental_$(BOLTVERSION) | if [ $$? -lt 0 ];then exit 1;fi
+	@{ echo '#include <wire/onion_defs.h>'; $(BOLT_EXTRACT) $(LOCAL_BOLTDIR)/04*.md; } | diff -u wire/onion_exp_wire.csv - > wire/extracted_onion_experimental_$(BOLTVERSION) | if [ $$? -lt 0 ];then exit 1;fi
 
-check-source: $(WIRE_SRC:%=check-src-include-order/%) $(WIRE_HEADERS_NOGEN:%=check-hdr-include-order/%)
+ifeq ($(EXPERIMENTAL_FEATURES),1)
+EXPERIMENTAL_PEER_PATCHES := $(sort $(wildcard wire/extracted_peer_experimental_*))
+EXPERIMENTAL_ONION_PATCHES := $(sort $(wildcard wire/extracted_onion_experimental_*))
 
-check-source-bolt: $(WIRE_SRC:%=bolt-check/%) $(WIRE_HEADERS_NOGEN:%=bolt-check/%)
+wire/peer_exp_wire.csv: wire/peer_wire.csv $(EXPERIMENTAL_PEER_PATCHES)
+	@set -e; trap "rm -f $@.$$$$" 0; cp $< $@.$$$$; for exp in $(EXPERIMENTAL_PEER_PATCHES); do patch $@.$$$$ $$exp >/dev/null ; done; mv $@.$$$$ $@
 
-check-whitespace: $(WIRE_SRC:%=check-whitespace/%) $(WIRE_HEADERS_NOGEN:%=check-whitespace/%) check-whitespace/wire/Makefile
+wire/onion_exp_wire.csv: wire/onion_wire.csv $(EXPERIMENTAL_ONION_PATCHES)
+	@set -e; trap "rm -f $@.$$$$" 0; cp $< $@.$$$$; for exp in $(EXPERIMENTAL_ONION_PATCHES); do patch $@.$$$$ $$exp; done >/dev/null ; mv $@.$$$$ $@
+endif
 
-clean: wire-clean
+# tlvs_n1 and n2 are used for test vectors, thus not referenced: expose them
+# for testing and to prevent compile error about them being unused.
+# This will be easier if test vectors are moved to separate files.
+wire/peer_wiregen.h_args := --include='common/channel_id.h' --include='bitcoin/tx.h' --include='bitcoin/preimage.h' --include='bitcoin/short_channel_id.h' --include='common/node_id.h' --include='common/bigsize.h' --include='bitcoin/block.h' --include='bitcoin/privkey.h' -s --expose-tlv-type=n1 --expose-tlv-type=n2
+
+wire/peer_wiregen.c_args := -s --expose-tlv-type=n1 --expose-tlv-type=n2
+
+# The tlv_payload isn't parsed in a fromwire, so we need to expose it.
+wire/onion_wiregen.h_args := --include='bitcoin/short_channel_id.h' --include='bitcoin/privkey.h' --include='common/bigsize.h' --include='common/amount.h' --include='common/node_id.h' --include='bitcoin/block.h' -s --expose-tlv-type=tlv_payload
+
+wire/onion_wiregen.c_args := -s --expose-tlv-type=tlv_payload
+
+# Same for _exp versions
+wire/peer_exp_wiregen.h_args := $(wire/peer_wiregen.h_args)
+wire/peer_exp_wiregen.c_args := $(wire/peer_wiregen.c_args)
+wire/onion_exp_wiregen.h_args := $(wire/onion_wiregen.h_args)
+wire/onion_exp_wiregen.c_args := $(wire/onion_wiregen.c_args)
+
+wire/bolt12_exp_wiregen.c_args := -s --expose-tlv-type=blinded_path
+wire/bolt12_exp_wiregen.h_args := --include='bitcoin/short_channel_id.h' --include='bitcoin/signature.h' --include='bitcoin/privkey.h' --include='common/bigsize.h' --include='common/amount.h' --include='common/node_id.h' --include='bitcoin/block.h'  --include='wire/onion_wire.h' $(wire/bolt12_exp_wiregen.c_args)
+
+wire/peer_wiregen.h_args := --include='common/channel_id.h' --include='bitcoin/tx.h' --include='bitcoin/preimage.h' --include='bitcoin/short_channel_id.h' --include='common/node_id.h' --include='common/bigsize.h' --include='bitcoin/block.h' --include='bitcoin/privkey.h' -s --expose-tlv-type=n1 --expose-tlv-type=n2
 
 maintainer-clean: wire-maintainer-clean
 
 wire-maintainer-clean:
-	$(RM) wire/gen_*_csv
-
-wire-all: $(WIRE_OBJS) $(WIRE_ONION_OBJS)
-
-wire-clean:
-	$(RM) $(WIRE_OBJS) $(WIRE_ONION_OBJS) $(WIRE_GEN_SRC) $(WIRE_GEN_ONION_SRC) $(WIRE_GEN_HEADERS)
+	$(RM) wire/gen_*_csv wire/extracted_*_experimental_csv
 
 include wire/test/Makefile

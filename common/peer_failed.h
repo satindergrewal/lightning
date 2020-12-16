@@ -5,29 +5,26 @@
 #include <ccan/short_types/short_types.h>
 
 struct channel_id;
+struct per_peer_state;
 
 /**
  * peer_failed - Exit with error for peer.
- * @cs: the peer's current crypto state.
- * @gossip_index: the peer's current gossip_index.
+ * @pps: the per-peer state.
  * @channel_id: channel with error, or NULL for all.
  * @fmt...: format as per status_failed(STATUS_FAIL_PEER_BAD)
  */
-#define peer_failed(cs, gossip_index, channel_id, ...) \
-	peer_failed_(PEER_FD, GOSSIP_FD, (cs), (gossip_index), (channel_id), \
-		     __VA_ARGS__)
+void peer_failed(struct per_peer_state *pps,
+		 const struct channel_id *channel_id,
+		 const char *fmt, ...)
+	PRINTF_FMT(3,4) NORETURN;
 
-void peer_failed_(int peer_fd, int gossip_fd,
-		  struct crypto_state *cs, u64 gossip_index,
-		  const struct channel_id *channel_id,
-		  const char *fmt, ...)
-	PRINTF_FMT(6,7) NORETURN;
-
-/* We're failing because peer sent us an error message */
-void peer_failed_received_errmsg(int peer_fd, int gossip_fd,
-				 struct crypto_state *cs, u64 gossip_index,
+/* We're failing because peer sent us an error message: NULL
+ * channel_id means all channels. */
+void peer_failed_received_errmsg(struct per_peer_state *pps,
 				 const char *desc,
-				 const struct channel_id *channel_id) NORETURN;
+				 const struct channel_id *channel_id,
+				 bool soft_error)
+	NORETURN;
 
 /* I/O error */
 void peer_failed_connection_lost(void) NORETURN;

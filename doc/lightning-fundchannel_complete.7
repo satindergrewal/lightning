@@ -1,0 +1,62 @@
+.TH "LIGHTNING-FUNDCHANNEL_COMPLETE" "7" "" "" "lightning-fundchannel_complete"
+.SH NAME
+lightning-fundchannel_complete - Command for completing channel establishment
+.SH SYNOPSIS
+
+\fBfundchannel_complete\fR \fIid\fR \fItxid\fR \fItxout\fR
+
+.SH DESCRIPTION
+
+\fBfundchannel_complete\fR is a lower level RPC command\. It allows a user to
+complete an initiated channel establishment with a connected peer\.
+
+
+\fIid\fR is the node id of the remote peer\.
+
+
+\fItxid\fR is the hex string of the funding transaction id\.
+
+
+\fItxout\fR is the integer outpoint of the funding output for this channel\.
+
+
+Note that the funding transaction MUST NOT be broadcast until after
+channel establishment has been successfully completed, as the commitment
+transactions for this channel are not secured until this command
+successfully completes\. Broadcasting transaction before can lead to
+unrecoverable loss of funds\.
+
+.SH RETURN VALUE
+
+On success, returns a confirmation that \fIcommitments_secured\fR and the
+derived \fIchannel_id\fR\.
+
+
+On error the returned object will contain \fBcode\fR and \fBmessage\fR properties,
+with \fBcode\fR being one of the following:
+
+.RS
+.IP \[bu]
+-32602: If the given parameters are wrong\.
+.IP \[bu]
+-1: Catchall nonspecific error\.
+.IP \[bu]
+305: Peer is not connected\.
+.IP \[bu]
+306: Unknown peer id\.
+
+.RE
+.SH AUTHOR
+
+Lisa Neigut \fI<niftynei@gmail.com\fR> is mainly responsible\.
+
+.SH SEE ALSO
+
+\fBlightning-connect\fR(7), \fBlightning-fundchannel\fR(7),
+lightning-fundchannel_\fBstart\fR(7), lightning-fundchannel_\fBcancel\fR(7)
+
+.SH RESOURCES
+
+Main web site: \fIhttps://github.com/ElementsProject/lightning\fR
+
+\" SHA256STAMP:74e310642983fa941af1d8cb5b7e0b49d5d14b585fb35f2d192c356ef49af830

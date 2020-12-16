@@ -1,0 +1,91 @@
+.TH "LIGHTNING-LISTFUNDS" "7" "" "" "lightning-listfunds"
+.SH NAME
+lightning-listfunds - Command showing all funds currently managed by the c-lightning node
+.SH SYNOPSIS
+
+\fBlistfunds\fR
+
+.SH DESCRIPTION
+
+The \fBlistfunds\fR RPC command displays all funds available, either in
+unspent outputs (UTXOs) in the internal wallet or funds locked in
+currently open channels\.
+
+.SH RETURN VALUE
+
+On success two arrays will be returned: \fIoutputs\fR with funds currently
+locked onchain in UTXOs and \fIchannels\fR with funds readily spendable in
+channels\.
+
+
+Each entry in \fIoutputs\fR will include:
+
+.RS
+.IP \[bu]
+\fItxid\fR
+.IP \[bu]
+\fIoutput\fR (the index of the output in the transaction)
+.IP \[bu]
+\fIvalue\fR (the output value in satoshis)
+.IP \[bu]
+\fIamount_msat\fR (the same as \fIvalue\fR, but in millisatoshi with \fImsat\fR
+appended)
+.IP \[bu]
+\fIaddress\fR
+.IP \[bu]
+\fIscriptpubkey\fR (the ScriptPubkey of the output, in hex)
+.IP \[bu]
+\fIredeemscript\fR (the redeemscript of the output, in hex, only if it's p2sh-wrapped)
+.IP \[bu]
+\fIstatus\fR (whether \fIunconfirmed\fR, \fIconfirmed\fR, or \fIspent\fR)
+.IP \[bu]
+\fIreserved\fR (whether this is UTXO is currently reserved for an in-flight tx)
+
+.RE
+
+Each entry in \fIchannels\fR will include:
+
+.RS
+.IP \[bu]
+\fIpeer_id\fR - the peer with which the channel is opened\.
+.IP \[bu]
+\fIshort_channel_id\fR - as per BOLT 7 (representing the block,
+transaction number and output index of the channel funding
+transaction)\.
+.IP \[bu]
+\fIchannel_sat\fR - available satoshis on our node’s end of the channel
+(values rounded down to satoshis as internal storage is in
+millisatoshi)\.
+.IP \[bu]
+\fIour_amount_msat\fR - same as above, but in millisatoshis with
+\fImsat\fR appended\.
+.IP \[bu]
+\fIchannel_total_sat\fR - total channel value in satoshi
+.IP \[bu]
+\fIamount_msat\fR - same as above, but in millisatoshis with \fImsat\fR
+appended\.
+.IP \[bu]
+\fIfunding_txid\fR - funding transaction id\.
+.IP \[bu]
+\fIfunding_output\fR - the index of the output in the funding
+transaction\.
+.IP \[bu]
+\fIconnected\fR - whether the channel peer is connected\.
+.IP \[bu]
+\fIstate\fR - the channel state, in particular \fICHANNELD_NORMAL\fR means the
+channel can be used normally\.
+
+.RE
+.SH AUTHOR
+
+Felix \fI<fixone@gmail.com\fR> is mainly responsible\.
+
+.SH SEE ALSO
+
+\fBlightning-newaddr\fR(7), \fBlightning-fundchannel\fR(7), \fBlightning-withdraw\fR(7), \fBlightning-listtransactions\fR(7)
+
+.SH RESOURCES
+
+Main web site: \fIhttps://github.com/ElementsProject/lightning\fR
+
+\" SHA256STAMP:d7b4a30a1ca19e772529fbe517fb73e8c0d5c07ec3c05969ab614a4abc1865a4

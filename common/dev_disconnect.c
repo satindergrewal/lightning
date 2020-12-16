@@ -4,12 +4,14 @@
 #include <common/dev_disconnect.h>
 #include <common/status.h>
 #include <fcntl.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <wire/gen_peer_wire.h>
+#include <wire/peer_wire.h>
 
 #if DEVELOPER
 /* We move the fd if and only if we do a disconnect. */
@@ -69,7 +71,7 @@ enum dev_disconnect dev_disconnect(int pkt_type)
 	if (!dev_disconnect_count)
 		next_dev_disconnect();
 
-	if (!streq(wire_type_name(pkt_type), dev_disconnect_line+1))
+	if (!streq(peer_wire_name(pkt_type), dev_disconnect_line+1))
 		return DEV_DISCONNECT_NORMAL;
 
 	if (--dev_disconnect_count != 0) {
@@ -80,7 +82,7 @@ enum dev_disconnect dev_disconnect(int pkt_type)
 		err(1, "lseek failure");
 	}
 
-	status_trace("dev_disconnect: %s%s", dev_disconnect_line,
+	status_debug("dev_disconnect: %s%s", dev_disconnect_line,
 		     dev_disconnect_nocommit ? "-nocommit" : "");
 	if (dev_disconnect_nocommit)
 		dev_suppress_commit = true;
@@ -96,6 +98,15 @@ void dev_sabotage_fd(int fd)
 
 	/* Close one. */
 	close(fds[0]);
+
+#if defined(TCP_NODELAY)
+	/* On Linux, at least, this flushes. */
+	int opt = TCP_NODELAY;
+	int val = 1;
+	setsockopt(fd, IPPROTO_TCP, opt, &val, sizeof(val));
+#else
+#error No TCP_NODELAY?
+#endif
 	/* Move other over to the fd we want to sabotage. */
 	dup2(fds[1], fd);
 	close(fds[1]);

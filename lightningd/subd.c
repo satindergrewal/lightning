@@ -8,8 +8,10 @@
 #include <ccan/tal/path/path.h>
 #include <ccan/tal/str/str.h>
 #include <common/crypto_state.h>
-#include <common/gen_peer_status_wire.h>
-#include <common/gen_status_wire.h>
+#include <common/memleak.h>
+#include <common/peer_status_wiregen.h>
+#include <common/per_peer_state.h>
+#include <common/status_wiregen.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <lightningd/lightningd.h>
@@ -25,6 +27,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <wallet/db.h>
+#include <wire/common_wiregen.h>
 #include <wire/wire_io.h>
 
 static bool move_fd(int from, int to)
@@ -91,7 +94,7 @@ static void add_req(const tal_t *ctx,
 	 * case where ctx is freed between request and reply.  Hence this
 	 * trick. */
 	if (ctx) {
-		sr->disabler = tal(ctx, char);
+		sr->disabler = notleak(tal(ctx, char));
 		tal_add_destructor2(sr->disabler, disable_cb, sr);
 	} else
 		sr->disabler = NULL;
@@ -133,10 +136,11 @@ static void close_taken_fds(va_list *ap)
 }
 
 /* We use sockets, not pipes, because fds are bidir. */
-static int subd(const char *dir, const char *name,
+static int subd(const char *path, const char *name,
 		const char *debug_subdaemon,
-		const char *debug_subdaemon_io,
-		int *msgfd, int dev_disconnect_fd, va_list *ap)
+		int *msgfd, int dev_disconnect_fd,
+		bool io_logging,
+		va_list *ap)
 {
 	int childmsg[2], execfail[2];
 	pid_t childpid;
@@ -181,16 +185,14 @@ static int subd(const char *dir, const char *name,
 		}
 
 		/* Dup any extra fds up first. */
-		if (ap) {
-			while ((fd = va_arg(*ap, int *)) != NULL) {
-				int actual_fd = *fd;
-				/* If this were stdin, we moved it above! */
-				if (actual_fd == STDIN_FILENO)
-					actual_fd = stdin_is_now;
-				if (!move_fd(actual_fd, fdnum))
-					goto child_errno_fail;
-				fdnum++;
-			}
+		while ((fd = va_arg(*ap, int *)) != NULL) {
+			int actual_fd = *fd;
+			/* If this were stdin, we moved it above! */
+			if (actual_fd == STDIN_FILENO)
+				actual_fd = stdin_is_now;
+			if (!move_fd(actual_fd, fdnum))
+				goto child_errno_fail;
+			fdnum++;
 		}
 
 		/* Make (fairly!) sure all other fds are closed. */
@@ -200,15 +202,15 @@ static int subd(const char *dir, const char *name,
 				close(i);
 
 		num_args = 0;
-		args[num_args++] = path_join(NULL, dir, name);
+		args[num_args++] = tal_strdup(NULL, path);
+		if (io_logging)
+			args[num_args++] = "--log-io";
 #if DEVELOPER
 		if (dev_disconnect_fd != -1)
 			args[num_args++] = tal_fmt(NULL, "--dev-disconnect=%i", dev_disconnect_fd);
 		if (debug_subdaemon && strends(name, debug_subdaemon))
 			args[num_args++] = "--debugger";
 #endif
-		if (debug_subdaemon_io && strends(name, debug_subdaemon_io))
-			args[num_args++] = "--log-io";
 		execv(args[0], args);
 
 	child_errno_fail:
@@ -247,30 +249,6 @@ fail:
 	if (ap)
 		close_taken_fds(ap);
 	return -1;
-}
-
-int subd_raw(struct lightningd *ld, const char *name)
-{
-	pid_t pid;
-	int msg_fd;
-	const char *debug_subd = NULL;
-	int disconnect_fd = -1;
-
-#if DEVELOPER
-	debug_subd = ld->dev_debug_subdaemon;
-	disconnect_fd = ld->dev_disconnect_fd;
-#endif /* DEVELOPER */
-
-	pid = subd(ld->daemon_dir, name, debug_subd, ld->debug_subdaemon_io,
-		   &msg_fd, disconnect_fd,
-		   NULL);
-	if (pid == (pid_t)-1) {
-		log_unusual(ld->log, "subd %s failed: %s",
-			    name, strerror(errno));
-		return -1;
-	}
-
-	return msg_fd;
 }
 
 static struct io_plan *sd_msg_read(struct io_conn *conn, struct subd *sd);
@@ -350,7 +328,7 @@ static void subdaemon_malformed_msg(struct subd *sd, const u8 *msg)
 
 #if DEVELOPER
 	if (sd->ld->dev_subdaemon_fail)
-		fatal("Subdaemon %s sent malformed message", sd->name);
+		exit(1);
 #endif
 }
 
@@ -385,29 +363,30 @@ static bool log_status_fail(struct subd *sd, const u8 *msg)
 
 #if DEVELOPER
 	if (sd->ld->dev_subdaemon_fail)
-		fatal("Subdaemon %s hit error", sd->name);
+		exit(1);
 #endif
 	return true;
 }
 
-static bool handle_peer_error(struct subd *sd, const u8 *msg, int fds[2])
+static bool handle_peer_error(struct subd *sd, const u8 *msg, int fds[3])
 {
 	void *channel = sd->channel;
 	struct channel_id channel_id;
 	char *desc;
-	struct crypto_state cs;
-	u64 gossip_index;
+	struct per_peer_state *pps;
 	u8 *err_for_them;
+	bool soft_error;
 
 	if (!fromwire_status_peer_error(msg, msg,
-					&channel_id, &desc,
-					&cs, &gossip_index, &err_for_them))
+					&channel_id, &desc, &soft_error,
+					&pps, &err_for_them))
 		return false;
 
-	/* Don't free sd; we're may be about to free channel. */
+	per_peer_state_set_fds_arr(pps, fds);
+
+	/* Don't free sd; we may be about to free channel. */
 	sd->channel = NULL;
-	sd->errcb(channel, fds[0], fds[1], &cs, gossip_index,
-		  &channel_id, desc, err_for_them);
+	sd->errcb(channel, pps, &channel_id, desc, soft_error, err_for_them);
 	return true;
 }
 
@@ -429,6 +408,8 @@ static struct io_plan *sd_msg_read(struct io_conn *conn, struct subd *sd)
 	struct subd_req *sr;
 	struct db *db = sd->ld->wallet->db;
 	struct io_plan *plan;
+	unsigned int i;
+	bool freed = false;
 
 	/* Everything we do, we wrap in a database transaction */
 	db_begin_transaction(db);
@@ -453,10 +434,10 @@ static struct io_plan *sd_msg_read(struct io_conn *conn, struct subd *sd)
 	tal_steal(tmpctx, sd->msg_in);
 
 	/* We handle status messages ourselves. */
-	switch ((enum status)type) {
+	switch ((enum status_wire)type) {
 	case WIRE_STATUS_LOG:
 	case WIRE_STATUS_IO:
-		if (!log_status_msg(sd->log, sd->msg_in))
+		if (!log_status_msg(sd->log, sd->node_id, sd->msg_in))
 			goto malformed;
 		goto next;
 	case WIRE_STATUS_FAIL:
@@ -477,13 +458,13 @@ static struct io_plan *sd_msg_read(struct io_conn *conn, struct subd *sd)
 	}
 
 	if (sd->channel) {
-		switch ((enum peer_status)type) {
+		switch ((enum peer_status_wire)type) {
 		case WIRE_STATUS_PEER_ERROR:
-			/* We expect 2 fds after this */
+			/* We expect 3 fds after this */
 			if (!sd->fds_in) {
 				/* Don't free msg_in: we go around again. */
 				tal_steal(sd, sd->msg_in);
-				plan = sd_collect_fds(conn, sd, 2);
+				plan = sd_collect_fds(conn, sd, 3);
 				goto out;
 			}
 			if (!handle_peer_error(sd, sd->msg_in, sd->fds_in))
@@ -492,30 +473,24 @@ static struct io_plan *sd_msg_read(struct io_conn *conn, struct subd *sd)
 		}
 	}
 
-	log_debug(sd->log, "UPDATE %s", sd->msgname(type));
-	if (sd->msgcb) {
-		unsigned int i;
-		bool freed = false;
+	/* Might free sd (if returns negative); save/restore sd->conn */
+	sd->conn = NULL;
+	tal_add_destructor2(sd, mark_freed, &freed);
 
-		/* Might free sd (if returns negative); save/restore sd->conn */
-		sd->conn = NULL;
-		tal_add_destructor2(sd, mark_freed, &freed);
+	i = sd->msgcb(sd, sd->msg_in, sd->fds_in);
+	if (freed)
+		goto close;
+	tal_del_destructor2(sd, mark_freed, &freed);
 
-		i = sd->msgcb(sd, sd->msg_in, sd->fds_in);
-		if (freed)
-			goto close;
-		tal_del_destructor2(sd, mark_freed, &freed);
+	sd->conn = conn;
 
-		sd->conn = conn;
-
-		if (i != 0) {
-			/* Don't ask for fds twice! */
-			assert(!sd->fds_in);
-			/* Don't free msg_in: we go around again. */
-			tal_steal(sd, sd->msg_in);
-			plan = sd_collect_fds(conn, sd, i);
-			goto out;
-		}
+	if (i != 0) {
+		/* Don't ask for fds twice! */
+		assert(!sd->fds_in);
+		/* Don't free msg_in: we go around again. */
+		tal_steal(sd, sd->msg_in);
+		plan = sd_collect_fds(conn, sd, i);
+		goto out;
 	}
 
 next:
@@ -538,11 +513,9 @@ out:
 static void destroy_subd(struct subd *sd)
 {
 	int status;
-	bool fail_if_subd_fails = false;
+	bool fail_if_subd_fails;
 
-#if DEVELOPER
-	fail_if_subd_fails = sd->ld->dev_subdaemon_fail;
-#endif
+	fail_if_subd_fails = IFDEV(sd->ld->dev_subdaemon_fail, false);
 
 	switch (waitpid(sd->pid, &status, WNOHANG)) {
 	case 0:
@@ -563,9 +536,11 @@ static void destroy_subd(struct subd *sd)
 		break;
 	}
 
-	if (fail_if_subd_fails && WIFSIGNALED(status))
-		fatal("Subdaemon %s killed with signal %i",
-		      sd->name, WTERMSIG(status));
+	if (fail_if_subd_fails && WIFSIGNALED(status)) {
+		log_broken(sd->log, "Subdaemon %s killed with signal %i",
+			   sd->name, WTERMSIG(status));
+		exit(1);
+	}
 
 	/* In case we're freed manually, such as channel_fail_permanent */
 	if (sd->conn)
@@ -583,14 +558,14 @@ static void destroy_subd(struct subd *sd)
 		sd->channel = NULL;
 
 		/* We can be freed both inside msg handling, or spontaneously. */
-		outer_transaction = db->in_transaction;
+		outer_transaction = db_in_transaction(db);
 		if (!outer_transaction)
 			db_begin_transaction(db);
 		if (sd->errcb)
-			sd->errcb(channel, -1, -1, NULL, 0, NULL,
+			sd->errcb(channel, NULL, NULL,
 				  tal_fmt(sd, "Owning subdaemon %s died (%i)",
 					  sd->name, status),
-				  NULL);
+				  false, NULL);
 		if (!outer_transaction)
 			db_commit_transaction(db);
 	}
@@ -606,12 +581,12 @@ static void destroy_subd(struct subd *sd)
 
 static struct io_plan *msg_send_next(struct io_conn *conn, struct subd *sd)
 {
-	const u8 *msg = msg_dequeue(&sd->outq);
+	const u8 *msg = msg_dequeue(sd->outq);
 	int fd;
 
 	/* Nothing to do?  Wait for msg_enqueue. */
 	if (!msg)
-		return msg_queue_wait(conn, &sd->outq, msg_send_next, sd);
+		return msg_queue_wait(conn, sd->outq, msg_send_next, sd);
 
 	fd = msg_extract_fd(msg);
 	if (fd >= 0) {
@@ -631,16 +606,17 @@ static struct io_plan *msg_setup(struct io_conn *conn, struct subd *sd)
 static struct subd *new_subd(struct lightningd *ld,
 			     const char *name,
 			     void *channel,
+			     const struct node_id *node_id,
 			     struct log *base_log,
+			     bool talks_to_peer,
 			     const char *(*msgname)(int msgtype),
 			     unsigned int (*msgcb)(struct subd *,
 						   const u8 *, const int *fds),
 			     void (*errcb)(void *channel,
-					   int peer_fd, int gossip_fd,
-					   const struct crypto_state *cs,
-					   u64 gossip_index,
+					   struct per_peer_state *pps,
 					   const struct channel_id *channel_id,
 					   const char *desc,
+					   bool soft_error,
 					   const u8 *err_for_them),
 			     void (*billboardcb)(void *channel,
 						 bool perm,
@@ -651,46 +627,67 @@ static struct subd *new_subd(struct lightningd *ld,
 	int msg_fd;
 	const char *debug_subd = NULL;
 	int disconnect_fd = -1;
+	const char *shortname;
 
 	assert(name != NULL);
 
+	/* This part of the name is a bit redundant for logging */
+	if (strstarts(name, "lightning_"))
+		shortname = name + strlen("lightning_");
+	else
+		shortname = name;
+
+	if (base_log) {
+		sd->log = new_log(sd, ld->log_book, node_id,
+				  "%s-%s", shortname, log_prefix(base_log));
+	} else {
+		sd->log = new_log(sd, ld->log_book, node_id, "%s", shortname);
+	}
+
 #if DEVELOPER
-	debug_subd = ld->dev_debug_subdaemon;
+	debug_subd = ld->dev_debug_subprocess;
 	disconnect_fd = ld->dev_disconnect_fd;
 #endif /* DEVELOPER */
 
-	sd->pid = subd(ld->daemon_dir, name, debug_subd, ld->debug_subdaemon_io,
-		       &msg_fd, disconnect_fd, ap);
+	const char *path = subdaemon_path(tmpctx, ld, name);
+
+	sd->pid = subd(path, name, debug_subd,
+		       &msg_fd, disconnect_fd,
+		       /* We only turn on subdaemon io logging if we're going
+			* to print it: too stressful otherwise! */
+		       log_print_level(sd->log) < LOG_DBG,
+		       ap);
 	if (sd->pid == (pid_t)-1) {
 		log_unusual(ld->log, "subd %s failed: %s",
 			    name, strerror(errno));
 		return tal_free(sd);
 	}
 	sd->ld = ld;
-	if (base_log) {
-		sd->log = new_log(sd, get_log_book(base_log), "%s-%s", name,
-				  log_prefix(base_log));
-	} else {
-		sd->log = new_log(sd, ld->log_book, "%s(%u):", name, sd->pid);
-	}
 
-	sd->name = name;
+	sd->name = shortname;
 	sd->must_not_exit = false;
+	sd->talks_to_peer = talks_to_peer;
 	sd->msgname = msgname;
+	assert(msgname);
 	sd->msgcb = msgcb;
+	assert(msgcb);
 	sd->errcb = errcb;
 	sd->billboardcb = billboardcb;
 	sd->fds_in = NULL;
-	msg_queue_init(&sd->outq, sd);
+	sd->outq = msg_queue_new(sd);
 	tal_add_destructor(sd, destroy_subd);
 	list_head_init(&sd->reqs);
 	sd->channel = channel;
+	if (node_id)
+		sd->node_id = tal_dup(sd, struct node_id, node_id);
+	else
+		sd->node_id = NULL;
 
 	/* conn actually owns daemon: we die when it does. */
 	sd->conn = io_new_conn(ld, msg_fd, msg_setup, sd);
 	tal_steal(sd->conn, sd);
 
-	log_debug(sd->log, "pid %u, msgfd %i", sd->pid, msg_fd);
+	log_peer_debug(sd->log, node_id, "pid %u, msgfd %i", sd->pid, msg_fd);
 
 	/* Clear any old transient message. */
 	if (billboardcb)
@@ -709,7 +706,7 @@ struct subd *new_global_subd(struct lightningd *ld,
 	struct subd *sd;
 
 	va_start(ap, msgcb);
-	sd = new_subd(ld, name, NULL, NULL, msgname, msgcb, NULL, NULL, &ap);
+	sd = new_subd(ld, name, NULL, NULL, NULL, false, msgname, msgcb, NULL, NULL, &ap);
 	va_end(ap);
 
 	sd->must_not_exit = true;
@@ -719,16 +716,17 @@ struct subd *new_global_subd(struct lightningd *ld,
 struct subd *new_channel_subd_(struct lightningd *ld,
 			       const char *name,
 			       void *channel,
+			       const struct node_id *node_id,
 			       struct log *base_log,
+			       bool talks_to_peer,
 			       const char *(*msgname)(int msgtype),
 			       unsigned int (*msgcb)(struct subd *, const u8 *,
 						     const int *fds),
 			       void (*errcb)(void *channel,
-					     int peer_fd, int gossip_fd,
-					     const struct crypto_state *cs,
-					     u64 gossip_index,
+					     struct per_peer_state *pps,
 					     const struct channel_id *channel_id,
 					     const char *desc,
+					     bool soft_error,
 					     const u8 *err_for_them),
 			       void (*billboardcb)(void *channel, bool perm,
 						   const char *happenings),
@@ -738,23 +736,25 @@ struct subd *new_channel_subd_(struct lightningd *ld,
 	struct subd *sd;
 
 	va_start(ap, billboardcb);
-	sd = new_subd(ld, name, channel, base_log, msgname,
-		      msgcb, errcb, billboardcb, &ap);
+	sd = new_subd(ld, name, channel, node_id, base_log, talks_to_peer,
+		      msgname, msgcb, errcb, billboardcb, &ap);
 	va_end(ap);
 	return sd;
 }
 
 void subd_send_msg(struct subd *sd, const u8 *msg_out)
 {
+	u16 type = fromwire_peektype(msg_out);
 	/* FIXME: We should use unique upper bits for each daemon, then
 	 * have generate-wire.py add them, just assert here. */
-	assert(!strstarts(sd->msgname(fromwire_peektype(msg_out)), "INVALID"));
-	msg_enqueue(&sd->outq, msg_out);
+	assert(!strstarts(common_wire_name(type), "INVALID") ||
+	       !strstarts(sd->msgname(type), "INVALID"));
+	msg_enqueue(sd->outq, msg_out);
 }
 
 void subd_send_fd(struct subd *sd, int fd)
 {
-	msg_enqueue_fd(&sd->outq, fd);
+	msg_enqueue_fd(sd->outq, fd);
 }
 
 void subd_req_(const tal_t *ctx,
@@ -774,8 +774,16 @@ void subd_req_(const tal_t *ctx,
 	add_req(ctx, sd, type, num_fds_in, replycb, replycb_data);
 }
 
-void subd_shutdown(struct subd *sd, unsigned int seconds)
+/* SIGALRM terminates by default: we just want it to interrupt waitpid(),
+ * which is implied by "handling" it. */
+static void discard_alarm(int sig UNNEEDED)
 {
+}
+
+struct subd *subd_shutdown(struct subd *sd, unsigned int seconds)
+{
+	struct sigaction sa, old;
+
 	log_debug(sd->log, "Shutting down");
 
 	tal_del_destructor(sd, destroy_subd);
@@ -784,19 +792,24 @@ void subd_shutdown(struct subd *sd, unsigned int seconds)
 	tal_steal(sd->ld, sd);
 	sd->conn = tal_free(sd->conn);
 
-	/* Wait for a while. */
-	while (seconds) {
-		if (waitpid(sd->pid, NULL, WNOHANG) > 0) {
-			return;
-		}
-		sleep(1);
-		seconds--;
+	/* Set up alarm to wake us up if child doesn't exit. */
+	sa.sa_handler = discard_alarm;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sigaction(SIGALRM, &sa, &old);
+	alarm(seconds);
+
+	if (waitpid(sd->pid, NULL, 0) > 0) {
+		alarm(0);
+		sigaction(SIGALRM, &old, NULL);
+		return tal_free(sd);
 	}
 
+	sigaction(SIGALRM, &old, NULL);
 	/* Didn't die?  This will kill it harder */
 	sd->must_not_exit = false;
 	destroy_subd(sd);
-	tal_free(sd);
+	return tal_free(sd);
 }
 
 void subd_release_channel(struct subd *owner, void *channel)
@@ -810,12 +823,6 @@ void subd_release_channel(struct subd *owner, void *channel)
 }
 
 #if DEVELOPER
-char *opt_subd_debug(const char *optarg, struct lightningd *ld)
-{
-	ld->dev_debug_subdaemon = optarg;
-	return NULL;
-}
-
 char *opt_subd_dev_disconnect(const char *optarg, struct lightningd *ld)
 {
 	ld->dev_disconnect_fd = open(optarg, O_RDONLY);
@@ -848,3 +855,53 @@ bool dev_disconnect_permanent(struct lightningd *ld)
 	return false;
 }
 #endif /* DEVELOPER */
+
+/* Ugly helper to get full pathname of the current binary. */
+const char *find_my_abspath(const tal_t *ctx, const char *argv0)
+{
+	char *me;
+
+	/* A command containing / is run relative to the current directory,
+	 * not searched through the path.  The shell sets argv0 to the command
+	 * run, though something else could set it to a arbitrary value and
+	 * this logic would be wrong. */
+	if (strchr(argv0, PATH_SEP)) {
+		const char *path;
+		/* Absolute paths are easy. */
+		if (strstarts(argv0, PATH_SEP_STR))
+			path = argv0;
+		/* It contains a '/', it's relative to current dir. */
+		else
+			path = path_join(tmpctx, path_cwd(tmpctx), argv0);
+
+		me = path_canon(ctx, path);
+		if (!me || access(me, X_OK) != 0)
+			errx(1, "I cannot find myself at %s based on my name %s",
+			     path, argv0);
+	} else {
+		/* No /, search path */
+		char **pathdirs;
+		const char *pathenv = getenv("PATH");
+		size_t i;
+
+		/* This replicates the standard shell path search algorithm */
+		if (!pathenv)
+			errx(1, "Cannot find myself: no $PATH set");
+
+		pathdirs = tal_strsplit(tmpctx, pathenv, ":", STR_NO_EMPTY);
+		me = NULL;
+		for (i = 0; pathdirs[i]; i++) {
+			/* This returns NULL if it doesn't exist. */
+			me = path_canon(ctx,
+					path_join(tmpctx, pathdirs[i], argv0));
+			if (me && access(me, X_OK) == 0)
+				break;
+			/* Nope, try again. */
+			me = tal_free(me);
+		}
+		if (!me)
+			errx(1, "Cannot find %s in $PATH", argv0);
+	}
+
+	return me;
+}

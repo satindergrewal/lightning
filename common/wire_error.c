@@ -3,7 +3,7 @@
 #include <common/type_to_string.h>
 #include <common/utils.h>
 #include <common/wire_error.h>
-#include <wire/gen_peer_wire.h>
+#include <wire/peer_wire.h>
 
 u8 *towire_errorfmtv(const tal_t *ctx,
 		     const struct channel_id *channel,
@@ -12,8 +12,8 @@ u8 *towire_errorfmtv(const tal_t *ctx,
 {
 	/* BOLT #1:
 	 *
-	 * The channel is referred to by `channel_id` unless `channel_id` is
-	 * zero (ie. all bytes zero), in which case it refers to all
+	 * The channel is referred to by `channel_id`, unless `channel_id` is
+	 * 0 (i.e. all bytes are 0), in which case it refers to all
 	 * channels. */
 	static const struct channel_id all_channels;
 	char *estr;
@@ -63,16 +63,18 @@ char *sanitize_error(const tal_t *ctx, const u8 *errmsg,
 
 	/* BOLT #1:
 	 *
-	 * A receiving node SHOULD only print out `data` verbatim if the
-	 * string is composed solely of printable ASCII characters.  For
-	 * reference, the printable character set includes byte values 32
-	 * through 127 inclusive.
+	 * The receiving node:
+	 *...
+	 *  - if `data` is not composed solely of printable ASCII characters
+	 *   (For reference: the printable character set includes byte values 32
+	 *   through 126, inclusive):
+	 *    - SHOULD NOT print out `data` verbatim.
 	 */
-	for (i = 0; i < tal_len(data); i++) {
+	for (i = 0; i < tal_count(data); i++) {
 		if (data[i] < 32 || data[i] > 127) {
 			/* Convert to hex, minus NUL term */
 			data = (u8 *)tal_hex(ctx, data);
-			tal_resize(&data, tal_len(data)-1);
+			tal_resize(&data, strlen((const char *)data));
 			break;
 		}
 	}
@@ -81,5 +83,5 @@ char *sanitize_error(const tal_t *ctx, const u8 *errmsg,
 		       channel_id_is_all(channel_id)
 		       ? "ALL"
 		       : type_to_string(ctx, struct channel_id, channel_id),
-		       (int)tal_len(data), (char *)data);
+		       (int)tal_count(data), (char *)data);
 }

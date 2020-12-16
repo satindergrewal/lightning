@@ -13,6 +13,9 @@ enum tx_type {
 	/* Their unilateral: spends funding */
 	THEIR_UNILATERAL,
 
+	/* Unknown unilateral (presumably theirs): spends funding */
+	UNKNOWN_UNILATERAL,
+
 	/* Our unilateral: spends funding */
 	OUR_UNILATERAL,
 
@@ -32,11 +35,14 @@ enum tx_type {
 	/* When we spend a delayed output (after cltv_expiry) */
 	OUR_DELAYED_RETURN_TO_WALLET,
 
+	/* When they spend a delayed output we were attempting to steal */
+	THEIR_DELAYED_CHEAT,
+
 	/* When we use revocation key to take output. */
 	OUR_PENALTY_TX,
 
 	/* Amount too small, we're just spending it to close UTXO */
-	DONATING_TO_MINERS,
+	IGNORING_TINY_PAYMENT,
 
 	/* Special type for marking outputs as resolved by self. */
 	SELF,
@@ -54,6 +60,9 @@ enum output_type {
 	OUTPUT_TO_US,
 	DELAYED_OUTPUT_TO_THEM,
 
+	/* THEIR_REVOKED_UNILATERAL (they shouldn't be able to claim these) */
+	DELAYED_CHEAT_OUTPUT_TO_THEM,
+
 	/* OUR_UNILATERAL, or OUR_HTLC_TIMEOUT_TX */
 	DELAYED_OUTPUT_TO_US,
 	OUTPUT_TO_THEM,
@@ -61,6 +70,13 @@ enum output_type {
 	/* HTLC outputs: their offers and our offers */
 	THEIR_HTLC,
 	OUR_HTLC,
+
+	/* For elements we need a fee output type */
+	ELEMENTS_FEE,
+
+	/* Anchor outputs for option_anchor_outputs */
+	ANCHOR_TO_US,
+	ANCHOR_TO_THEM,
 };
 
 
