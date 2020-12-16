@@ -73,7 +73,7 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
     err_set_progname(argv[0]);
     
     opt_set_alloc(opt_allocfn, tal_reallocfn, tal_freefn);
-    configdir_register_opts(ctx, &lightning_dir, &rpc_filename);
+    initial_config_opts(ctx, 0, NULL, NULL, &lightning_dir, NULL, &rpc_filename);
     
     opt_register_noarg("--help|-h", opt_usage_and_exit,
                        "<command> [<params>...]", "Show this message");
