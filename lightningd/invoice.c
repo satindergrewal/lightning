@@ -1663,6 +1663,7 @@ static void json_invoice_count(struct command *cmd,
 }
 static const struct json_command bet_command = {
 	"invoice-count",
+	"payment",
 	json_invoice_count,
 	"Gives the count of the invoices"
 };
