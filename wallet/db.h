@@ -14,6 +14,7 @@
 #include <common/amount.h>
 #include <secp256k1_ecdh.h>
 #include <stdbool.h>
+#include <sqlite3.h>
 
 struct channel_id;
 struct ext_key;
@@ -242,6 +243,9 @@ struct db_stmt *db_prepare_v2_(const char *location, struct db *db,
 /* TODO(cdecker) Remove the v2 suffix after finishing the migration */
 #define db_prepare_v2(db,query)						\
 	db_prepare_v2_(__FILE__ ":" stringify(__LINE__), db, query)
+
+#define db_prepare(db,query) db_prepare_(__func__,db,query)
+sqlite3_stmt *db_prepare_(const char *caller, struct db *db, const char *query);
 
 /**
  * Access pending changes that have been added to the current transaction.

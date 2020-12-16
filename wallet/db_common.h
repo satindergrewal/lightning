@@ -5,6 +5,7 @@
 #include <ccan/list/list.h>
 #include <ccan/short_types/short_types.h>
 #include <stdbool.h>
+#include <sqlite3.h>
 
 /* For testing, we want to catch fatal messages. */
 #ifndef db_fatal
@@ -37,6 +38,8 @@ struct db {
 	/* The current DB version we expect to update if changes are
 	 * committed. */
 	u32 data_version;
+
+	sqlite3 *sql;
 };
 
 struct db_query {

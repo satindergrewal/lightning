@@ -21,6 +21,7 @@
 #include <wallet/wallet.h>
 #include <wally_bip32.h>
 #include <wire/wire_sync.h>
+#include <sqlite3.h>
 
 #define NSEC_IN_SEC 1000000000
 
@@ -744,6 +745,21 @@ struct db_stmt *db_prepare_v2_(const char *location, struct db *db,
 
 #define db_prepare_v2(db,query) \
 	db_prepare_v2_(__FILE__ ":" stringify(__LINE__), db, query)
+
+sqlite3_stmt *db_prepare_(const char *caller, struct db *db, const char *query)
+{
+	int err;
+	sqlite3_stmt *stmt;
+
+	assert(db->in_transaction);
+
+	err = sqlite3_prepare_v2(db->sql, query, -1, &stmt, NULL);
+
+	if (err != SQLITE_OK)
+		fatal("%s: %s: %s", caller, query, sqlite3_errmsg(db->sql));
+
+	return stmt;
+}
 
 bool db_step(struct db_stmt *stmt)
 {
