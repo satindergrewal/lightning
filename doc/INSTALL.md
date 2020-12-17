@@ -254,6 +254,15 @@ Configure Python 3.x & get mako:
     $ pyenv local 3.7.4
     $ pip install mako
 
+Arm64 M1 macOS need to specify location of gmp if it was migrated from x86_64.
+As per latest changes done to homebrew installation, the default directory for Arm64 M1 macOS is `/opt/homebrew`.
+Make sure to export gmp with the following command before compiling:
+
+```
+export LDFLAGS="-L/opt/homebrew/Cellar/gmp/6.2.1/lib"
+export CPPFLAGS="-I/opt/homebrew/Cellar/gmp/6.2.1/include"
+```
+
 Build lightning:
 
     $ ./configure

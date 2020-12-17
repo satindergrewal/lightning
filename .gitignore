@@ -58,3 +58,8 @@ release/
 devtools/route
 devtools/topology
 .DS_Store
+external/arm64-apple-darwin20.2.0
+wallet/db_postgres_sqlgen.c
+wallet/db_postgres_sqlgen.c
+wallet/db_sqlite3_sqlgen.c
+wallet/statements_gettextgen.po
