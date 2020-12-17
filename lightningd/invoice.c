@@ -1650,14 +1650,14 @@ static struct command_result *json_invoice_count(struct command *cmd,
 					     const jsmntok_t *params)
 {
 	struct json_stream *response;
-	response = json_stream_success(cmd);
 	
-	// int invoice_count;
-	// invoice_count=wallet_invoice_count(cmd->ld->wallet);
+	int invoice_count;
+	invoice_count=wallet_invoice_count(cmd->ld->wallet);
+	response = json_stream_success(cmd);
 
-	// json_object_start(response, NULL);
-	// json_add_num(response,"invoice count",invoice_count);
-	// json_object_end(response);
+	json_object_start(response, NULL);
+	json_add_num(response,"invoice count",invoice_count);
+	json_object_end(response);
 	return command_success(cmd, response);
 }
 
