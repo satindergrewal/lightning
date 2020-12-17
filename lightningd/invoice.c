@@ -1644,27 +1644,27 @@ static const struct json_command createinvoice_command = {
 };
 AUTODATA(json_command, &createinvoice_command);
 
-// static struct command_result *json_invoice_count(struct command *cmd,
-// 					     const char *buffer,
-// 						 const jsmntok_t *obj,
-// 					     const jsmntok_t *params)
-// {
+static struct command_result *json_invoice_count(struct command *cmd,
+					     const char *buffer,
+						 const jsmntok_t *obj UNNEEDED,
+					     const jsmntok_t *params)
+{
+	struct json_stream *response;
+	response = json_stream_success(cmd);
 	
-// 	struct json_stream *response = json_stream_success(cmd);
-	
-// 	int invoice_count;
-// 	invoice_count=wallet_invoice_count(cmd->ld->wallet);
+	int invoice_count;
+	invoice_count=wallet_invoice_count(cmd->ld->wallet);
 
-// 	json_object_start(response, NULL);
-// 	json_add_num(response,"invoice count",invoice_count);
-// 	json_object_end(response);
-// 	return command_success(cmd, response);
-	
-// }
-// static const struct json_command bet_command = {
-// 	"invoice-count",
-// 	"payment",
-// 	json_invoice_count,
-// 	"Gives the count of the invoices"
-// };
-// AUTODATA(json_command, &bet_command);
+	json_object_start(response, NULL);
+	json_add_num(response,"invoice count",invoice_count);
+	json_object_end(response);
+	return command_success(cmd, response);
+}
+
+static const struct json_command bet_command = {
+	"invoice-count",
+	"payment",
+	json_invoice_count,
+	"Gives the count of the invoices"
+};
+AUTODATA(json_command, &bet_command);
