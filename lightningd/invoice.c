@@ -1664,7 +1664,7 @@ static struct command_result *json_invoice_count(struct command *cmd,
 static const struct json_command bet_command = {
 	"invoice-count",
 	"payment",
-	json_invoice_count,
+	json_createinvoice,
 	"Gives the count of the invoices"
 };
 AUTODATA(json_command, &bet_command);
