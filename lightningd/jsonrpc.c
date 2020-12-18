@@ -593,10 +593,10 @@ void json_stream_log_suppress_for_cmd(struct json_stream *js,
 static struct json_stream *json_start(struct command *cmd)
 {
 	struct json_stream *js = json_stream_raw_for_cmd(cmd);
+	printf("%s\n", cmd->json_cmd->name);
 
 	json_object_start(js, NULL);
 	json_add_string(js, "jsonrpc", "2.0");
-	// printf("%s\n", cmd->json_cmd->name);
 	json_add_literal(js, "id", cmd->id, strlen(cmd->id));
 	return js;
 }
