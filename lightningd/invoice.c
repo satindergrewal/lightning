@@ -1644,22 +1644,6 @@ static const struct json_command createinvoice_command = {
 };
 AUTODATA(json_command, &createinvoice_command);
 
-// static struct command_result *json_invoice_count(struct command *cmd,
-// 					     const char *buffer,
-// 						 const jsmntok_t *obj UNNEEDED,
-// 					     const jsmntok_t *params)
-// {
-
-	
-// 	int invoice_count;
-// 	invoice_count=wallet_invoice_count(cmd->ld->wallet);
-
-// 	json_object_start(response, NULL);
-// 	json_add_num(response,"invoice count",invoice_count);
-// 	json_object_end(response);
-// 	return command_success(cmd, response);
-// }
-
 static struct command_result *json_invoice_count(struct command *cmd,
 					       const char *buffer,
 					       const jsmntok_t *obj UNNEEDED,
@@ -1670,7 +1654,7 @@ static struct command_result *json_invoice_count(struct command *cmd,
 	int invoice_count;
 
 	if (!param(cmd, buffer, params,
-		   p_req("label", param_label, &label),
+		   p_opt("label", param_label, &label),
 		   NULL))
 		return command_param_failed();
 
