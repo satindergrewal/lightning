@@ -596,7 +596,7 @@ static struct json_stream *json_start(struct command *cmd)
 
 	json_object_start(js, NULL);
 	json_add_string(js, "jsonrpc", "2.0");
-	printf("%s\n", cmd->json_cmd->name);
+	// printf("%s\n", cmd->json_cmd->name);
 	json_add_literal(js, "id", cmd->id, strlen(cmd->id));
 	return js;
 }
