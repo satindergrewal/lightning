@@ -1644,17 +1644,39 @@ static const struct json_command createinvoice_command = {
 };
 AUTODATA(json_command, &createinvoice_command);
 
-static struct command_result *json_invoice_count(struct command *cmd,
-					     const char *buffer,
-						 const jsmntok_t *obj UNNEEDED,
-					     const jsmntok_t *params)
-{
-	struct json_stream *response;
-	response = json_stream_success(cmd);
-	
-	int invoice_count;
-	invoice_count=wallet_invoice_count(cmd->ld->wallet);
+// static struct command_result *json_invoice_count(struct command *cmd,
+// 					     const char *buffer,
+// 						 const jsmntok_t *obj UNNEEDED,
+// 					     const jsmntok_t *params)
+// {
 
+	
+// 	int invoice_count;
+// 	invoice_count=wallet_invoice_count(cmd->ld->wallet);
+
+// 	json_object_start(response, NULL);
+// 	json_add_num(response,"invoice count",invoice_count);
+// 	json_object_end(response);
+// 	return command_success(cmd, response);
+// }
+
+static struct command_result *json_invoice_count(struct command *cmd,
+					       const char *buffer,
+					       const jsmntok_t *obj UNNEEDED,
+					       const jsmntok_t *params)
+{
+	struct json_escape *label;
+	struct json_stream *response;
+	int invoice_count;
+
+	if (!param(cmd, buffer, params,
+		   p_req("label", param_label, &label),
+		   NULL))
+		return command_param_failed();
+
+	response = json_stream_success(cmd);
+	invoice_count=wallet_invoice_count(cmd->ld->wallet);
+	
 	json_object_start(response, NULL);
 	json_add_num(response,"invoice count",invoice_count);
 	json_object_end(response);
