@@ -170,6 +170,41 @@ static const struct json_command newaddr_command = {
 };
 AUTODATA(json_command, &newaddr_command);
 
+static struct command_result *json_dev_blockheight(struct command *cmd,
+					       const char *buffer,
+					       const jsmntok_t *obj UNNEEDED,
+					       const jsmntok_t *params)
+{
+	struct json_escape *label;
+	struct json_stream *response;
+	int invoice_count;
+	struct chain_topology *topo;
+
+	if (!param(cmd, buffer, params,
+		   p_opt("label", param_label, &label),
+		   NULL))
+		return command_param_failed();
+
+	topo = cmd->ld->topology;
+	response = json_stream_success(cmd);
+	invoice_count=wallet_invoice_count(cmd->ld->wallet);
+	
+	json_object_start(response, NULL);
+	json_add_num(response, "blockheight", get_block_height(topo));
+	json_object_end(response);
+	return command_success(cmd, response);
+}
+
+static const struct json_command bet_command = {
+	"dev-blockheight",
+	"developer",
+	json_dev_blockheight,
+	"Gives the count of the invoices",
+	false,
+	"Gives the count of the invoices"
+};
+AUTODATA(json_command, &bet_command);
+
 static struct command_result *json_listaddrs(struct command *cmd,
 					     const char *buffer,
 					     const jsmntok_t *obj UNNEEDED,
