@@ -197,8 +197,6 @@ static const struct json_command dev_blockheight = {
 	"dev-blockheight",
 	"developer",
 	json_dev_blockheight,
-	"Gives the count of the invoices",
-	false,
 	"Gives the count of the invoices"
 };
 AUTODATA(json_command, &dev_blockheight);
