@@ -177,7 +177,6 @@ static struct command_result *json_dev_blockheight(struct command *cmd,
 {
 	struct json_escape *label;
 	struct json_stream *response;
-	int invoice_count;
 	struct chain_topology *topo;
 
 	if (!param(cmd, buffer, params,
