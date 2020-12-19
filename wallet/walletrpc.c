@@ -177,18 +177,16 @@ static struct command_result *json_dev_blockheight(struct command *cmd,
 {
 	struct json_escape *label;
 	struct json_stream *response;
-	struct chain_topology *topo;
+	struct chain_topology *topo = cmd->ld->topology;
 
 	if (!param(cmd, buffer, params,
 		   p_opt("label", param_label, &label),
 		   NULL))
 		return command_param_failed();
 
-	topo = cmd->ld->topology;
 	response = json_stream_success(cmd);
-	
 	json_object_start(response, NULL);
-	json_add_num(response, NULL, get_block_height(topo));
+	json_add_num(response, "blockheight", get_block_height(topo));
 	json_object_end(response);
 	return command_success(cmd, response);
 }
