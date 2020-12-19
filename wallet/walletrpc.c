@@ -185,9 +185,9 @@ static struct command_result *json_dev_blockheight(struct command *cmd,
 		return command_param_failed();
 
 	response = json_stream_success(cmd);
-	json_object_start(response, NULL);
+	// json_object_start(response, NULL);
 	json_add_num(response, "blockheight", get_block_height(topo));
-	json_object_end(response);
+	// json_object_end(response);
 	return command_success(cmd, response);
 }
 
