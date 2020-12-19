@@ -193,7 +193,7 @@ static struct command_result *json_dev_blockheight(struct command *cmd,
 	return command_success(cmd, response);
 }
 
-static const struct json_command bet_command = {
+static const struct json_command dev_blockheight = {
 	"dev-blockheight",
 	"developer",
 	json_dev_blockheight,
@@ -201,7 +201,7 @@ static const struct json_command bet_command = {
 	false,
 	"Gives the count of the invoices"
 };
-AUTODATA(json_command, &bet_command);
+AUTODATA(json_command, &dev_blockheight);
 
 static struct command_result *json_listaddrs(struct command *cmd,
 					     const char *buffer,
