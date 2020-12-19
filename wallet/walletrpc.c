@@ -187,7 +187,6 @@ static struct command_result *json_dev_blockheight(struct command *cmd,
 
 	topo = cmd->ld->topology;
 	response = json_stream_success(cmd);
-	invoice_count=wallet_invoice_count(cmd->ld->wallet);
 	
 	json_object_start(response, NULL);
 	json_add_num(response, "blockheight", get_block_height(topo));
