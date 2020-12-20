@@ -717,3 +717,27 @@ int invoices_count(struct invoices *invoices)
 		sqlite3_finalize(stmt);
 	return invoice_count;
 }
+
+int invoices_count2(const tal_t *ctx,
+						   struct invoices *invoices,
+						   struct invoice invoice)
+{
+	struct db_stmt *stmt;
+	bool res;
+	// struct invoice_details *details;
+	int invoice_count;
+
+	stmt = db_prepare_v2(invoices->db, SQL("SELECT"
+					       "  count(*)"
+					       " FROM invoices;"));
+	// db_bind_int(stmt, 0, invoice.id);
+	db_query_prepared(stmt);
+	res = db_step(stmt);
+	assert(res);
+
+	// details = wallet_stmt2invoice_details(ctx, stmt);
+	int num_cols = sqlite3_column_count(stmt);
+	invoice_count=sqlite3_column_int(stmt, num_cols);
+	tal_free(stmt);
+	return invoice_count;
+}
