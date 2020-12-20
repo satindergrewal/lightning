@@ -701,6 +701,7 @@ int invoices_count(struct invoices *invoices)
 		int i;
 		int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
 		printf("num_cols: %d\n", num_cols);
+		printf("invoice_count - before while loop: %d\n", invoice_count);
 		
 		for (i = 0; i < num_cols; i++)
 		{
@@ -723,7 +724,7 @@ int invoices_count(struct invoices *invoices)
 			invoice_count=db_column_int_or_default(stmt, i, 0);
 		}
 	}
-	printf("%d\n", invoice_count);
+	printf("invoice_count - after while loop: %d\n", invoice_count);
 	// sqlite3_finalize((sqlite3_stmt *)stmt);
 	tal_free(stmt);
 	return invoice_count;
