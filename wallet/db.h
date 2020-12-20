@@ -245,7 +245,7 @@ struct db_stmt *db_prepare_v2_(const char *location, struct db *db,
 	db_prepare_v2_(__FILE__ ":" stringify(__LINE__), db, query)
 
 #define db_prepare(db,query) db_prepare_(__func__,db,query)
-sqlite3_stmt *db_prepare_(const char *caller, struct db *db, const char *query);
+sqlite3_stmt *db_prepare_(const char *location, struct db *db, const char *query_id);
 
 /**
  * Access pending changes that have been added to the current transaction.
