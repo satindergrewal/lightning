@@ -696,7 +696,6 @@ int invoices_count(struct invoices *invoices)
 	db_query_prepared(stmt);
 	res = db_step(stmt);
 	assert(res);
-	printf("num_cols - before initialising value: %d\n", num_cols);
 
 	while (!db_step(stmt)) {
 		int i;
