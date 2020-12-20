@@ -717,7 +717,7 @@ int invoices_count(struct invoices *invoices)
 			// default:
 			// 	break;
 			// }
-			invoice_count=db_column_int((sqlite3_stmt *)stmt, i);
+			invoice_count=db_column_int(stmt, i);
 		}
 	}
 	// sqlite3_finalize((sqlite3_stmt *)stmt);
