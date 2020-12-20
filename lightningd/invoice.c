@@ -1660,11 +1660,11 @@ static struct command_result *json_invoice_count(struct command *cmd,
 
 	response = json_stream_success(cmd);
 	invoice_count=wallet_invoice_count(cmd->ld->wallet);
-	printf("invoice_count - at command fn: %d\n", invoice_count);
+	// printf("invoice_count - at command fn: %d\n", invoice_count);
 	
-	json_object_start(response, NULL);
+	// json_object_start(response, NULL);
 	json_add_num(response,"invoice count",invoice_count);
-	json_object_end(response);
+	// json_object_end(response);
 	return command_success(cmd, response);
 }
 
