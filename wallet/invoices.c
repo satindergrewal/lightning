@@ -698,22 +698,22 @@ int invoices_count(struct invoices *invoices)
 		
 		for (i = 0; i < num_cols; i++)
 		{
-			switch (sqlite3_column_type(stmt, i))
+			switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
 			{
 			case (SQLITE3_TEXT):
-				printf("%s, ", sqlite3_column_text(stmt, i));
+				printf("%s, ", sqlite3_column_text((sqlite3_stmt *)stmt, i));
 				break;
 			case (SQLITE_INTEGER):
-				invoice_count=sqlite3_column_int(stmt, i);
+				invoice_count=sqlite3_column_int((sqlite3_stmt *)stmt, i);
 				break;
 			case (SQLITE_FLOAT):
-				printf("%g, ", sqlite3_column_double(stmt, i));
+				printf("%g, ", sqlite3_column_double((sqlite3_stmt *)stmt, i));
 				break;
 			default:
 				break;
 			}
 		}
 	}
-		sqlite3_finalize(stmt);
+	sqlite3_finalize((sqlite3_stmt *)stmt);
 	return invoice_count;
 }
