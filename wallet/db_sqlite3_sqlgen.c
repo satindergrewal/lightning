@@ -1053,6 +1053,12 @@ struct db_query db_sqlite3_queries[] = {
          .readonly = true,
     },
     {
+         .name = "SELECT count(*) FROM invoices;",
+         .query = "SELECT count(*) FROM invoices;",
+         .placeholders = 0,
+         .readonly = true,
+    },
+    {
          .name = "SELECT * from outputs WHERE prev_out_tx=? AND prev_out_index=?",
          .query = "SELECT * from outputs WHERE prev_out_tx=? AND prev_out_index=?",
          .placeholders = 2,
@@ -1756,10 +1762,10 @@ struct db_query db_sqlite3_queries[] = {
     },
 };
 
-#define DB_SQLITE3_QUERY_COUNT 291
+#define DB_SQLITE3_QUERY_COUNT 292
 
 #endif /* HAVE_SQLITE3 */
 
 #endif /* LIGHTNINGD_WALLET_GEN_DB_SQLITE3 */
 
-// SHA256STAMP:8bdfb90cb19a2b6d58145cc0b714a00ffe1c3bdea0376f4bc30c310f60e548db
+// SHA256STAMP:a59da68f764b90b2c7c027ec9d06985fe29300a48a95d653e161f60997415ef0
