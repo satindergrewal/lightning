@@ -346,7 +346,7 @@ void initial_config_opts(const tal_t *ctx,
 	 * options can change) and default config_netdir */
 	opt_register_early_arg("--network", opt_set_network, opt_show_network,
 			       NULL,
-			       "Select the network parameters (bitcoin, testnet,"
+			       "Select the network parameters (chips, bitcoin, testnet,"
 			       " signet, regtest, litecoin or litecoin-testnet)");
 	opt_register_early_noarg("--testnet",
 				 opt_set_specific_network, "testnet",
@@ -355,8 +355,11 @@ void initial_config_opts(const tal_t *ctx,
 				 opt_set_specific_network, "signet",
 				 "Alias for --network=signet");
 	opt_register_early_noarg("--mainnet",
+				 opt_set_specific_network, "chips",
+				 "Alias for --network=chips");
+	opt_register_early_noarg("--bitcoin",
 				 opt_set_specific_network, "bitcoin",
-				 "Alias for --network=bitcoin");
+				 "Alias for --network=bitcoin");			 
 	opt_register_early_arg("--allow-deprecated-apis",
 			       opt_set_bool_arg, opt_show_bool,
 			       &deprecated_apis,
@@ -398,9 +401,12 @@ void initial_config_opts(const tal_t *ctx,
 	opt_register_early_arg("--network",
 			       opt_restricted_toplevel, opt_show_network,
 			       NULL,
-			       "Select the network parameters (bitcoin, testnet,"
+			       "Select the network parameters (chips, bitcoin, testnet,"
 			       " signet, regtest, litecoin or litecoin-testnet)");
 	opt_register_early_noarg("--mainnet",
+				 opt_restricted_toplevel_noarg, NULL,
+				 "Alias for --network=chips");
+	opt_register_early_noarg("--bitcoin",
 				 opt_restricted_toplevel_noarg, NULL,
 				 "Alias for --network=bitcoin");
 	opt_register_early_noarg("--testnet",
