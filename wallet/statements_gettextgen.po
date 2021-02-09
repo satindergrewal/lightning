@@ -694,10 +694,6 @@ msgstr ""
 msgid "SELECT  state, payment_key, payment_hash, label, msatoshi, expiry_time, pay_index, msatoshi_received, paid_timestamp, bolt11, description, features, local_offer_id FROM invoices WHERE id = ?;"
 msgstr ""
 
-#: wallet/invoices.c:695
-msgid "SELECT count(*) FROM invoices;"
-msgstr ""
-
 #: wallet/wallet.c:75 wallet/wallet.c:553
 msgid "SELECT * from outputs WHERE prev_out_tx=? AND prev_out_index=?"
 msgstr ""
@@ -1165,4 +1161,4 @@ msgstr ""
 #: wallet/test/run-wallet.c:1382
 msgid "INSERT INTO channels (id) VALUES (1);"
 msgstr ""
-#  SHA256STAMP:68a4bacbff919a4296d9a11bfbea9705af7691d18d91598606152db5cedc2121
+#  SHA256STAMP:5e98d15c30b0155330ec7ebced4e4158ef7c621aff2d0b0cd6a26ea28dcd00b8
