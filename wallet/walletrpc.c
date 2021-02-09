@@ -153,7 +153,7 @@ static struct command_result *json_newaddr(struct command *cmd,
 	response = json_stream_success(cmd);
 	if (deprecated_apis && *addrtype != ADDR_ALL)
 		json_add_string(response, "address",
-				*addrtype & ADDR_BECH32 ? bech32 : p2sh);
+				*addrtype & ADDR_P2SH_SEGWIT ? p2sh : bech32);
 	if (*addrtype & ADDR_BECH32)
 		json_add_string(response, "bech32", bech32);
 	if (*addrtype & ADDR_P2SH_SEGWIT)
@@ -165,7 +165,7 @@ static const struct json_command newaddr_command = {
 	"newaddr",
 	"bitcoin",
 	json_newaddr,
-	"Get a new {bech32, p2sh-segwit} (or all) address to fund a channel (default is bech32)", false,
+	"Get a new {bech32, p2sh-segwit} (or all) address to fund a channel (default is p2sh-segwit)", false,
 	"Generates a new address (or both) that belongs to the internal wallet. Funds sent to these addresses will be managed by lightningd. Use `withdraw` to withdraw funds to an external wallet."
 };
 AUTODATA(json_command, &newaddr_command);
