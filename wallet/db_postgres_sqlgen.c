@@ -1065,6 +1065,12 @@ struct db_query db_postgres_queries[] = {
          .readonly = true,
     },
     {
+         .name = "SELECT count(*) FROM invoices;",
+         .query = "SELECT count(*) FROM invoices;",
+         .placeholders = 0,
+         .readonly = true,
+    },
+    {
          .name = "SELECT txid, outnum FROM utxoset WHERE spendheight is NULL",
          .query = "SELECT txid, outnum FROM utxoset WHERE spendheight is NULL",
          .placeholders = 0,
@@ -1780,10 +1786,10 @@ struct db_query db_postgres_queries[] = {
     },
 };
 
-#define DB_POSTGRES_QUERY_COUNT 295
+#define DB_POSTGRES_QUERY_COUNT 296
 
 #endif /* HAVE_POSTGRES */
 
 #endif /* LIGHTNINGD_WALLET_GEN_DB_POSTGRES */
 
-// SHA256STAMP:d99c7d86df2c57de4dad0ae207bb71ac7245e1beb3bee1066ab5d947db9b1e5c
+// SHA256STAMP:19d05eefd0d2a49eb167faf282b015afc3f3c6653224ddaa599ff0b8bebeb987

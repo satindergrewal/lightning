@@ -61,5 +61,5 @@ tests/plugins/test_selfdisable_after_getmanifest
 devtools/route
 devtools/topology
 .DS_Store
-external/arm64-apple-darwin20.2.0
+external/arm64-apple-darwin*
 devtools/bolt12-cli

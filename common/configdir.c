@@ -371,7 +371,7 @@ void initial_config_opts(const tal_t *ctx,
 
 	/* We use a global (in common/utils.h) for the chainparams. */
 	if (!chainparams)
-		chainparams = chainparams_for_network("bitcoin");
+		chainparams = chainparams_for_network("chips");
 
 	if (!*config_basedir)
 		*config_basedir = default_base_configdir(ctx);
