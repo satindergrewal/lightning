@@ -463,14 +463,14 @@ struct io_plan *peer_connected(struct io_conn *conn,
 	unsup = features_unsupported(daemon->our_features, their_features,
 				     INIT_FEATURE);
 	if (unsup != -1) {
-		msg = towire_errorfmt(NULL, NULL, "Unsupported feature %u",
-				      unsup);
+		msg = towire_warningfmt(NULL, NULL, "Unsupported feature %u",
+					unsup);
 		msg = cryptomsg_encrypt_msg(tmpctx, cs, take(msg));
 		return io_write(conn, msg, tal_count(msg), io_close_cb, NULL);
 	}
 
 	if (!feature_check_depends(their_features, &depender, &missing)) {
-		msg = towire_errorfmt(NULL, NULL,
+		msg = towire_warningfmt(NULL, NULL,
 				      "Feature %zu requires feature %zu",
 				      depender, missing);
 		msg = cryptomsg_encrypt_msg(tmpctx, cs, take(msg));
@@ -793,6 +793,7 @@ static void try_connect_one_addr(struct connecting *connect)
  	int fd, af;
 	bool use_proxy = connect->daemon->use_proxy_always;
 	const struct wireaddr_internal *addr = &connect->addrs[connect->addrnum];
+	struct io_conn *conn;
 
 	/* In case we fail without a connection, make destroy_io_conn happy */
 	connect->conn = NULL;
@@ -875,9 +876,14 @@ static void try_connect_one_addr(struct connecting *connect)
 	/* This creates the new connection using our fd, with the initialization
 	 * function one of the above. */
 	if (use_proxy)
-		connect->conn = io_new_conn(connect, fd, conn_proxy_init, connect);
+		conn = io_new_conn(connect, fd, conn_proxy_init, connect);
 	else
-		connect->conn = io_new_conn(connect, fd, conn_init, connect);
+		conn = io_new_conn(connect, fd, conn_init, connect);
+
+	/* Careful!  io_new_conn can fail (immediate connect() failure), and
+	 * that frees connect. */
+	if (conn)
+		connect->conn = conn;
 }
 
 /*~ connectd is responsible for incoming connections, but it's the process of

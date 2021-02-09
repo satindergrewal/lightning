@@ -56,6 +56,7 @@
 #include <lightningd/peer_htlcs.h>
 #include <lightningd/plugin_hook.h>
 #include <limits.h>
+#include <openingd/dualopend_wiregen.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <wally_bip32.h>
@@ -325,68 +326,6 @@ register_close_command(struct lightningd *ld,
 			     &close_command_timeout, cc);
 }
 
-/* Destroy the open command structure in reaction to the
- * channel being destroyed. */
-static void
-destroy_open_command_on_channel_destroy(struct channel *_ UNUSED,
-					struct open_command *oc)
-{
-	/* The oc has the command as parent, so resolving the
-	 * command destroys the oc and triggers destroy_open_command.
-	 * Clear the oc->channel first so that we will not try to
-	 * remove a destructor. */
-	oc->channel = NULL;
-	was_pending(command_fail(oc->cmd, LIGHTNINGD,
-				 "Channel forgotten before open concluded."));
-}
-
-/* Destroy the open command structure. */
-static void
-destroy_open_command(struct open_command *oc)
-{
-	list_del(&oc->list);
-	/* If destroy_close_command_on_channel_destroy was
-	 * triggered beforehand, it will have cleared
-	 * the channel field, preventing us from removing it
-	 * from an already-destroyed channel. */
-	if (!oc->channel)
-		return;
-	tal_del_destructor2(oc->channel,
-			    &destroy_open_command_on_channel_destroy,
-			    oc);
-}
-
-struct open_command *find_open_command(struct lightningd *ld,
-				       const struct channel *channel)
-{
-	struct open_command *oc, *n;
-
-	list_for_each_safe (&ld->open_commands, oc, n, list) {
-		if (oc->channel != channel)
-			continue;
-		return oc;
-	}
-
-	return NULL;
-}
-
-void register_open_command(struct lightningd *ld,
-			   struct command *cmd,
-			   struct channel *channel)
-{
-	struct open_command *oc;
-	assert(channel);
-
-	oc = tal(cmd, struct open_command);
-	list_add_tail(&ld->open_commands, &oc->list);
-	oc->cmd = cmd;
-	oc->channel = channel;
-	tal_add_destructor(oc, &destroy_open_command);
-	tal_add_destructor2(channel,
-			    &destroy_open_command_on_channel_destroy,
-			    oc);
-}
-
 static bool invalid_last_tx(const struct bitcoin_tx *tx)
 {
 	/* This problem goes back further, but was discovered just before the
@@ -438,7 +377,7 @@ void channel_errmsg(struct channel *channel,
 		    struct per_peer_state *pps,
 		    const struct channel_id *channel_id UNUSED,
 		    const char *desc,
-		    bool soft_error,
+		    bool warning,
 		    const u8 *err_for_them)
 {
 	notify_disconnect(channel->peer->ld, &channel->peer->id);
@@ -451,14 +390,15 @@ void channel_errmsg(struct channel *channel,
 	}
 
 	/* Do we have an error to send? */
-	if (err_for_them && !channel->error)
+	if (err_for_them && !channel->error && !warning)
 		channel->error = tal_dup_talarr(channel, u8, err_for_them);
 
 	/* Other implementations chose to ignore errors early on.  Not
 	 * surprisingly, they now spew out spurious errors frequently,
-	 * and we would close the channel on them. */
-	if (soft_error) {
-		channel_fail_reconnect_later(channel, "%s: (ignoring) %s",
+	 * and we would close the channel on them.  We now support warnings
+	 * for this case. */
+	if (warning) {
+		channel_fail_reconnect_later(channel, "%s WARNING: %s",
 					     channel->owner->name, desc);
 		return;
 	}
@@ -499,14 +439,6 @@ void channel_errmsg(struct channel *channel,
 				       channel->owner->name,
 				       err_for_them ? "sent" : "received", desc);
 }
-
-struct peer_connected_hook_payload {
-	struct lightningd *ld;
-	struct channel *channel;
-	struct wireaddr_internal addr;
-	struct peer *peer;
-	struct per_peer_state *pps;
-};
 
 static void json_add_htlcs(struct lightningd *ld,
 			   struct json_stream *response,
@@ -995,6 +927,15 @@ static void json_add_channel(struct lightningd *ld,
 	json_object_end(response);
 }
 
+struct peer_connected_hook_payload {
+	struct lightningd *ld;
+	struct channel *channel;
+	struct wireaddr_internal addr;
+	struct peer *peer;
+	struct per_peer_state *pps;
+	u8 *error;
+};
+
 static void
 peer_connected_serialize(struct peer_connected_hook_payload *payload,
 			 struct json_stream *stream)
@@ -1009,10 +950,7 @@ peer_connected_serialize(struct peer_connected_hook_payload *payload,
 	json_object_end(stream); /* .peer */
 }
 
-static void
-peer_connected_hook_cb(struct peer_connected_hook_payload *payload STEALS,
-		       const char *buffer,
-		       const jsmntok_t *toks)
+static void peer_connected_hook_final(struct peer_connected_hook_payload *payload STEALS)
 {
 	struct lightningd *ld = payload->ld;
 	struct channel *channel = payload->channel;
@@ -1020,31 +958,15 @@ peer_connected_hook_cb(struct peer_connected_hook_payload *payload STEALS,
 	struct peer *peer = payload->peer;
 	u8 *error;
 
-	/* If we had a hook, interpret result. */
-	if (buffer) {
-		const jsmntok_t *resulttok;
+	/* Whatever happens, we free payload (it's currently a child
+	 * of the peer, which may be freed if we fail to start
+	 * subd). */
+	tal_steal(tmpctx, payload);
 
-		resulttok = json_get_member(buffer, toks, "result");
-		if (!resulttok) {
-			fatal("Plugin returned an invalid response to the connected "
-			      "hook: %s", buffer);
-		}
-
-		if (json_tok_streq(buffer, resulttok, "disconnect")) {
-			const jsmntok_t *m = json_get_member(buffer, toks,
-							     "error_message");
-			if (m) {
-				error = towire_errorfmt(tmpctx, NULL,
-							"%.*s",
-							m->end - m->start,
-							buffer + m->start);
-				goto send_error;
-			}
-			tal_free(payload);
-			return;
-		} else if (!json_tok_streq(buffer, resulttok, "continue"))
-			fatal("Plugin returned an invalid response to the connected "
-			      "hook: %s", buffer);
+	/* Check for specific errors of a hook */
+	if (payload->error) {
+		error = payload->error;
+		goto send_error;
 	}
 
 	if (channel) {
@@ -1059,8 +981,7 @@ peer_connected_hook_cb(struct peer_connected_hook_payload *payload STEALS,
 
 #if DEVELOPER
 		if (dev_disconnect_permanent(ld)) {
-			channel_fail_permanent(channel,
-					       REASON_LOCAL,
+			channel_fail_permanent(channel, REASON_LOCAL,
 					       "dev_disconnect permfail");
 			error = channel->error;
 			goto send_error;
@@ -1085,26 +1006,28 @@ peer_connected_hook_cb(struct peer_connected_hook_payload *payload STEALS,
 						"Awaiting unilateral close");
 			goto send_error;
 		}
-
+		case DUALOPEND_OPEN_INIT:
+		case DUALOPEND_AWAITING_LOCKIN:
+#if EXPERIMENTAL_FEATURES
+			assert(!channel->owner);
+			channel->peer->addr = addr;
+			peer_restart_dualopend(peer, payload->pps, channel, NULL);
+			return;
+#else
+			abort();
+#endif /* EXPERIMENTAL_FEATURES */
 		case CHANNELD_AWAITING_LOCKIN:
 		case CHANNELD_NORMAL:
 		case CHANNELD_SHUTTING_DOWN:
 			assert(!channel->owner);
-
 			channel->peer->addr = addr;
-			peer_start_channeld(channel, payload->pps,
-					    NULL, channel->psbt,
-					    true);
-			tal_free(payload);
+			peer_start_channeld(channel, payload->pps, NULL, true);
 			return;
 
 		case CLOSINGD_SIGEXCHANGE:
 			assert(!channel->owner);
-
 			channel->peer->addr = addr;
-			peer_start_closingd(channel, payload->pps,
-					    true, NULL);
-			tal_free(payload);
+			peer_start_closingd(channel, payload->pps, true, NULL);
 			return;
 		}
 		abort();
@@ -1120,17 +1043,71 @@ send_error:
 	if (feature_negotiated(ld->our_features,
 			       peer->their_features,
 			       OPT_DUAL_FUND)) {
-		peer_start_dualopend(peer, payload->pps, error);
+		/* if we have a channel, we're actually restarting
+		 * dualopend. we only get here if there's an error  */
+		if (channel) {
+			assert(!channel->owner);
+			assert(channel->state == DUALOPEND_OPEN_INIT
+			       || channel->state == DUALOPEND_AWAITING_LOCKIN);
+			channel->peer->addr = addr;
+			peer_restart_dualopend(peer, payload->pps, channel, error);
+		} else
+			peer_start_dualopend(peer, payload->pps, error);
 	} else
 #endif /* EXPERIMENTAL_FEATURES */
 		peer_start_openingd(peer, payload->pps, error);
-	tal_free(payload);
 }
 
-REGISTER_SINGLE_PLUGIN_HOOK(peer_connected,
-			    peer_connected_hook_cb,
-			    peer_connected_serialize,
-			    struct peer_connected_hook_payload *);
+static bool
+peer_connected_hook_deserialize(struct peer_connected_hook_payload *payload,
+				const char *buffer,
+				const jsmntok_t *toks)
+{
+	struct lightningd *ld = payload->ld;
+
+	/* already rejected by prior plugin hook in the chain */
+	if (payload->error != NULL)
+		return true;
+
+	if (!toks || !buffer)
+		return true;
+
+	/* If we had a hook, interpret result. */
+	const jsmntok_t *t_res = json_get_member(buffer, toks, "result");
+	const jsmntok_t *t_err = json_get_member(buffer, toks, "error_message");
+
+	/* fail */
+	if (!t_res)
+		fatal("Plugin returned an invalid response to the "
+		      "peer_connected hook: %s", buffer);
+
+	/* reject */
+	if (json_tok_streq(buffer, t_res, "disconnect")) {
+		payload->error = (u8*)"";
+		if (t_err) {
+			payload->error = towire_warningfmt(tmpctx, NULL, "%.*s",
+							   t_err->end - t_err->start,
+							   buffer + t_err->start);
+		}
+		log_debug(ld->log, "peer_connected hook rejects and says '%s'",
+			  payload->error);
+		/* At this point we suppress other plugins in the chain and
+		 * directly move to final */
+		peer_connected_hook_final(payload);
+		return false;
+	} else if (!json_tok_streq(buffer, t_res, "continue"))
+		fatal("Plugin returned an invalid response to the "
+		      "peer_connected hook: %s", buffer);
+
+	/* call next hook */
+	return true;
+}
+
+REGISTER_PLUGIN_HOOK(peer_connected,
+		     peer_connected_hook_deserialize,
+		     peer_connected_hook_final,
+		     peer_connected_serialize,
+		     struct peer_connected_hook_payload *);
 
 /* Connectd tells us a peer has connected: it never hands us duplicates, since
  * it holds them until we say peer_died. */
@@ -1144,6 +1121,7 @@ void peer_connected(struct lightningd *ld, const u8 *msg,
 
 	hook_payload = tal(NULL, struct peer_connected_hook_payload);
 	hook_payload->ld = ld;
+	hook_payload->error = NULL;
 	if (!fromwire_connectd_peer_connected(hook_payload, msg,
 					     &id, &hook_payload->addr,
 					     &hook_payload->pps,
@@ -1379,7 +1357,6 @@ static struct command_result *json_listpeers(struct command *cmd,
 	return command_success(cmd, response);
 }
 
-/* Magic marker: remove at your own peril! */
 static const struct json_command listpeers_command = {
 	"listpeers",
 	"network",
@@ -1558,16 +1535,26 @@ static struct command_result *json_close(struct command *cmd,
 	switch (channel->state) {
 		case CHANNELD_NORMAL:
 		case CHANNELD_AWAITING_LOCKIN:
+		case DUALOPEND_AWAITING_LOCKIN:
 			channel_set_state(channel,
 					  channel->state, CHANNELD_SHUTTING_DOWN,
 					  REASON_USER,
 					  "User or plugin invoked close command");
 			/* fallthrough */
 		case CHANNELD_SHUTTING_DOWN:
-			if (channel->owner)
-				subd_send_msg(channel->owner,
-					      take(towire_channeld_send_shutdown(NULL,
-						   channel->shutdown_scriptpubkey[LOCAL])));
+			if (channel->owner) {
+				u8 *msg;
+				if (streq(channel->owner->name, "dualopend")) {
+					msg = towire_dualopend_send_shutdown(
+						NULL,
+						channel->shutdown_scriptpubkey[LOCAL]);
+				} else
+					msg = towire_channeld_send_shutdown(
+						NULL,
+						channel->shutdown_scriptpubkey[LOCAL]);
+				subd_send_msg(channel->owner, take(msg));
+			}
+
 			break;
 		case CLOSINGD_SIGEXCHANGE:
 			break;
@@ -1852,7 +1839,7 @@ timeout_waitblockheight_waiter(struct waitblockheight_waiter *w)
 	list_del(&w->list);
 	w->removed = true;
 	tal_steal(tmpctx, w);
-	was_pending(command_fail(w->cmd, LIGHTNINGD,
+	was_pending(command_fail(w->cmd, WAIT_TIMEOUT,
 				 "Timed out."));
 }
 /* Called by lightningd at each new block.  */
@@ -2031,7 +2018,8 @@ static struct command_result *json_setchannelfee(struct command *cmd,
 
 	if (channel
 	    && channel->state != CHANNELD_NORMAL
-	    && channel->state != CHANNELD_AWAITING_LOCKIN)
+	    && channel->state != CHANNELD_AWAITING_LOCKIN
+	    && channel->state != DUALOPEND_AWAITING_LOCKIN)
 		return command_fail(cmd, LIGHTNINGD,
 				    "Channel is in state %s", channel_state_name(channel));
 
@@ -2048,7 +2036,8 @@ static struct command_result *json_setchannelfee(struct command *cmd,
 			if (!channel)
 				continue;
 			if (channel->state != CHANNELD_NORMAL &&
-			    channel->state != CHANNELD_AWAITING_LOCKIN)
+			    channel->state != CHANNELD_AWAITING_LOCKIN &&
+			    channel->state != DUALOPEND_AWAITING_LOCKIN)
 				continue;
 			set_channel_fees(cmd, channel, *base, *ppm, response);
 		}
@@ -2251,7 +2240,8 @@ static void process_dev_forget_channel(struct bitcoind *bitcoind UNUSED,
 	json_add_txid(response, "funding_txid", &forget->channel->funding_txid);
 
 	/* Set error so we don't try to reconnect. */
-	forget->channel->error = towire_errorfmt(forget->channel, NULL,
+	forget->channel->error = towire_errorfmt(forget->channel,
+						 &forget->channel->cid,
 						 "dev_forget_channel");
 	delete_channel(forget->channel);
 
@@ -2439,10 +2429,28 @@ struct custommsg_payload {
 	const u8 *msg;
 };
 
-static void custommsg_callback(struct custommsg_payload *payload STEALS,
-			       const char *buffer, const jsmntok_t *toks)
+static bool custommsg_cb(struct custommsg_payload *payload,
+			 const char *buffer, const jsmntok_t *toks)
 {
-	tal_free(payload);
+	const jsmntok_t *t_res;
+
+	if (!toks || !buffer)
+		return true;
+
+	t_res = json_get_member(buffer, toks, "result");
+
+	/* fail */
+	if (!t_res || !json_tok_streq(buffer, t_res, "continue"))
+		fatal("Plugin returned an invalid response to the "
+		      "custommsg hook: %s", buffer);
+
+	/* call next hook */
+	return true;
+}
+
+static void custommsg_final(struct custommsg_payload *payload STEALS)
+{
+	tal_steal(tmpctx, payload);
 }
 
 static void custommsg_payload_serialize(struct custommsg_payload *payload,
@@ -2452,10 +2460,11 @@ static void custommsg_payload_serialize(struct custommsg_payload *payload,
 	json_add_node_id(stream, "peer_id", &payload->peer_id);
 }
 
-REGISTER_SINGLE_PLUGIN_HOOK(custommsg,
-			    custommsg_callback,
-			    custommsg_payload_serialize,
-			    struct custommsg_payload *);
+REGISTER_PLUGIN_HOOK(custommsg,
+		     custommsg_cb,
+		     custommsg_final,
+		     custommsg_payload_serialize,
+		     struct custommsg_payload *);
 
 void handle_custommsg_in(struct lightningd *ld, const struct node_id *peer_id,
 			 const u8 *msg)

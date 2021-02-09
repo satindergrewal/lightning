@@ -541,7 +541,7 @@ static void onchain_error(struct channel *channel,
 			  struct per_peer_state *pps UNUSED,
 			  const struct channel_id *channel_id UNUSED,
 			  const char *desc,
-			  bool soft_error UNUSED,
+			  bool warning UNUSED,
 			  const u8 *err_for_them UNUSED)
 {
 	/* FIXME: re-launch? */
@@ -588,7 +588,8 @@ enum watch_result onchaind_funding_spent(struct channel *channel,
 
 	channel_set_owner(channel, new_channel_subd(ld,
 						    "lightning_onchaind",
-						    channel, &channel->peer->id,
+						    channel, CHANNEL,
+						    &channel->peer->id,
 						    channel->log, false,
 						    onchaind_wire_name,
 						    onchain_msg,

@@ -1,6 +1,8 @@
 from bitcoin.core import COIN  # type: ignore
 from bitcoin.rpc import RawProxy as BitcoinProxy  # type: ignore
 from bitcoin.rpc import JSONRPCError
+from contextlib import contextmanager
+from pathlib import Path
 from pyln.client import RpcError
 from pyln.testing.btcproxy import BitcoinRpcProxy
 from collections import OrderedDict
@@ -14,6 +16,7 @@ import logging
 import lzma
 import math
 import os
+import psutil  # type: ignore
 import random
 import re
 import shutil
@@ -81,13 +84,14 @@ TIMEOUT = int(env("TIMEOUT", 180 if SLOW_MACHINE else 60))
 def wait_for(success, timeout=TIMEOUT):
     start_time = time.time()
     interval = 0.25
-    while not success() and time.time() < start_time + timeout:
-        time.sleep(interval)
+    while not success():
+        time_left = start_time + timeout - time.time()
+        if time_left <= 0:
+            raise ValueError("Timeout while waiting for {}", success)
+        time.sleep(min(interval, time_left))
         interval *= 2
         if interval > 5:
             interval = 5
-    if time.time() > start_time + timeout:
-        raise ValueError("Error waiting for {}", success)
 
 
 def write_config(filename, opts, regtest_opts=None, section_name='regtest'):
@@ -225,9 +229,13 @@ class TailableProc(object):
 
         if self.proc.stderr:
             for line in iter(self.proc.stderr.readline, ''):
-                if len(line) == 0:
+
+                if line is None or len(line) == 0:
                     break
-                self.err_logs.append(line.rstrip().decode('UTF-8', 'replace')).rstrip()
+
+                line = line.rstrip().decode('UTF-8', 'replace')
+                self.err_logs.append(line)
+
             self.proc.stderr.close()
 
     def is_in_log(self, regex, start=0):
@@ -321,7 +329,16 @@ class SimpleBitcoinProxy:
         proxy = BitcoinProxy(btc_conf_file=self.__btc_conf_file__)
 
         def f(*args):
-            return proxy._call(name, *args)
+            logging.debug("Calling {name} with arguments {args}".format(
+                name=name,
+                args=args
+            ))
+            res = proxy._call(name, *args)
+            logging.debug("Result for {name} call: {res}".format(
+                name=name,
+                res=res,
+            ))
+            return res
 
         # Make debuggers show <function bitcoin.rpc.name> rather than <function
         # bitcoin.rpc.<lambda>>
@@ -401,6 +418,14 @@ class BitcoinD(TailableProc):
                 wait_for(lambda: all(txid in self.rpc.getrawmempool() for txid in wait_for_mempool))
             else:
                 wait_for(lambda: len(self.rpc.getrawmempool()) >= wait_for_mempool)
+
+        mempool = self.rpc.getrawmempool()
+        logging.debug("Generating {numblocks}, confirming {lenmempool} transactions: {mempool}".format(
+            numblocks=numblocks,
+            mempool=mempool,
+            lenmempool=len(mempool),
+        ))
+
         # As of 0.16, generate() is removed; use generatetoaddress.
         return self.rpc.generatetoaddress(numblocks, self.rpc.getnewaddress())
 
@@ -568,10 +593,37 @@ class LightningD(TailableProc):
         return self.proc.returncode
 
 
+class PrettyPrintingLightningRpc(LightningRpc):
+    """A version of the LightningRpc that pretty-prints calls and results.
+
+    Useful when debugging based on logs, and less painful to the
+    eyes. It has some overhead since we re-serialize the request and
+    result to json in order to pretty print it.
+
+    """
+
+    def call(self, method, payload=None):
+        id = self.next_id
+        self.logger.debug(json.dumps({
+            "id": id,
+            "method": method,
+            "params": payload
+        }, indent=2))
+        res = LightningRpc.call(self, method, payload)
+        self.logger.debug(json.dumps({
+            "id": id,
+            "result": res
+        }, indent=2))
+        return res
+
+
 class LightningNode(object):
     def __init__(self, node_id, lightning_dir, bitcoind, executor, valgrind, may_fail=False,
-                 may_reconnect=False, allow_broken_log=False,
-                 allow_bad_gossip=False, db=None, port=None, disconnect=None, random_hsm=None, options=None,
+                 may_reconnect=False,
+                 allow_broken_log=False,
+                 allow_warning=False,
+                 allow_bad_gossip=False,
+                 db=None, port=None, disconnect=None, random_hsm=None, options=None,
                  **kwargs):
         self.bitcoin = bitcoind
         self.executor = executor
@@ -579,13 +631,14 @@ class LightningNode(object):
         self.may_reconnect = may_reconnect
         self.allow_broken_log = allow_broken_log
         self.allow_bad_gossip = allow_bad_gossip
+        self.allow_warning = allow_warning
         self.db = db
 
         # Assume successful exit
         self.rc = 0
 
         socket_path = os.path.join(lightning_dir, TEST_NETWORK, "lightning-rpc").format(node_id)
-        self.rpc = LightningRpc(socket_path, self.executor)
+        self.rpc = PrettyPrintingLightningRpc(socket_path, self.executor)
 
         self.daemon = LightningD(
             lightning_dir, bitcoindproxy=bitcoind.get_proxy(),
@@ -675,19 +728,32 @@ class LightningNode(object):
             total_capacity = int(total_capacity)
 
         self.fundwallet(total_capacity + 10000)
+
+        if remote_node.config('experimental-dual-fund'):
+            remote_node.fundwallet(total_capacity + 10000)
+            # We cut the total_capacity in half, since the peer's
+            # expected to contribute that same amount
+            chan_capacity = total_capacity // 2
+            total_capacity = chan_capacity * 2
+        else:
+            chan_capacity = total_capacity
+
         self.rpc.connect(remote_node.info['id'], 'localhost', remote_node.port)
 
         # Make sure the fundchannel is confirmed.
         num_tx = len(self.bitcoin.rpc.getrawmempool())
-        tx = self.rpc.fundchannel(remote_node.info['id'], total_capacity, feerate='slow', minconf=0, announce=announce, push_msat=Millisatoshi(total_capacity * 500))['tx']
+        tx = self.rpc.fundchannel(remote_node.info['id'], chan_capacity, feerate='slow', minconf=0, announce=announce, push_msat=Millisatoshi(chan_capacity * 500))['tx']
         wait_for(lambda: len(self.bitcoin.rpc.getrawmempool()) == num_tx + 1)
         self.bitcoin.generate_block(1)
 
         # Generate the scid.
         # NOTE This assumes only the coinbase and the fundchannel is
         # confirmed in the block.
-        return '{}x1x{}'.format(self.bitcoin.rpc.getblockcount(),
-                                get_tx_p2wsh_outnum(self.bitcoin, tx, total_capacity))
+        outnum = get_tx_p2wsh_outnum(self.bitcoin, tx, total_capacity)
+        if outnum is None:
+            raise ValueError("no outnum found. capacity {} tx {}".format(total_capacity, tx))
+
+        return '{}x1x{}'.format(self.bitcoin.rpc.getblockcount(), outnum)
 
     def getactivechannels(self):
         return [c for c in self.rpc.listchannels()['channels'] if c['active']]
@@ -881,11 +947,14 @@ class LightningNode(object):
             raise ValueError("Error waiting for a route to destination {}".format(destination))
 
     # This helper waits for all HTLCs to settle
-    def wait_for_htlcs(self):
+    # `scids` can be a list of strings. If unset wait on all channels.
+    def wait_for_htlcs(self, scids=None):
         peers = self.rpc.listpeers()['peers']
         for p, peer in enumerate(peers):
             if 'channels' in peer:
                 for c, channel in enumerate(peer['channels']):
+                    if scids is not None and channel['short_channel_id'] not in scids:
+                        continue
                     if 'htlcs' in channel:
                         wait_for(lambda: len(self.rpc.listpeers()['peers'][p]['channels'][c]['htlcs']) == 0)
 
@@ -1020,11 +1089,102 @@ class LightningNode(object):
             out = out[2 + length:]
         return msgs
 
+    def config(self, config_name):
+        try:
+            opt = self.rpc.listconfigs(config_name)
+            return opt[config_name]
+        except RpcError:
+            return None
+
+
+@contextmanager
+def flock(directory: Path):
+    """A fair filelock, based on atomic fs operations.
+    """
+    if not isinstance(directory, Path):
+        directory = Path(directory)
+    d = directory / Path(".locks")
+    os.makedirs(str(d), exist_ok=True)
+    fname = None
+
+    while True:
+        # Try until we find a filename that doesn't exist yet.
+        try:
+            fname = d / Path("lock-{}".format(time.time()))
+            fd = os.open(str(fname), flags=os.O_CREAT | os.O_EXCL)
+            os.close(fd)
+            break
+        except FileExistsError:
+            time.sleep(0.1)
+
+    # So now we have a position in the lock, let's check if we are the
+    # next one to go:
+    while True:
+        files = sorted([f.resolve() for f in d.iterdir() if f.is_file()])
+        # We're queued, so it should at least have us.
+        assert len(files) >= 1
+        if files[0] == fname:
+            break
+        time.sleep(0.1)
+
+    # We can continue
+    yield fname
+
+    # Remove our file, so the next one can go ahead.
+    fname.unlink()
+
+
+class Throttler(object):
+    """Throttles the creation of system-processes to avoid overload.
+
+    There is no reason to overload the system with too many processes
+    being spawned or run at the same time. It causes timeouts by
+    aggressively preempting processes and swapping if the memory limit is
+    reached. In order to reduce this loss of performance we provide a
+    `wait()` method which will serialize the creation of processes, but
+    also delay if the system load is too high.
+
+    Notice that technically we are throttling too late, i.e., we react
+    to an overload, but chances are pretty good that some other
+    already running process is about to terminate, and so the overload
+    is short-lived. We throttle when the process object is first
+    created, not when restarted, in order to avoid delaying running
+    tests, which could cause more timeouts.
+
+    """
+    def __init__(self, directory: str, target: float = 90):
+        """If specified we try to stick to a load of target (in percent).
+        """
+        self.target = target
+        self.current_load = self.target  # Start slow
+        psutil.cpu_percent()  # Prime the internal load metric
+        self.directory = directory
+
+    def wait(self):
+        start_time = time.time()
+        with flock(self.directory):
+            # We just got the lock, assume someone else just released it
+            self.current_load = 100
+            while self.load() >= self.target:
+                time.sleep(1)
+
+            self.current_load = 100  # Back off slightly to avoid triggering right away
+        print("Throttler delayed startup for {} seconds".format(time.time() - start_time))
+
+    def load(self):
+        """An exponential moving average of the load
+        """
+        decay = 0.5
+        load = psutil.cpu_percent()
+        self.current_load = decay * load + (1 - decay) * self.current_load
+        return self.current_load
+
 
 class NodeFactory(object):
     """A factory to setup and start `lightningd` daemons.
     """
-    def __init__(self, request, testname, bitcoind, executor, directory, db_provider, node_cls):
+    def __init__(self, request, testname, bitcoind, executor, directory,
+                 db_provider, node_cls, throttler):
         if request.node.get_closest_marker("slow_test") and SLOW_MACHINE:
             self.valgrind = False
         else:
@@ -1038,6 +1198,7 @@ class NodeFactory(object):
         self.lock = threading.Lock()
         self.db_provider = db_provider
         self.node_cls = node_cls
+        self.throttler = throttler
 
     def split_options(self, opts):
         """Split node options from cli options
@@ -1050,6 +1211,7 @@ class NodeFactory(object):
             'disconnect',
             'may_fail',
             'allow_broken_log',
+            'allow_warning',
             'may_reconnect',
             'random_hsm',
             'feerates',
@@ -1098,7 +1260,7 @@ class NodeFactory(object):
                  feerates=(15000, 11000, 7500, 3750), start=True,
                  wait_for_bitcoind_sync=True, may_fail=False,
                  expect_fail=False, cleandir=True, **kwargs):
-
+        self.throttler.wait()
         node_id = self.get_node_id() if not node_id else node_id
         port = self.get_next_port()
 
@@ -1154,7 +1316,7 @@ class NodeFactory(object):
         # getpeers.
         if not fundchannel:
             for src, dst in connections:
-                dst.daemon.wait_for_log(r'{}-.*openingd-chan#[0-9]*: Handed peer, entering loop'.format(src.info['id']))
+                dst.daemon.wait_for_log(r'{}-.*-chan#[0-9]*: Handed peer, entering loop'.format(src.info['id']))
             return
 
         bitcoind = nodes[0].bitcoin

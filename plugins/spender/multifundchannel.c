@@ -1,3 +1,4 @@
+#include "config.h"
 #include <assert.h>
 #include <bitcoin/chainparams.h>
 #include <bitcoin/psbt.h>
@@ -150,19 +151,35 @@ mfc_cleanup_done(struct command *cmd,
 	else
 		return command_still_pending(cmd);
 }
+
 /* Cleans up a txid by doing `txdiscard` on it.  */
 static void
 mfc_cleanup_psbt(struct command *cmd,
 		 struct multifundchannel_cleanup *cleanup,
 		 struct wally_psbt *psbt)
 {
+	struct wally_psbt *pruned_psbt;
 	struct out_req *req = jsonrpc_request_start(cmd->plugin,
 						    cmd,
 						    "unreserveinputs",
 						    &mfc_cleanup_done,
 						    &mfc_cleanup_done,
 						    cleanup);
-	json_add_psbt(req->js, "psbt", psbt);
+
+	/* We might have peer's inputs on this, get rid of them */
+	tal_wally_start();
+	if (wally_psbt_clone_alloc(psbt, 0, &pruned_psbt) != WALLY_OK)
+		abort();
+	tal_wally_end(tal_steal(NULL, pruned_psbt));
+
+	for (size_t i = pruned_psbt->num_inputs - 1;
+	     i < pruned_psbt->num_inputs;
+	     i--) {
+		if (!psbt_input_is_ours(&pruned_psbt->inputs[i]))
+			psbt_rm_input(pruned_psbt, i);
+	}
+
+	json_add_psbt(req->js, "psbt", take(pruned_psbt));
 	send_outreq(cmd->plugin, req);
 }
 /* Cleans up a `fundchannel_start` by doing `fundchannel_cancel` on
@@ -852,7 +869,7 @@ static struct command_result *
 handle_mfc_change(struct multifundchannel_command *mfc)
 {
 	size_t change_weight;
-	struct amount_sat change_fee;
+	struct amount_sat change_fee, fee_paid, total_fee;
 	struct amount_sat change_min_limit;
 
 	/* Determine if adding a change output is worth it.
@@ -861,7 +878,18 @@ handle_mfc_change(struct multifundchannel_command *mfc)
 	 */
 	change_weight = bitcoin_tx_output_weight(
 				BITCOIN_SCRIPTPUBKEY_P2WPKH_LEN);
-	change_fee = amount_tx_fee(mfc->feerate_per_kw, change_weight);
+
+	/* To avoid 'off-by-one' errors due to rounding down
+	 * (which we do in `amount_tx_fee`), we find the total calculated
+	 * fees (estimated_weight + change weight @ feerate) and subtract
+	 * the originally calculated fees (estimated_weight @ feerate) */
+	fee_paid = amount_tx_fee(mfc->feerate_per_kw,
+				 mfc->estimated_final_weight);
+	total_fee = amount_tx_fee(mfc->feerate_per_kw,
+				  mfc->estimated_final_weight + change_weight);
+	if (!amount_sat_sub(&change_fee, total_fee, fee_paid))
+		abort();
+
 	/* The limit is equal to the change_fee plus the dust limit.  */
 	if (!amount_sat_add(&change_min_limit,
 			    change_fee, chainparams->dust_limit))
@@ -1023,7 +1051,7 @@ fundchannel_start_dest(struct multifundchannel_destination *dest)
 	json_add_node_id(req->js, "id", &dest->id);
 	assert(!dest->all);
 	json_add_string(req->js, "amount",
-			fmt_amount_sat(tmpctx, &dest->amount));
+			fmt_amount_sat(tmpctx, dest->amount));
 
 	if (mfc->cmtmt_feerate_str)
 		json_add_string(req->js, "feerate", mfc->cmtmt_feerate_str);
@@ -1031,7 +1059,7 @@ fundchannel_start_dest(struct multifundchannel_destination *dest)
 		json_add_string(req->js, "feerate", mfc->feerate_str);
 	json_add_bool(req->js, "announce", dest->announce);
 	json_add_string(req->js, "push_msat",
-			fmt_amount_msat(tmpctx, &dest->push_msat));
+			fmt_amount_msat(tmpctx, dest->push_msat));
 	if (dest->close_to_str)
 		json_add_string(req->js, "close_to", dest->close_to_str);
 

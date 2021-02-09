@@ -2,10 +2,8 @@
 #include <ccan/str/hex/hex.h>
 #include <ccan/tal/str/str.h>
 #include <common/bolt11.h>
-#if EXPERIMENTAL_FEATURES
 #include <common/bolt12.h>
 #include <common/bolt12_merkle.h>
-#endif
 #include <common/json_command.h>
 #include <common/json_helpers.h>
 #include <common/jsonrpc_errors.h>
@@ -131,9 +129,6 @@ void json_add_payment_fields(struct json_stream *response,
 	if (amount_msat_greater(t->msatoshi, AMOUNT_MSAT(0)))
 		json_add_amount_msat_compat(response, t->msatoshi, "msatoshi",
 					    "amount_msat");
-	else if (deprecated_apis)
-		json_add_null(response, "amount_msat");
-
 
 	json_add_amount_msat_compat(response, t->msatoshi_sent,
 				    "msatoshi_sent", "amount_sent_msat");
@@ -156,11 +151,9 @@ void json_add_payment_fields(struct json_stream *response,
 	if (t->label)
 		json_add_string(response, "label", t->label);
 	if (t->invstring) {
-#if EXPERIMENTAL_FEATURES
 		if (strstarts(t->invstring, "lni"))
 			json_add_string(response, "bolt12", t->invstring);
 		else
-#endif
 			json_add_string(response, "bolt11", t->invstring);
 	}
 
@@ -344,10 +337,8 @@ void payment_succeeded(struct lightningd *ld, struct htlc_out *hout,
 					 hout->partid);
 	assert(payment);
 
-#if EXPERIMENTAL_FEATURES
 	if (payment->local_offer_id)
 		wallet_offer_mark_used(ld->wallet->db, payment->local_offer_id);
-#endif
 	tell_waiters_success(ld, &hout->payment_hash, payment);
 }
 
@@ -498,12 +489,6 @@ remote_routing_failure(const tal_t *ctx,
 		} else
 			erring_node = &route_nodes[origin_index];
 	}
-
-	/* Tell gossipd; it will try to extract channel_update */
-	/* FIXME: sendonion caller should do this, and inform gossipd of any
-	 * permanent errors. */
-	subd_send_msg(ld->gossip,
-		      take(towire_gossipd_payment_failure(NULL, failuremsg)));
 
 	routing_failure->erring_index = (unsigned int) (origin_index + 1);
 	routing_failure->failcode = failcode;
@@ -803,7 +788,6 @@ static const u8 *send_onion(const tal_t *ctx, struct lightningd *ld,
 			     &dont_care_about_channel_update);
 }
 
-#if EXPERIMENTAL_FEATURES
 static struct command_result *check_offer_usage(struct command *cmd,
 						const struct sha256 *local_offer_id)
 {
@@ -855,7 +839,6 @@ static struct command_result *check_offer_usage(struct command *cmd,
 
 	return NULL;
 }
-#endif /* EXPERIMENTAL_FEATURES */
 
 /* destination/route_channels/route_nodes are NULL (and path_secrets may be NULL)
  * if we're sending a raw onion. */
@@ -1011,12 +994,10 @@ send_payment_core(struct lightningd *ld,
 						   &total_msat));
 	}
 
-#if EXPERIMENTAL_FEATURES
 	struct command_result *offer_err;
 	offer_err = check_offer_usage(cmd, local_offer_id);
 	if (offer_err)
 		return offer_err;
-#endif
 
 	channel = active_channel_by_id(ld, &first_hop->nodeid, NULL);
 	if (!channel) {
@@ -1244,7 +1225,7 @@ param_route_hop(struct command *cmd, const char *name, const char *buffer,
 	}
 
 	if (!channeltok) {
-		memset(&res->channel_id, 0, sizeof(struct node_id));
+		memset(&res->channel_id, 0, sizeof(struct short_channel_id));
 	} else if (!json_to_short_channel_id(buffer, channeltok, &res->channel_id)) {
 		return command_fail_badparam(cmd, name, buffer, channeltok,
 					     "should be a short_channel_id");
@@ -1296,9 +1277,7 @@ static struct command_result *json_sendonion(struct command *cmd,
 		   p_opt("bolt11", param_string, &invstring),
 		   p_opt_def("msatoshi", param_msat, &msat, AMOUNT_MSAT(0)),
 		   p_opt("destination", param_node_id, &destination),
-#if EXPERIMENTAL_FEATURES
-		   p_opt("local_offer_id", param_sha256, &local_offer_id),
-#endif
+		   p_opt("localofferid", param_sha256, &local_offer_id),
 		   NULL))
 		return command_param_failed();
 
@@ -1451,9 +1430,7 @@ static struct command_result *json_sendpay(struct command *cmd,
 		   p_opt("bolt11", param_string, &invstring),
 		   p_opt("payment_secret", param_secret, &payment_secret),
 		   p_opt_def("partid", param_u64, &partid, 0),
-#if EXPERIMENTAL_FEATURES
 		   p_opt("localofferid", param_sha256, &local_offer_id),
-#endif
 		   NULL))
 		return command_param_failed();
 
@@ -1582,7 +1559,6 @@ static struct command_result *json_listsendpays(struct command *cmd,
 		if (b11) {
 			rhash = &b11->payment_hash;
 		} else {
-#if EXPERIMENTAL_FEATURES
 			struct tlv_invoice *b12;
 
 			b12 = invoice_decode(cmd, invstring, strlen(invstring),
@@ -1591,7 +1567,6 @@ static struct command_result *json_listsendpays(struct command *cmd,
 			if (b12 && b12->payment_hash)
 				rhash = b12->payment_hash;
 			else
-#endif
 				return command_fail(cmd, JSONRPC2_INVALID_PARAMS,
 						    "Invalid invstring: %s", fail);
 		}

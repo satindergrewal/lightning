@@ -22,6 +22,7 @@ const char *peer_wire_name(int e)
 	switch ((enum peer_wire)e) {
 	case WIRE_INIT: return "WIRE_INIT";
 	case WIRE_ERROR: return "WIRE_ERROR";
+	case WIRE_WARNING: return "WIRE_WARNING";
 	case WIRE_PING: return "WIRE_PING";
 	case WIRE_PONG: return "WIRE_PONG";
 	case WIRE_OPEN_CHANNEL: return "WIRE_OPEN_CHANNEL";
@@ -48,6 +49,7 @@ const char *peer_wire_name(int e)
 	case WIRE_QUERY_CHANNEL_RANGE: return "WIRE_QUERY_CHANNEL_RANGE";
 	case WIRE_REPLY_CHANNEL_RANGE: return "WIRE_REPLY_CHANNEL_RANGE";
 	case WIRE_GOSSIP_TIMESTAMP_FILTER: return "WIRE_GOSSIP_TIMESTAMP_FILTER";
+	case WIRE_ONION_MESSAGE: return "WIRE_ONION_MESSAGE";
 	}
 
 	snprintf(invalidbuf, sizeof(invalidbuf), "INVALID %i", e);
@@ -59,6 +61,7 @@ bool peer_wire_is_defined(u16 type)
 	switch ((enum peer_wire)type) {
 	case WIRE_INIT:;
 	case WIRE_ERROR:;
+	case WIRE_WARNING:;
 	case WIRE_PING:;
 	case WIRE_PONG:;
 	case WIRE_OPEN_CHANNEL:;
@@ -85,6 +88,7 @@ bool peer_wire_is_defined(u16 type)
 	case WIRE_QUERY_CHANNEL_RANGE:;
 	case WIRE_REPLY_CHANNEL_RANGE:;
 	case WIRE_GOSSIP_TIMESTAMP_FILTER:;
+	case WIRE_ONION_MESSAGE:;
 	      return true;
 	}
 	return false;
@@ -699,6 +703,61 @@ bool reply_channel_range_tlvs_is_valid(const struct tlv_reply_channel_range_tlvs
 }
 
 
+struct tlv_onion_message_tlvs *tlv_onion_message_tlvs_new(const tal_t *ctx)
+{
+	/* Initialize everything to NULL. (Quiet, C pedants!) */
+	struct tlv_onion_message_tlvs *inst = talz(ctx, struct tlv_onion_message_tlvs);
+
+	/* Initialized the fields to an empty array. */
+	inst->fields = tal_arr(inst, struct tlv_field, 0);
+	return inst;
+}
+
+/* ONION_MESSAGE_TLVS MSG: blinding */
+static u8 *towire_tlv_onion_message_tlvs_blinding(const tal_t *ctx, const void *vrecord)
+{
+	const struct tlv_onion_message_tlvs *r = vrecord;
+	u8 *ptr;
+
+	if (!r->blinding)
+		return NULL;
+
+
+	ptr = tal_arr(ctx, u8, 0);
+
+	towire_pubkey(&ptr, r->blinding);
+	return ptr;
+}
+static void fromwire_tlv_onion_message_tlvs_blinding(const u8 **cursor, size_t *plen, void *vrecord)
+{
+	struct tlv_onion_message_tlvs *r = vrecord;
+
+	    r->blinding = tal(r, struct pubkey);
+
+fromwire_pubkey(cursor, plen, &*r->blinding);
+}
+
+static const struct tlv_record_type tlvs_onion_message_tlvs[] = {
+	{ 2, towire_tlv_onion_message_tlvs_blinding, fromwire_tlv_onion_message_tlvs_blinding },
+};
+
+void towire_onion_message_tlvs(u8 **pptr, const struct tlv_onion_message_tlvs *record)
+{
+	towire_tlv(pptr, tlvs_onion_message_tlvs, 1, record);
+}
+
+
+bool fromwire_onion_message_tlvs(const u8 **cursor, size_t *max, struct tlv_onion_message_tlvs *record)
+{
+	return fromwire_tlv(cursor, max, tlvs_onion_message_tlvs, 1, record, &record->fields);
+}
+
+bool onion_message_tlvs_is_valid(const struct tlv_onion_message_tlvs *record, size_t *err_index)
+{
+	return tlv_fields_valid(record->fields, err_index);
+}
+
+
 /* WIRE: INIT */
 u8 *towire_init(const tal_t *ctx, const u8 *globalfeatures, const u8 *features, const struct tlv_init_tlvs *tlvs)
 {
@@ -758,6 +817,36 @@ bool fromwire_error(const tal_t *ctx, const void *p, struct channel_id *channel_
 	size_t plen = tal_count(p);
 
 	if (fromwire_u16(&cursor, &plen) != WIRE_ERROR)
+		return false;
+ 	fromwire_channel_id(&cursor, &plen, channel_id);
+ 	len = fromwire_u16(&cursor, &plen);
+ 	// 2nd case data
+	*data = len ? tal_arr(ctx, u8, len) : NULL;
+	fromwire_u8_array(&cursor, &plen, *data, len);
+	return cursor != NULL;
+}
+
+/* WIRE: WARNING */
+u8 *towire_warning(const tal_t *ctx, const struct channel_id *channel_id, const u8 *data)
+{
+	u16 len = tal_count(data);
+	u8 *p = tal_arr(ctx, u8, 0);
+
+	towire_u16(&p, WIRE_WARNING);
+	towire_channel_id(&p, channel_id);
+	towire_u16(&p, len);
+	towire_u8_array(&p, data, len);
+
+	return memcheck(p, tal_count(p));
+}
+bool fromwire_warning(const tal_t *ctx, const void *p, struct channel_id *channel_id, u8 **data)
+{
+	u16 len;
+
+	const u8 *cursor = p;
+	size_t plen = tal_count(p);
+
+	if (fromwire_u16(&cursor, &plen) != WIRE_WARNING)
 		return false;
  	fromwire_channel_id(&cursor, &plen, channel_id);
  	len = fromwire_u16(&cursor, &plen);
@@ -1590,6 +1679,36 @@ bool fromwire_gossip_timestamp_filter(const void *p, struct bitcoin_blkid *chain
 	return cursor != NULL;
 }
 
+/* WIRE: ONION_MESSAGE */
+u8 *towire_onion_message(const tal_t *ctx, const u8 *onionmsg, const struct tlv_onion_message_tlvs *onion_message_tlvs)
+{
+	u16 len = tal_count(onionmsg);
+	u8 *p = tal_arr(ctx, u8, 0);
+
+	towire_u16(&p, WIRE_ONION_MESSAGE);
+	towire_u16(&p, len);
+	towire_u8_array(&p, onionmsg, len);
+	towire_onion_message_tlvs(&p, onion_message_tlvs);
+
+	return memcheck(p, tal_count(p));
+}
+bool fromwire_onion_message(const tal_t *ctx, const void *p, u8 **onionmsg, struct tlv_onion_message_tlvs *onion_message_tlvs)
+{
+	u16 len;
+
+	const u8 *cursor = p;
+	size_t plen = tal_count(p);
+
+	if (fromwire_u16(&cursor, &plen) != WIRE_ONION_MESSAGE)
+		return false;
+ 	len = fromwire_u16(&cursor, &plen);
+ 	// 2nd case onionmsg
+	*onionmsg = len ? tal_arr(ctx, u8, len) : NULL;
+	fromwire_u8_array(&cursor, &plen, *onionmsg, len);
+ 	fromwire_onion_message_tlvs(&cursor, &plen, onion_message_tlvs);
+	return cursor != NULL;
+}
+
 /* WIRE: CHANNEL_UPDATE_OPTION_CHANNEL_HTLC_MAX */
 u8 *towire_channel_update_option_channel_htlc_max(const tal_t *ctx, const secp256k1_ecdsa_signature *signature, const struct bitcoin_blkid *chain_hash, const struct short_channel_id *short_channel_id, u32 timestamp, u8 message_flags, u8 channel_flags, u16 cltv_expiry_delta, struct amount_msat htlc_minimum_msat, u32 fee_base_msat, u32 fee_proportional_millionths, struct amount_msat htlc_maximum_msat)
 {
@@ -1630,4 +1749,4 @@ bool fromwire_channel_update_option_channel_htlc_max(const void *p, secp256k1_ec
  	*htlc_maximum_msat = fromwire_amount_msat(&cursor, &plen);
 	return cursor != NULL;
 }
-// SHA256STAMP:433cf5b6bd1df5f251b4be28aa38e2e6aa4c15432f3ae103f69591fd970188bd
+// SHA256STAMP:d0f5b313c478153542610f14d7c6b39c1121b6a6b08fb72f3d427a103243b990

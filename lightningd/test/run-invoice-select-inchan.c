@@ -221,6 +221,23 @@ void htlc_set_fail(struct htlc_set *set UNNEEDED, const u8 *failmsg TAKES UNNEED
 /* Generated stub for htlc_set_fulfill */
 void htlc_set_fulfill(struct htlc_set *set UNNEEDED, const struct preimage *preimage UNNEEDED)
 { fprintf(stderr, "htlc_set_fulfill called!\n"); abort(); }
+/* Generated stub for invoice_decode */
+struct tlv_invoice *invoice_decode(const tal_t *ctx UNNEEDED,
+				   const char *b12 UNNEEDED, size_t b12len UNNEEDED,
+				   const struct feature_set *our_features UNNEEDED,
+				   const struct chainparams *must_be_chain UNNEEDED,
+				   char **fail UNNEEDED)
+{ fprintf(stderr, "invoice_decode called!\n"); abort(); }
+/* Generated stub for invoice_decode_nosig */
+struct tlv_invoice *invoice_decode_nosig(const tal_t *ctx UNNEEDED,
+					 const char *b12 UNNEEDED, size_t b12len UNNEEDED,
+					 const struct feature_set *our_features UNNEEDED,
+					 const struct chainparams *must_be_chain UNNEEDED,
+					 char **fail UNNEEDED)
+{ fprintf(stderr, "invoice_decode_nosig called!\n"); abort(); }
+/* Generated stub for invoice_encode */
+char *invoice_encode(const tal_t *ctx UNNEEDED, const struct tlv_invoice *bolt12_tlv UNNEEDED)
+{ fprintf(stderr, "invoice_encode called!\n"); abort(); }
 /* Generated stub for json_add_address */
 void json_add_address(struct json_stream *response UNNEEDED, const char *fieldname UNNEEDED,
 		      const struct wireaddr *addr UNNEEDED)
@@ -250,6 +267,10 @@ void json_add_amount_sat_compat(struct json_stream *result UNNEEDED,
 				const char *msatfieldname)
 
 { fprintf(stderr, "json_add_amount_sat_compat called!\n"); abort(); }
+/* Generated stub for json_add_bolt11 */
+void json_add_bolt11(struct json_stream *response UNNEEDED,
+		     const struct bolt11 *b11 UNNEEDED)
+{ fprintf(stderr, "json_add_bolt11 called!\n"); abort(); }
 /* Generated stub for json_add_log */
 void json_add_log(struct json_stream *result UNNEEDED,
 		  const struct log_book *lr UNNEEDED,
@@ -271,11 +292,6 @@ void json_add_node_id(struct json_stream *response UNNEEDED,
 void json_add_preimage(struct json_stream *result UNNEEDED, const char *fieldname UNNEEDED,
 		     const struct preimage *preimage UNNEEDED)
 { fprintf(stderr, "json_add_preimage called!\n"); abort(); }
-/* Generated stub for json_add_secret */
-void json_add_secret(struct json_stream *response UNNEEDED,
-		     const char *fieldname UNNEEDED,
-		     const struct secret *secret UNNEEDED)
-{ fprintf(stderr, "json_add_secret called!\n"); abort(); }
 /* Generated stub for json_add_sha256 */
 void json_add_sha256(struct json_stream *result UNNEEDED, const char *fieldname UNNEEDED,
 		     const struct sha256 *hash UNNEEDED)
@@ -357,6 +373,9 @@ void log_(struct log *log UNNEEDED, enum log_level level UNNEEDED,
 	  const char *fmt UNNEEDED, ...)
 
 { fprintf(stderr, "log_ called!\n"); abort(); }
+/* Generated stub for merkle_tlv */
+void merkle_tlv(const struct tlv_field *fields UNNEEDED, struct sha256 *merkle UNNEEDED)
+{ fprintf(stderr, "merkle_tlv called!\n"); abort(); }
 /* Generated stub for new_bolt11 */
 struct bolt11 *new_bolt11(const tal_t *ctx UNNEEDED,
 			  const struct amount_msat *msat TAKES UNNEEDED)
@@ -463,6 +482,11 @@ struct command_result *param_number(struct command *cmd UNNEEDED, const char *na
 				    const char *buffer UNNEEDED, const jsmntok_t *tok UNNEEDED,
 				    unsigned int **num UNNEEDED)
 { fprintf(stderr, "param_number called!\n"); abort(); }
+/* Generated stub for param_sha256 */
+struct command_result *param_sha256(struct command *cmd UNNEEDED, const char *name UNNEEDED,
+				    const char *buffer UNNEEDED, const jsmntok_t *tok UNNEEDED,
+				    struct sha256 **hash UNNEEDED)
+{ fprintf(stderr, "param_sha256 called!\n"); abort(); }
 /* Generated stub for param_short_channel_id */
 struct command_result *param_short_channel_id(struct command *cmd UNNEEDED,
 					      const char *name UNNEEDED,
@@ -497,11 +521,16 @@ void peer_memleak_done(struct command *cmd UNNEEDED, struct subd *leaker UNNEEDE
 /* Generated stub for peer_normal_channel */
 struct channel *peer_normal_channel(struct peer *peer UNNEEDED)
 { fprintf(stderr, "peer_normal_channel called!\n"); abort(); }
+/* Generated stub for peer_restart_dualopend */
+void peer_restart_dualopend(struct peer *peer UNNEEDED,
+			    struct per_peer_state *pps UNNEEDED,
+			    struct channel *channel UNNEEDED,
+			    const u8 *send_msg UNNEEDED)
+{ fprintf(stderr, "peer_restart_dualopend called!\n"); abort(); }
 /* Generated stub for peer_start_channeld */
 void peer_start_channeld(struct channel *channel UNNEEDED,
 			 struct per_peer_state *pps UNNEEDED,
 			 const u8 *fwd_msg UNNEEDED,
-			 const struct wally_psbt *psbt UNNEEDED,
 			 bool reconnected UNNEEDED)
 { fprintf(stderr, "peer_start_channeld called!\n"); abort(); }
 /* Generated stub for peer_start_closingd */
@@ -560,6 +589,9 @@ u8 *towire_channeld_specific_feerates(const tal_t *ctx UNNEEDED, u32 feerate_bas
 /* Generated stub for towire_connectd_connect_to_peer */
 u8 *towire_connectd_connect_to_peer(const tal_t *ctx UNNEEDED, const struct node_id *id UNNEEDED, u32 seconds_waited UNNEEDED, const struct wireaddr_internal *addrhint UNNEEDED)
 { fprintf(stderr, "towire_connectd_connect_to_peer called!\n"); abort(); }
+/* Generated stub for towire_dualopend_send_shutdown */
+u8 *towire_dualopend_send_shutdown(const tal_t *ctx UNNEEDED, const u8 *shutdown_scriptpubkey UNNEEDED)
+{ fprintf(stderr, "towire_dualopend_send_shutdown called!\n"); abort(); }
 /* Generated stub for towire_errorfmt */
 u8 *towire_errorfmt(const tal_t *ctx UNNEEDED,
 		    const struct channel_id *channel UNNEEDED,
@@ -569,7 +601,7 @@ u8 *towire_errorfmt(const tal_t *ctx UNNEEDED,
 u8 *towire_gossipd_get_incoming_channels(const tal_t *ctx UNNEEDED)
 { fprintf(stderr, "towire_gossipd_get_incoming_channels called!\n"); abort(); }
 /* Generated stub for towire_hsmd_sign_bolt12 */
-u8 *towire_hsmd_sign_bolt12(const tal_t *ctx UNNEEDED, const wirestring *messagename UNNEEDED, const wirestring *fieldname UNNEEDED, const struct sha256 *merkleroot UNNEEDED)
+u8 *towire_hsmd_sign_bolt12(const tal_t *ctx UNNEEDED, const wirestring *messagename UNNEEDED, const wirestring *fieldname UNNEEDED, const struct sha256 *merkleroot UNNEEDED, const u8 *publictweak UNNEEDED)
 { fprintf(stderr, "towire_hsmd_sign_bolt12 called!\n"); abort(); }
 /* Generated stub for towire_hsmd_sign_commitment_tx */
 u8 *towire_hsmd_sign_commitment_tx(const tal_t *ctx UNNEEDED, const struct node_id *peer_id UNNEEDED, u64 channel_dbid UNNEEDED, const struct bitcoin_tx *tx UNNEEDED, const struct pubkey *remote_funding_key UNNEEDED)
@@ -583,6 +615,11 @@ void towire_node_id(u8 **pptr UNNEEDED, const struct node_id *id UNNEEDED)
 /* Generated stub for towire_onchaind_dev_memleak */
 u8 *towire_onchaind_dev_memleak(const tal_t *ctx UNNEEDED)
 { fprintf(stderr, "towire_onchaind_dev_memleak called!\n"); abort(); }
+/* Generated stub for towire_warningfmt */
+u8 *towire_warningfmt(const tal_t *ctx UNNEEDED,
+		      const struct channel_id *channel UNNEEDED,
+		      const char *fmt UNNEEDED, ...)
+{ fprintf(stderr, "towire_warningfmt called!\n"); abort(); }
 /* Generated stub for version */
 const char *version(void)
 { fprintf(stderr, "version called!\n"); abort(); }
@@ -744,22 +781,6 @@ struct txowatch *watch_txo(const tal_t *ctx UNNEEDED,
 /* Generated stub for dev_disconnect_permanent */
 bool dev_disconnect_permanent(struct lightningd *ld UNNEEDED)
 { fprintf(stderr, "dev_disconnect_permanent called!\n"); abort(); }
-#endif
-
-#if EXPERIMENTAL_FEATURES
-/* Generated stub for merkle_tlv */
-void merkle_tlv(const struct tlv_field *fields UNNEEDED, struct sha256 *merkle UNNEEDED)
-{ fprintf(stderr, "merkle_tlv called!\n"); abort(); }
-/* Generated stub for invoice_decode_nosig */
-struct tlv_invoice *invoice_decode_nosig(const tal_t *ctx UNNEEDED,
-					 const char *b12 UNNEEDED, size_t b12len UNNEEDED,
-					 const struct feature_set *our_features UNNEEDED,
-					 const struct chainparams *must_be_chain UNNEEDED,
-					 char **fail UNNEEDED)
-{ fprintf(stderr, "invoice_decode_nosig called!\n"); abort(); }
-/* Generated stub for invoice_encode */
-char *invoice_encode(const tal_t *ctx UNNEEDED, const struct tlv_invoice *bolt12_tlv UNNEEDED)
-{ fprintf(stderr, "invoice_encode called!\n"); abort(); }
 #endif
 
 static void add_candidate(struct routehint_candidate **candidates, int n,

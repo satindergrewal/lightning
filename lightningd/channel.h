@@ -70,6 +70,7 @@ struct channel {
 
 	struct amount_msat push;
 	bool remote_funding_locked;
+	bool remote_tx_sigs;
 	/* Channel if locked locally. */
 	struct short_channel_id *scid;
 
@@ -157,6 +158,9 @@ struct channel {
 
 	/* Last known state_change cause */
 	enum state_change state_change_cause;
+
+	/* Outstanding command for this channel, v2 only */
+	struct command *openchannel_signed_cmd;
 };
 
 struct channel *new_channel(struct peer *peer, u64 dbid,
@@ -179,6 +183,7 @@ struct channel *new_channel(struct peer *peer, u64 dbid,
 			    struct amount_msat push,
 			    struct amount_sat our_funds,
 			    bool remote_funding_locked,
+                            bool remote_tx_sigs,
 			    /* NULL or stolen */
 			    struct short_channel_id *scid STEALS,
 			    struct channel_id *cid,
@@ -263,6 +268,8 @@ struct channel *channel_by_dbid(struct lightningd *ld, const u64 dbid);
 
 struct channel *active_channel_by_scid(struct lightningd *ld,
 				       const struct short_channel_id *scid);
+struct channel *any_channel_by_scid(struct lightningd *ld,
+				    const struct short_channel_id *scid);
 
 /* Get channel by channel_id, optionally returning uncommitted_channel. */
 struct channel *channel_by_cid(struct lightningd *ld,

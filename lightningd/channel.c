@@ -163,6 +163,7 @@ struct channel *new_channel(struct peer *peer, u64 dbid,
 			    struct amount_msat push,
 			    struct amount_sat our_funds,
 			    bool remote_funding_locked,
+			    bool remote_tx_sigs,
 			    /* NULL or stolen */
 			    struct short_channel_id *scid,
 			    struct channel_id *cid,
@@ -206,6 +207,7 @@ struct channel *new_channel(struct peer *peer, u64 dbid,
 	channel->dbid = dbid;
 	channel->error = NULL;
 	channel->htlc_timeout = NULL;
+	channel->openchannel_signed_cmd = NULL;
 	if (their_shachain)
 		channel->their_shachain = *their_shachain;
 	else {
@@ -238,6 +240,7 @@ struct channel *new_channel(struct peer *peer, u64 dbid,
 	channel->push = push;
 	channel->our_funds = our_funds;
 	channel->remote_funding_locked = remote_funding_locked;
+	channel->remote_tx_sigs = remote_tx_sigs;
 	channel->scid = tal_steal(channel, scid);
 	channel->cid = *cid;
 	channel->our_msat = our_msat;
@@ -356,12 +359,20 @@ struct channel *active_channel_by_id(struct lightningd *ld,
 struct channel *active_channel_by_scid(struct lightningd *ld,
 				       const struct short_channel_id *scid)
 {
+	struct channel *chan = any_channel_by_scid(ld, scid);
+	if (chan && !channel_active(chan))
+		chan = NULL;
+	return chan;
+}
+
+struct channel *any_channel_by_scid(struct lightningd *ld,
+				    const struct short_channel_id *scid)
+{
 	struct peer *p;
 	struct channel *chan;
 	list_for_each(&ld->peers, p, list) {
 		list_for_each(&p->channels, chan, list) {
-			if (channel_active(chan)
-			    && chan->scid
+			if (chan->scid
 			    && short_channel_id_eq(scid, chan->scid))
 				return chan;
 		}
@@ -429,7 +440,6 @@ void channel_set_state(struct channel *channel,
 		       enum state_change reason,
 		       char *why)
 {
-	struct channel_id cid;
 	struct timeabs timestamp;
 
 	/* set closer, if known */
@@ -467,10 +477,9 @@ void channel_set_state(struct channel *channel,
 					state,
 					reason,
 					why);
-		derive_channel_id(&cid, &channel->funding_txid, channel->funding_outnum);
 		notify_channel_state_changed(channel->peer->ld,
 					     &channel->peer->id,
-					     &cid,
+					     &channel->cid,
 					     channel->scid,
 					     &timestamp,
 					     old_state,

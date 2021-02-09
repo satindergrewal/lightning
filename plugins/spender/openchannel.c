@@ -1,3 +1,4 @@
+#include "config.h"
 #include <assert.h>
 #include <bitcoin/psbt.h>
 #include <ccan/ccan/array_size/array_size.h>
@@ -329,7 +330,30 @@ static bool update_node_psbt(const tal_t *ctx,
 static struct command_result *
 openchannel_finished(struct multifundchannel_command *mfc)
 {
+	for (size_t i = 0; i < tal_count(mfc->destinations); i++) {
+		struct multifundchannel_destination *dest;
+		dest = &mfc->destinations[i];
 
+		/* If there's a single failure, we have to
+		 * return the failure to the user. */
+		if (dest->state == MULTIFUNDCHANNEL_FAILED) {
+			struct json_stream *out;
+
+			plugin_log(mfc->cmd->plugin, LOG_DBG,
+				   "mfc %"PRIu64": %u failed, failing.",
+				   mfc->id, dest->index);
+
+			out = jsonrpc_stream_fail_data(mfc->cmd,
+						       dest->code,
+						       dest->error);
+			json_add_node_id(out, "id", &dest->id);
+			json_add_string(out, "method", "openchannel_signed");
+			json_add_jsonstr(out, "error", dest->error);
+			json_object_end(out);
+
+			return mfc_finished(mfc, out);
+		}
+	}
 	mfc->psbt = tal_free(mfc->psbt);
 	return multifundchannel_finished(mfc);
 }
@@ -392,14 +416,6 @@ openchannel_signed_err(struct command *cmd,
 {
 	struct multifundchannel_command *mfc = dest->mfc;
 	const jsmntok_t *code_tok;
-
-	plugin_log(mfc->cmd->plugin, LOG_DBG,
-		   "mfc %"PRIu64", dest %u: "
-		   "failed! openchannel_signed %s: %.*s.",
-		   mfc->id, dest->index,
-		   node_id_to_hexstr(tmpctx, &dest->id),
-		   json_tok_full_len(error),
-		   json_tok_full(buf, error));
 
 	code_tok = json_get_member(buf, error, "code");
 	if (!code_tok)
@@ -529,39 +545,20 @@ static void json_peer_sigs(struct command *cmd,
 			   const char *buf,
 			   const jsmntok_t *params)
 {
-	const jsmntok_t *cid_tok, *psbt_tok;
 	struct channel_id cid;
 	const struct wally_psbt *psbt;
 	struct multifundchannel_destination *dest;
+	const char *err;
 
-	cid_tok = json_delve(buf, params, ".openchannel_peer_sigs.channel_id");
-	if (!cid_tok)
+	err = json_scan(tmpctx, buf, params,
+			"{openchannel_peer_sigs:"
+			"{channel_id:%,signed_psbt:%}}",
+			JSON_SCAN(json_to_channel_id, &cid),
+			JSON_SCAN_TAL(cmd, json_to_psbt, &psbt));
+	if (err)
 		plugin_err(cmd->plugin,
-			   "`openchannel_peer_sigs` notification did not "
-			   "send 'channel_id'? %.*s",
-			   json_tok_full_len(params),
-			   json_tok_full(buf, params));
-	if (!json_to_channel_id(buf, cid_tok, &cid))
-		plugin_err(cmd->plugin,
-			   "Unable to parse openchannel_peer_sigs.channel_id "
-			   "%.*s",
-			   json_tok_full_len(params),
-			   json_tok_full(buf, params));
-
-	psbt_tok= json_delve(buf, params, ".openchannel_peer_sigs.signed_psbt");
-	if (!psbt_tok)
-		plugin_err(cmd->plugin,
-			   "`openchannel_peer_sigs` notification did not "
-			   "include 'signed_psbt'? %.*s",
-			   json_tok_full_len(params),
-			   json_tok_full(buf, params));
-
-	if (!json_to_psbt(cmd, buf, psbt_tok,
-			  cast_const2(struct wally_psbt **, &psbt)))
-		plugin_err(cmd->plugin,
-			   "Unable to parse openchannel_peer_sigs.signed_psbt "
-			   "%.*s",
-			   json_tok_full_len(params),
+			   "`openchannel_peer_sigs` did not scan: %s",
+			   err, json_tok_full_len(params),
 			   json_tok_full(buf, params));
 
 	/* Find the destination that's got this channel_id on it! */
@@ -690,7 +687,8 @@ openchannel_update_ok(struct command *cmd,
 			   json_tok_full_len(result),
 			   json_tok_full(buf, result));
 
-	if (!json_to_psbt(dest->mfc, buf, psbt_tok, &dest->updated_psbt))
+	dest->updated_psbt = json_to_psbt(dest->mfc, buf, psbt_tok);
+	if (!dest->updated_psbt)
 		plugin_err(cmd->plugin,
 			   "`openchannel_update` returned invalid "
 			   "'psbt': %.*s",
@@ -757,15 +755,7 @@ openchannel_update_err(struct command *cmd,
 		       const jsmntok_t *error,
 		       struct multifundchannel_destination *dest)
 {
-	struct multifundchannel_command *mfc = dest->mfc;
 	const jsmntok_t *code_tok;
-
-	plugin_err(mfc->cmd->plugin,
-		   "mfc %"PRIu64", dest %u: "
-		   "failed! `openchannel_update` %s: %.*s",
-		   mfc->id, dest->index,
-		   node_id_to_hexstr(tmpctx, &dest->id),
-		   json_tok_full_len(error), json_tok_full(buf, error));
 
 	code_tok = json_get_member(buf, error, "code");
 	if (!code_tok)
@@ -932,7 +922,8 @@ openchannel_init_ok(struct command *cmd,
 			   "'psbt': %.*s",
 			   json_tok_full_len(result),
 			   json_tok_full(buf, result));
-	if (!json_to_psbt(dest->mfc, buf, psbt_tok, &dest->updated_psbt))
+	dest->updated_psbt = json_to_psbt(dest->mfc, buf, psbt_tok);
+	if (!dest->updated_psbt)
 		plugin_err(cmd->plugin,
 			   "openchannel_init returned invalid "
 			   "'psbt': %.*s",
@@ -983,16 +974,7 @@ openchannel_init_err(struct command *cmd,
 		     const jsmntok_t *error,
 		     struct multifundchannel_destination *dest)
 {
-	struct multifundchannel_command *mfc = dest->mfc;
 	const jsmntok_t *code_tok;
-
-	plugin_err(mfc->cmd->plugin,
-		   "mfc %"PRIu64", dest %u: "
-		   "failed! openchannel_init %s: %.*s.",
-		   mfc->id, dest->index,
-		   node_id_to_hexstr(tmpctx, &dest->id),
-		   json_tok_full_len(error),
-		   json_tok_full(buf, error));
 
 	code_tok = json_get_member(buf, error, "code");
 	if (!code_tok)
@@ -1033,7 +1015,7 @@ openchannel_init_dest(struct multifundchannel_destination *dest)
 	json_add_node_id(req->js, "id", &dest->id);
 	assert(!dest->all);
 	json_add_string(req->js, "amount",
-			fmt_amount_sat(tmpctx, &dest->amount));
+			fmt_amount_sat(tmpctx, dest->amount));
 
 	/* Copy the original parent down */
 	tal_wally_start();

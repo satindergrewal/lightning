@@ -867,6 +867,18 @@ struct db_query db_sqlite3_queries[] = {
          .readonly = false,
     },
     {
+         .name = "ALTER TABLE channels ADD funding_tx_remote_sigs_received INTEGER DEFAULT 0;",
+         .query = "ALTER TABLE channels ADD funding_tx_remote_sigs_received INTEGER DEFAULT 0;",
+         .placeholders = 0,
+         .readonly = false,
+    },
+    {
+         .name = "CREATE INDEX forwarded_payments_out_htlc_id ON forwarded_payments (out_htlc_id);",
+         .query = "CREATE INDEX forwarded_payments_out_htlc_id ON forwarded_payments (out_htlc_id);",
+         .placeholders = 0,
+         .readonly = false,
+    },
+    {
          .name = "UPDATE vars SET intval = intval + 1 WHERE name = 'data_version' AND intval = ?",
          .query = "UPDATE vars SET intval = intval + 1 WHERE name = 'data_version' AND intval = ?",
          .placeholders = 1,
@@ -1053,6 +1065,12 @@ struct db_query db_sqlite3_queries[] = {
          .readonly = true,
     },
     {
+         .name = "SELECT txid, outnum FROM utxoset WHERE spendheight is NULL",
+         .query = "SELECT txid, outnum FROM utxoset WHERE spendheight is NULL",
+         .placeholders = 0,
+         .readonly = true,
+    },
+    {
          .name = "SELECT * from outputs WHERE prev_out_tx=? AND prev_out_index=?",
          .query = "SELECT * from outputs WHERE prev_out_tx=? AND prev_out_index=?",
          .placeholders = 2,
@@ -1179,8 +1197,8 @@ struct db_query db_sqlite3_queries[] = {
          .readonly = true,
     },
     {
-         .name = "SELECT  id, peer_id, short_channel_id, full_channel_id, channel_config_local, channel_config_remote, state, funder, channel_flags, minimum_depth, next_index_local, next_index_remote, next_htlc_id, funding_tx_id, funding_tx_outnum, funding_satoshi, our_funding_satoshi, funding_locked_remote, push_msatoshi, msatoshi_local, fundingkey_remote, revocation_basepoint_remote, payment_basepoint_remote, htlc_basepoint_remote, delayed_payment_basepoint_remote, per_commit_remote, old_per_commit_remote, local_feerate_per_kw, remote_feerate_per_kw, shachain_remote_id, shutdown_scriptpubkey_remote, shutdown_keyidx_local, last_sent_commit_state, last_sent_commit_id, last_tx, last_sig, last_was_revoke, first_blocknum, min_possible_feerate, max_possible_feerate, msatoshi_to_us_min, msatoshi_to_us_max, future_per_commitment_point, last_sent_commit, feerate_base, feerate_ppm, remote_upfront_shutdown_script, option_static_remotekey, option_anchor_outputs, shutdown_scriptpubkey_local, funding_psbt, closer, state_change_reason FROM channels WHERE state < ?;",
-         .query = "SELECT  id, peer_id, short_channel_id, full_channel_id, channel_config_local, channel_config_remote, state, funder, channel_flags, minimum_depth, next_index_local, next_index_remote, next_htlc_id, funding_tx_id, funding_tx_outnum, funding_satoshi, our_funding_satoshi, funding_locked_remote, push_msatoshi, msatoshi_local, fundingkey_remote, revocation_basepoint_remote, payment_basepoint_remote, htlc_basepoint_remote, delayed_payment_basepoint_remote, per_commit_remote, old_per_commit_remote, local_feerate_per_kw, remote_feerate_per_kw, shachain_remote_id, shutdown_scriptpubkey_remote, shutdown_keyidx_local, last_sent_commit_state, last_sent_commit_id, last_tx, last_sig, last_was_revoke, first_blocknum, min_possible_feerate, max_possible_feerate, msatoshi_to_us_min, msatoshi_to_us_max, future_per_commitment_point, last_sent_commit, feerate_base, feerate_ppm, remote_upfront_shutdown_script, option_static_remotekey, option_anchor_outputs, shutdown_scriptpubkey_local, funding_psbt, closer, state_change_reason FROM channels WHERE state < ?;",
+         .name = "SELECT  id, peer_id, short_channel_id, full_channel_id, channel_config_local, channel_config_remote, state, funder, channel_flags, minimum_depth, next_index_local, next_index_remote, next_htlc_id, funding_tx_id, funding_tx_outnum, funding_satoshi, our_funding_satoshi, funding_locked_remote, funding_tx_remote_sigs_received, push_msatoshi, msatoshi_local, fundingkey_remote, revocation_basepoint_remote, payment_basepoint_remote, htlc_basepoint_remote, delayed_payment_basepoint_remote, per_commit_remote, old_per_commit_remote, local_feerate_per_kw, remote_feerate_per_kw, shachain_remote_id, shutdown_scriptpubkey_remote, shutdown_keyidx_local, last_sent_commit_state, last_sent_commit_id, last_tx, last_sig, last_was_revoke, first_blocknum, min_possible_feerate, max_possible_feerate, msatoshi_to_us_min, msatoshi_to_us_max, future_per_commitment_point, last_sent_commit, feerate_base, feerate_ppm, remote_upfront_shutdown_script, option_static_remotekey, option_anchor_outputs, shutdown_scriptpubkey_local, funding_psbt, closer, state_change_reason FROM channels WHERE state != ?;",
+         .query = "SELECT  id, peer_id, short_channel_id, full_channel_id, channel_config_local, channel_config_remote, state, funder, channel_flags, minimum_depth, next_index_local, next_index_remote, next_htlc_id, funding_tx_id, funding_tx_outnum, funding_satoshi, our_funding_satoshi, funding_locked_remote, funding_tx_remote_sigs_received, push_msatoshi, msatoshi_local, fundingkey_remote, revocation_basepoint_remote, payment_basepoint_remote, htlc_basepoint_remote, delayed_payment_basepoint_remote, per_commit_remote, old_per_commit_remote, local_feerate_per_kw, remote_feerate_per_kw, shachain_remote_id, shutdown_scriptpubkey_remote, shutdown_keyidx_local, last_sent_commit_state, last_sent_commit_id, last_tx, last_sig, last_was_revoke, first_blocknum, min_possible_feerate, max_possible_feerate, msatoshi_to_us_min, msatoshi_to_us_max, future_per_commitment_point, last_sent_commit, feerate_base, feerate_ppm, remote_upfront_shutdown_script, option_static_remotekey, option_anchor_outputs, shutdown_scriptpubkey_local, funding_psbt, closer, state_change_reason FROM channels WHERE state != ?;",
          .placeholders = 1,
          .readonly = true,
     },
@@ -1245,9 +1263,9 @@ struct db_query db_sqlite3_queries[] = {
          .readonly = false,
     },
     {
-         .name = "UPDATE channels SET  shachain_remote_id=?,  short_channel_id=?,  full_channel_id=?,  state=?,  funder=?,  channel_flags=?,  minimum_depth=?,  next_index_local=?,  next_index_remote=?,  next_htlc_id=?,  funding_tx_id=?,  funding_tx_outnum=?,  funding_satoshi=?,  our_funding_satoshi=?,  funding_locked_remote=?,  push_msatoshi=?,  msatoshi_local=?,  shutdown_scriptpubkey_remote=?,  shutdown_keyidx_local=?,  channel_config_local=?,  last_tx=?, last_sig=?,  last_was_revoke=?,  min_possible_feerate=?,  max_possible_feerate=?,  msatoshi_to_us_min=?,  msatoshi_to_us_max=?,  feerate_base=?,  feerate_ppm=?,  remote_upfront_shutdown_script=?,  option_static_remotekey=?,  option_anchor_outputs=?,  shutdown_scriptpubkey_local=?,  funding_psbt=?,  closer=?,  state_change_reason=? WHERE id=?",
-         .query = "UPDATE channels SET  shachain_remote_id=?,  short_channel_id=?,  full_channel_id=?,  state=?,  funder=?,  channel_flags=?,  minimum_depth=?,  next_index_local=?,  next_index_remote=?,  next_htlc_id=?,  funding_tx_id=?,  funding_tx_outnum=?,  funding_satoshi=?,  our_funding_satoshi=?,  funding_locked_remote=?,  push_msatoshi=?,  msatoshi_local=?,  shutdown_scriptpubkey_remote=?,  shutdown_keyidx_local=?,  channel_config_local=?,  last_tx=?, last_sig=?,  last_was_revoke=?,  min_possible_feerate=?,  max_possible_feerate=?,  msatoshi_to_us_min=?,  msatoshi_to_us_max=?,  feerate_base=?,  feerate_ppm=?,  remote_upfront_shutdown_script=?,  option_static_remotekey=?,  option_anchor_outputs=?,  shutdown_scriptpubkey_local=?,  funding_psbt=?,  closer=?,  state_change_reason=? WHERE id=?",
-         .placeholders = 37,
+         .name = "UPDATE channels SET  shachain_remote_id=?,  short_channel_id=?,  full_channel_id=?,  state=?,  funder=?,  channel_flags=?,  minimum_depth=?,  next_index_local=?,  next_index_remote=?,  next_htlc_id=?,  funding_tx_id=?,  funding_tx_outnum=?,  funding_satoshi=?,  our_funding_satoshi=?,  funding_locked_remote=?,  funding_tx_remote_sigs_received=?,  push_msatoshi=?,  msatoshi_local=?,  shutdown_scriptpubkey_remote=?,  shutdown_keyidx_local=?,  channel_config_local=?,  last_tx=?, last_sig=?,  last_was_revoke=?,  min_possible_feerate=?,  max_possible_feerate=?,  msatoshi_to_us_min=?,  msatoshi_to_us_max=?,  feerate_base=?,  feerate_ppm=?,  remote_upfront_shutdown_script=?,  option_static_remotekey=?,  option_anchor_outputs=?,  shutdown_scriptpubkey_local=?,  funding_psbt=?,  closer=?,  state_change_reason=? WHERE id=?",
+         .query = "UPDATE channels SET  shachain_remote_id=?,  short_channel_id=?,  full_channel_id=?,  state=?,  funder=?,  channel_flags=?,  minimum_depth=?,  next_index_local=?,  next_index_remote=?,  next_htlc_id=?,  funding_tx_id=?,  funding_tx_outnum=?,  funding_satoshi=?,  our_funding_satoshi=?,  funding_locked_remote=?,  funding_tx_remote_sigs_received=?,  push_msatoshi=?,  msatoshi_local=?,  shutdown_scriptpubkey_remote=?,  shutdown_keyidx_local=?,  channel_config_local=?,  last_tx=?, last_sig=?,  last_was_revoke=?,  min_possible_feerate=?,  max_possible_feerate=?,  msatoshi_to_us_min=?,  msatoshi_to_us_max=?,  feerate_base=?,  feerate_ppm=?,  remote_upfront_shutdown_script=?,  option_static_remotekey=?,  option_anchor_outputs=?,  shutdown_scriptpubkey_local=?,  funding_psbt=?,  closer=?,  state_change_reason=? WHERE id=?",
+         .placeholders = 38,
          .readonly = false,
     },
     {
@@ -1503,6 +1521,12 @@ struct db_query db_sqlite3_queries[] = {
          .readonly = false,
     },
     {
+         .name = "SELECT txid, outnum FROM utxoset WHERE spendheight < ?",
+         .query = "SELECT txid, outnum FROM utxoset WHERE spendheight < ?",
+         .placeholders = 1,
+         .readonly = true,
+    },
+    {
          .name = "DELETE FROM utxoset WHERE spendheight < ?",
          .query = "DELETE FROM utxoset WHERE spendheight < ?",
          .placeholders = 1,
@@ -1756,10 +1780,10 @@ struct db_query db_sqlite3_queries[] = {
     },
 };
 
-#define DB_SQLITE3_QUERY_COUNT 291
+#define DB_SQLITE3_QUERY_COUNT 295
 
 #endif /* HAVE_SQLITE3 */
 
 #endif /* LIGHTNINGD_WALLET_GEN_DB_SQLITE3 */
 
-// SHA256STAMP:8bdfb90cb19a2b6d58145cc0b714a00ffe1c3bdea0376f4bc30c310f60e548db
+// SHA256STAMP:d99c7d86df2c57de4dad0ae207bb71ac7245e1beb3bee1066ab5d947db9b1e5c

@@ -128,6 +128,10 @@ The `dynamic` indicates if the plugin can be managed after `lightningd`
 has been started. Critical plugins that should not be stopped should set it
 to false.
 
+If a `disable` member exists, the plugin will be disabled and the contents
+of this member is the reason why.  This allows plugins to disable themselves
+if they are not supported in this configuration.
+
 The `featurebits` object allows the plugin to register featurebits that should be
 announced in a number of places in [the protocol][bolt9]. They can be used to signal
 support for custom protocol extensions to direct peers, remote nodes and in
@@ -237,10 +241,11 @@ simple JSON object containing the options:
 }
 ```
 
-The plugin must respond to `init` calls, however the response can be
-arbitrary and will currently be discarded by `lightningd`. JSON-RPC
-commands were chosen over notifications in order not to force plugins
-to implement notifications which are not that well supported.
+The plugin must respond to `init` calls.  The response should be a
+valid JSON-RPC response to the `init`, but this is not currently
+enforced.  If the response is an object containing `result` which
+contains `disable` then the plugin will be disabled and the contents
+of this member is the reason why.
 
 The `startup` field allows a plugin to detect if it was started at
 `lightningd` startup (true), or at runtime (false).
@@ -772,7 +777,7 @@ no plugin is registered on the hook.
 ### `peer_connected`
 
 This hook is called whenever a peer has connected and successfully completed
-the cryptographic handshake. The parameters have the following structure if there is a channel with the peer:
+the cryptographic handshake. The parameters have the following structure:
 
 ```json
 {
@@ -784,7 +789,7 @@ the cryptographic handshake. The parameters have the following structure if ther
 }
 ```
 
-The hook is sparse on purpose, since the plugin can use the JSON-RPC
+The hook is sparse on information, since the plugin can use the JSON-RPC
 `listpeers` command to get additional details should they be required. The
 `addr` field shows the address that we are connected to ourselves, not the
 gossiped list of known addresses. In particular this means that the port for
@@ -796,6 +801,9 @@ the string `disconnect` or `continue`.  If `disconnect` and
 there's a member `error_message`, that member is sent to the peer
 before disconnection.
 
+Note that `peer_connected` is a chained hook. The first plugin that decides to
+`disconnect` with or without an `error_message` will lead to the subsequent
+plugins not being called anymore.
 
 ### `commitment_revocation`
 
@@ -931,7 +939,7 @@ This hook is called whenever a valid payment for an unpaid invoice has arrived.
 }
 ```
 
-The hook is sparse on purpose, since the plugin can use the JSON-RPC
+The hook is deliberately sparse, since the plugin can use the JSON-RPC
 `listinvoices` command to get additional details about this invoice.
 It can return a `failure_message` field as defined for final
 nodes in [BOLT 4][bolt4-failure-messages], a `result` field with the string
@@ -982,7 +990,12 @@ e.g.
 }
 ```
 
-Note that `close_to` must be a valid address for the current chain; an invalid address will cause the node to exit with an error.
+Note that `close_to` must be a valid address for the current chain,
+an invalid address will cause the node to exit with an error.
+
+Note that `openchannel` is a chained hook. Therefore `close_to` will only be
+evaluated for the first plugin that sets it. If more than one plugin tries to
+set a `close_to` address an error will be logged.
 
 
 ### `htlc_accepted`
@@ -1213,12 +1226,46 @@ ignored by nodes (see ["it's ok to be odd" in the specification][oddok] for
 details). The plugin must implement the parsing of the message, including the
 type prefix, since c-lightning does not know how to parse the message.
 
-The result for this hook is currently being discarded. For future uses of the
-result we suggest just returning `{'result': 'continue'}`.
-This will ensure backward
-compatibility should the semantics be changed in future.
+Because this is a chained hook, the daemon expects the result to be
+`{'result': 'continue'}`. It will fail if something else is returned.
 
+### `onion_message` and `onion_message_blinded`
 
+**(WARNING: experimental-offers only)**
+
+These two hooks are almost identical, in that they are called when an
+onion message is received.  The former is only used for unblinded
+messages (where the source knows that it is sending to this node), and
+the latter for blinded messages (where the source doesn't know that
+this node is the destination).  The latter hook will have a
+"blinding_in" field, the former never will.
+
+These hooks are separate, because blinded messages must ensure the
+sender used the correct "blinding_in", otherwise it should ignore the
+message: this avoids the source trying to probe for responses without
+using the designated delivery path.
+
+The payload for a call follows this format:
+
+```json
+{
+    "onion_message": {
+        "blinding_in": "02df5ffe895c778e10f7742a6c5b8a0cefbe9465df58b92fadeb883752c8107c8f",
+		"reply_path": [ {"id": "02df5ffe895c778e10f7742a6c5b8a0cefbe9465df58b92fadeb883752c8107c8f",
+                         "enctlv": "0a020d0d",
+                         "blinding": "02df5ffe895c778e10f7742a6c5b8a0cefbe9465df58b92fadeb883752c8107c8f"} ],
+        "invoice_request": "0a020d0d",
+		"invoice": "0a020d0d",
+		"invoice_error": "0a020d0d",
+		"unknown_fields": [ {"number": 12345, "value": "0a020d0d"} ]
+	}
+}
+```
+
+All fields shown here are optional.
+
+We suggest just returning `{'result': 'continue'}`; any other result
+will cause the message not to be handed to any other hooks.
 
 ## Bitcoin backend
 

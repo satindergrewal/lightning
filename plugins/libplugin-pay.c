@@ -12,6 +12,7 @@
 #include <common/type_to_string.h>
 #include <errno.h>
 #include <plugins/libplugin-pay.h>
+#include <wire/peer_wire.h>
 
 static struct gossmap *global_gossmap;
 
@@ -1340,12 +1341,105 @@ static bool assign_blame(const struct payment *p,
 	return true;
 }
 
+/* Fix up the channel_update to include the type if it doesn't currently have
+ * one. See ElementsProject/lightning#1730 and lightningnetwork/lnd#1599 for the
+ * in-depth discussion on why we break message parsing here... */
+static u8 *patch_channel_update(const tal_t *ctx, u8 *channel_update TAKES)
+{
+	u8 *fixed;
+	if (channel_update != NULL &&
+	    fromwire_peektype(channel_update) != WIRE_CHANNEL_UPDATE) {
+		/* This should be a channel_update, prefix with the
+		 * WIRE_CHANNEL_UPDATE type, but isn't. Let's prefix it. */
+		fixed = tal_arr(ctx, u8, 0);
+		towire_u16(&fixed, WIRE_CHANNEL_UPDATE);
+		towire(&fixed, channel_update, tal_bytelen(channel_update));
+		if (taken(channel_update))
+			tal_free(channel_update);
+		return fixed;
+	} else {
+		return tal_dup_talarr(ctx, u8, channel_update);
+	}
+}
+
+/* Return NULL if the wrapped onion error message has no channel_update field,
+ * or return the embedded channel_update message otherwise. */
+static u8 *channel_update_from_onion_error(const tal_t *ctx,
+					   const u8 *onion_message)
+{
+	u8 *channel_update = NULL;
+	struct amount_msat unused_msat;
+	u32 unused32;
+
+	/* Identify failcodes that have some channel_update.
+	 *
+	 * TODO > BOLT 1.0: Add new failcodes when updating to a
+	 * new BOLT version. */
+	if (!fromwire_temporary_channel_failure(ctx,
+						onion_message,
+						&channel_update) &&
+	    !fromwire_amount_below_minimum(ctx,
+					   onion_message, &unused_msat,
+					   &channel_update) &&
+	    !fromwire_fee_insufficient(ctx,
+		    		       onion_message, &unused_msat,
+				       &channel_update) &&
+	    !fromwire_incorrect_cltv_expiry(ctx,
+		    			    onion_message, &unused32,
+					    &channel_update) &&
+	    !fromwire_expiry_too_soon(ctx,
+		    		      onion_message,
+				      &channel_update))
+		/* No channel update. */
+		return NULL;
+
+	return patch_channel_update(ctx, take(channel_update));
+}
+
+
+static struct command_result *
+payment_addgossip_success(struct command *cmd, const char *buffer,
+			  const jsmntok_t *toks, struct payment *p)
+{
+	const struct node_id *errnode;
+	const struct route_hop *errchan;
+
+	if (!assign_blame(p, &errnode, &errchan)) {
+		paymod_log(p, LOG_UNUSUAL,
+			   "No erring_index set in `waitsendpay` result: %.*s",
+			   json_tok_full_len(toks),
+			   json_tok_full(buffer, toks));
+		/* FIXME: Pick a random channel to fail? */
+		payment_set_step(p, PAYMENT_STEP_FAILED);
+		payment_continue(p);
+		return command_still_pending(cmd);
+	}
+
+	if (!errchan)
+		return handle_final_failure(cmd, p, errnode,
+					    p->result->failcode);
+
+	return handle_intermediate_failure(cmd, p, errnode, errchan,
+					   p->result->failcode);
+}
+
+/* If someone gives us an invalid update, all we can do is log it */
+static struct command_result *
+payment_addgossip_failure(struct command *cmd, const char *buffer,
+			  const jsmntok_t *toks, struct payment *p)
+{
+	paymod_log(p, LOG_DBG, "Invalid channel_update: %.*s",
+		   json_tok_full_len(toks),
+		   json_tok_full(buffer, toks));
+
+	return payment_addgossip_success(cmd, NULL, NULL, p);
+}
+
 static struct command_result *
 payment_waitsendpay_finished(struct command *cmd, const char *buffer,
 			     const jsmntok_t *toks, struct payment *p)
 {
-	const struct node_id *errnode;
-	const struct route_hop *errchan;
+	u8 *update;
 
 	assert(p->route != NULL);
 
@@ -1372,23 +1466,23 @@ payment_waitsendpay_finished(struct command *cmd, const char *buffer,
 
 	payment_chanhints_apply_route(p, true);
 
-	if (!assign_blame(p, &errnode, &errchan)) {
-		paymod_log(p, LOG_UNUSUAL,
-			   "No erring_index set in `waitsendpay` result: %.*s",
-			   json_tok_full_len(toks),
-			   json_tok_full(buffer, toks));
-		/* FIXME: Pick a random channel to fail? */
-		payment_set_step(p, PAYMENT_STEP_FAILED);
-		payment_continue(p);
+	/* Tell gossipd, if we received an update */
+	update = channel_update_from_onion_error(tmpctx, p->result->raw_message);
+	if (update) {
+		struct out_req *req;
+		paymod_log(p, LOG_DBG,
+			   "Extracted channel_update %s from onionreply %s",
+			   tal_hex(tmpctx, update),
+			   tal_hex(tmpctx, p->result->raw_message));
+		req = jsonrpc_request_start(p->plugin, NULL, "addgossip",
+					    payment_addgossip_success,
+					    payment_addgossip_failure, p);
+		json_add_hex_talarr(req->js, "message", update);
+		send_outreq(p->plugin, req);
 		return command_still_pending(cmd);
 	}
 
-	if (!errchan)
-		return handle_final_failure(cmd, p, errnode,
-					    p->result->failcode);
-
-	return handle_intermediate_failure(cmd, p, errnode, errchan,
-					   p->result->failcode);
+	return payment_addgossip_success(cmd, NULL, NULL, p);
 }
 
 static struct command_result *payment_sendonion_success(struct command *cmd,
@@ -3003,27 +3097,44 @@ static struct command_result *waitblockheight_rpc_cb(struct command *cmd,
 						     const jsmntok_t *toks,
 						     struct payment *p)
 {
-	const jsmntok_t *blockheighttok =
-		json_get_member(buffer, toks, "blockheight");
+	const jsmntok_t *blockheighttok, *codetok;
+
 	u32 blockheight;
+	int code;
 	struct payment *subpayment;
 
-	if (!blockheighttok
-	 || !json_to_number(buffer, blockheighttok, &blockheight))
-		plugin_err(p->plugin,
-			   "Unexpected result from waitblockheight: %.*s",
-			   json_tok_full_len(toks),
-			   json_tok_full(buffer, toks));
+	blockheighttok = json_get_member(buffer, toks, "blockheight");
 
-	subpayment = payment_new(p, NULL, p, p->modifiers);
-	payment_start_at_blockheight(subpayment, blockheight);
-	payment_set_step(p, PAYMENT_STEP_RETRY);
-	subpayment->why =
-		tal_fmt(subpayment, "Retrying after waiting for blockchain sync.");
-	paymod_log(p, LOG_DBG,
-		   "Retrying after waitblockheight, new partid %"PRIu32,
-		   subpayment->partid);
-	payment_continue(p);
+	if (!blockheighttok ||
+	    !json_to_number(buffer, blockheighttok, &blockheight)) {
+		codetok = json_get_member(buffer, toks, "code");
+		json_to_int(buffer, codetok, &code);
+		if (code == WAIT_TIMEOUT) {
+			payment_fail(
+			    p,
+			    "Timed out while attempting to sync to blockheight "
+			    "returned by destination. Please finish syncing "
+			    "with the blockchain and try again.");
+
+		} else {
+			plugin_err(
+			    p->plugin,
+			    "Unexpected result from waitblockheight: %.*s",
+			    json_tok_full_len(toks),
+			    json_tok_full(buffer, toks));
+		}
+	} else {
+		subpayment = payment_new(p, NULL, p, p->modifiers);
+		payment_start_at_blockheight(subpayment, blockheight);
+		payment_set_step(p, PAYMENT_STEP_RETRY);
+		subpayment->why = tal_fmt(
+		    subpayment, "Retrying after waiting for blockchain sync.");
+		paymod_log(
+		    p, LOG_DBG,
+		    "Retrying after waitblockheight, new partid %" PRIu32,
+		    subpayment->partid);
+		payment_continue(p);
+	}
 	return command_still_pending(cmd);
 }
 
@@ -3040,10 +3151,12 @@ static void waitblockheight_cb(void *d, struct payment *p)
 	if (p->result == NULL)
 		return payment_continue(p);
 
-	if (time_after(now, p->deadline))
-		return payment_continue(p);
-
+	/* Check if we'd be waiting more than 0 seconds. If we have
+	 * less than a second then waitblockheight would return
+	 * immediately resulting in a loop. */
 	remaining = time_between(p->deadline, now);
+	if (time_to_sec(remaining) < 1)
+		return payment_continue(p);
 
 	/* *Was* it a blockheight disagreement that caused the failure?  */
 	if (!failure_is_blockheight_disagreement(p, &blockheight))

@@ -168,7 +168,8 @@ Set to 0660 to allow users with the same group to access the RPC
 as well.
 
  **daemon**
-Run in the background, suppress stdout and stderr.
+Run in the background, suppress stdout and stderr.  Note that you need
+to specify **log-file** for this case.
 
  **conf**=*PATH*
 Sets configuration file, and disable reading the normal general and network
@@ -462,6 +463,25 @@ This way, you can monitor crashes of important plugins by simply monitoring
 if C-lightning terminates.
 Built-in plugins, which are installed with lightningd(8), are automatically
 considered important.
+
+### Experimental Options
+
+Experimental options are subject to breakage between releases: they
+are made available for advanced users who want to test proposed
+features.  If lightningd is built configured with
+`--enable-experimental-features` these are on by default.
+
+ **experimental-onion-messages**
+
+Specifying this enables sending, forwarding and receiving onion messages,
+which are in draft status in the BOLT specifications.
+
+ **experimental-offers**
+
+Specifying this enables the `offers` and `fetchinvoice` plugins and
+corresponding functionality, which are in draft status as BOLT12. 
+This usually requires **experimental-onion-messages** as well.  See
+lightning-offer(7) and lightning-fetchinvoice(7).
 
 BUGS
 ----

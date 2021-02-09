@@ -216,7 +216,11 @@ def test_lightningd_still_loading(node_factory, bitcoind, executor):
     # Can't fund a new channel.
     l1.rpc.connect(l3.info['id'], 'localhost', l3.port)
     with pytest.raises(RpcError, match=r'304'):
-        l1.rpc.fundchannel_start(l3.info['id'], '10000sat')
+        if l1.config('experimental-dual-fund'):
+            psbt = l1.rpc.fundpsbt('10000sat', '253perkw', 250)['psbt']
+            l1.rpc.openchannel_init(l3.info['id'], '10000sat', psbt)
+        else:
+            l1.rpc.fundchannel_start(l3.info['id'], '10000sat')
 
     # Attempting to fund an extremely large transaction should fail
     # with a 'unsynced' error
@@ -712,13 +716,10 @@ def test_io_logging(node_factory, executor):
     # Fundchannel manually so we get channeld pid.
     l1.fundwallet(10**6 + 1000000)
     l1.rpc.fundchannel(l2.info['id'], 10**6)['tx']
-    pid1 = l1.subd_pid('channeld')
 
     l1.daemon.wait_for_log('sendrawtx exit 0')
     l1.bitcoin.generate_block(1)
     l1.daemon.wait_for_log(' to CHANNELD_NORMAL')
-
-    pid2 = l2.subd_pid('channeld')
     l2.daemon.wait_for_log(' to CHANNELD_NORMAL')
 
     fut = executor.submit(l1.pay, l2, 200000000)
@@ -730,6 +731,7 @@ def test_io_logging(node_factory, executor):
     fut.result(10)
 
     # Send it sigusr1: should turn off logging.
+    pid1 = l1.subd_pid('channeld')
     subprocess.run(['kill', '-USR1', pid1])
 
     l1.pay(l2, 200000000)
@@ -745,6 +747,7 @@ def test_io_logging(node_factory, executor):
                    for l in peerlog)
 
     # Turn on in l2 channel logging.
+    pid2 = l2.subd_pid('channeld')
     subprocess.run(['kill', '-USR1', pid2])
     l1.pay(l2, 200000000)
 
@@ -1161,8 +1164,10 @@ def test_funding_reorg_private(node_factory, bitcoind):
 
     l1.rpc.fundchannel(l2.info['id'], "all", announce=False)
     bitcoind.generate_block(1)                      # height 106
+
+    daemon = 'DUALOPEND' if l1.config('experimental-dual-fund') else 'CHANNELD'
     wait_for(lambda: only_one(l1.rpc.listpeers()['peers'][0]['channels'])['status']
-             == ['CHANNELD_AWAITING_LOCKIN:Funding needs 1 more confirmations for lockin.'])
+             == ['{}_AWAITING_LOCKIN:Funding needs 1 more confirmations for lockin.'.format(daemon)])
     bitcoind.generate_block(1)                      # height 107
     l1.wait_channel_active('106x1x0')
     l1.stop()
@@ -1331,7 +1336,7 @@ def test_bitcoind_goes_backwards(node_factory, bitcoind):
 @flaky
 def test_reserve_enforcement(node_factory, executor):
     """Channeld should disallow you spending into your reserve"""
-    l1, l2 = node_factory.line_graph(2, opts={'may_reconnect': True})
+    l1, l2 = node_factory.line_graph(2, opts={'may_reconnect': True, 'allow_warning': True})
 
     # Pay 1000 satoshi to l2.
     l1.pay(l2, 1000000)
@@ -1347,13 +1352,14 @@ def test_reserve_enforcement(node_factory, executor):
     l2.start()
     wait_for(lambda: only_one(l2.rpc.listpeers(l1.info['id'])['peers'])['connected'])
 
-    # This should be impossible to pay entire thing back: l1 should
-    # kill us for trying to violate reserve.
+    # This should be impossible to pay entire thing back: l1 should warn and
+    # close connection for trying to violate reserve.
     executor.submit(l2.pay, l1, 1000000)
     l1.daemon.wait_for_log(
-        'Peer permanent failure in CHANNELD_NORMAL: channeld: sent '
-        'ERROR Bad peer_add_htlc: CHANNEL_ERR_CHANNEL_CAPACITY_EXCEEDED'
+        'Peer transient failure in CHANNELD_NORMAL: channeld.*'
+        ' CHANNEL_ERR_CHANNEL_CAPACITY_EXCEEDED'
     )
+    assert only_one(l1.rpc.listpeers()['peers'])['connected'] is False
 
 
 @unittest.skipIf(not DEVELOPER, "needs dev_disconnect")
@@ -1713,8 +1719,7 @@ def test_bad_onion(node_factory, bitcoind):
     sha = re.search(r' 0087.{64}.{16}(.{64})', line).group(1)
 
     # Should see same sha in onionreply
-    line = l1.daemon.is_in_log(r'failcode .* from onionreply .*')
-    assert re.search(r'onionreply .*{}'.format(sha), line)
+    l1.daemon.wait_for_log(r'failcode .* from onionreply .*{sha}'.format(sha=sha))
 
     # Replace id with a different pubkey, so onion encoded badly at second hop.
     route[1]['id'] = mangled_nodeid
@@ -2235,8 +2240,10 @@ def test_sendcustommsg(node_factory):
     and we can't send to it.
 
     """
-    plugin = os.path.join(os.path.dirname(__file__), "plugins", "custommsg.py")
-    opts = {'log-level': 'io', 'plugin': plugin}
+    opts = {'log-level': 'io', 'plugin': [
+        os.path.join(os.path.dirname(__file__), "plugins", "custommsg_b.py"),
+        os.path.join(os.path.dirname(__file__), "plugins", "custommsg_a.py")
+    ]}
     l1, l2, l3, l4 = node_factory.get_nodes(4, opts=opts)
     node_factory.join_nodes([l1, l2, l3])
     l2.connect(l4)
@@ -2275,9 +2282,12 @@ def test_sendcustommsg(node_factory):
         )
     )
     l1.daemon.wait_for_log(r'\[IN\] {}'.format(serialized))
-    l1.daemon.wait_for_log(
-        r'Got a custom message {serialized} from peer {peer_id}'.format(
-            serialized=serialized, peer_id=l2.info['id']))
+    l1.daemon.wait_for_logs([
+        r'Got custommessage_a {serialized} from peer {peer_id}'.format(
+            serialized=serialized, peer_id=l2.info['id']),
+        r'Got custommessage_b {serialized} from peer {peer_id}'.format(
+            serialized=serialized, peer_id=l2.info['id'])
+    ])
 
     # This should work since the peer is currently owned by `openingd`
     l2.rpc.dev_sendcustommsg(l4.info['id'], msg)
@@ -2287,14 +2297,16 @@ def test_sendcustommsg(node_factory):
         )
     )
     l4.daemon.wait_for_log(r'\[IN\] {}'.format(serialized))
-    l4.daemon.wait_for_log(
-        r'Got a custom message {serialized} from peer {peer_id}'.format(
-            serialized=serialized, peer_id=l2.info['id']))
+    l4.daemon.wait_for_logs([
+        r'Got custommessage_a {serialized} from peer {peer_id}'.format(
+            serialized=serialized, peer_id=l2.info['id']),
+        r'Got custommessage_b {serialized} from peer {peer_id}'.format(
+            serialized=serialized, peer_id=l2.info['id']),
+    ])
 
 
-@unittest.skipIf(not EXPERIMENTAL_FEATURES, "Needs sendonionmessage")
 def test_sendonionmessage(node_factory):
-    l1, l2, l3 = node_factory.line_graph(3)
+    l1, l2, l3 = node_factory.line_graph(3, opts={'experimental-onion-messages': None})
 
     blindedpathtool = os.path.join(os.path.dirname(__file__), "..", "devtools", "blindedpath")
 
@@ -2348,15 +2360,18 @@ def test_sendonionmessage_reply(node_factory):
     # First hop can't be blinded!
     assert p1 == l2.info['id']
 
+    # Also tests oversize payload which won't fit in 1366-byte onion.
     l1.rpc.call('sendonionmessage',
                 {'hops':
                  [{'id': l2.info['id']},
-                  {'id': l3.info['id']}],
+                  {'id': l3.info['id'],
+                   'invoice': '77' * 15000}],
                  'reply_path':
                  {'blinding': blinding,
                   'path': [{'id': p1, 'enctlv': p1enc}, {'id': p2}]}})
 
     assert l3.daemon.wait_for_log('Got onionmsg reply_blinding reply_path')
+    assert l3.daemon.wait_for_log("Got onion_message invoice '{}'".format('77' * 15000))
     assert l3.daemon.wait_for_log('Sent reply via')
     assert l1.daemon.wait_for_log('Got onionmsg')
 

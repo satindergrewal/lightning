@@ -66,6 +66,9 @@ struct config {
 
 	/* How long before we give up waiting for INIT msg */
 	u32 connection_timeout_secs;
+
+	/* EXPERIMENTAL: offers support */
+	bool exp_offers;
 };
 
 typedef STRMAP(const char *) alt_subdaemon_map;
@@ -110,6 +113,9 @@ struct lightningd {
 
 	/* This is us. */
 	struct node_id id;
+
+	/* The public base for our payer_id keys */
+	struct pubkey32 bolt12_base;
 
 	/* Feature set we offer. */
 	struct feature_set *our_features;
@@ -176,8 +182,6 @@ struct lightningd {
 	struct list_head sendpay_commands;
 	/* Outstanding close commands. */
 	struct list_head close_commands;
-	/* Outstanding openchannel_signed commands. */
-	struct list_head open_commands;
 	/* Outstanding ping commands. */
 	struct list_head ping_commands;
 

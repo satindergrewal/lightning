@@ -210,7 +210,8 @@ as well\.
 
 
  \fBdaemon\fR
-Run in the background, suppress stdout and stderr\.
+Run in the background, suppress stdout and stderr\.  Note that you need
+to specify \fBlog-file\fR for this case\.
 
 
  \fBconf\fR=\fIPATH\fR
@@ -559,6 +560,29 @@ if C-lightning terminates\.
 Built-in plugins, which are installed with \fBlightningd\fR(8), are automatically
 considered important\.
 
+.SH Experimental Options
+
+Experimental options are subject to breakage between releases: they
+are made available for advanced users who want to test proposed
+features\.  If lightningd is built configured with
+\fB--enable-experimental-features\fR these are on by default\.
+
+
+ \fBexperimental-onion-messages\fR
+
+
+Specifying this enables sending, forwarding and receiving onion messages,
+which are in draft status in the BOLT specifications\.
+
+
+ \fBexperimental-offers\fR
+
+
+Specifying this enables the \fBoffers\fR and \fBfetchinvoice\fR plugins and
+corresponding functionality, which are in draft status as BOLT12\. 
+This usually requires \fBexperimental-onion-messages\fR as well\.  See
+\fBlightning-offer\fR(7) and \fBlightning-fetchinvoice\fR(7)\.
+
 .SH BUGS
 
 You should report bugs on our github issues page, and maybe submit a fix
@@ -584,4 +608,4 @@ Main web site: \fIhttps://github.com/ElementsProject/lightning\fR
 Note: the modules in the ccan/ directory have their own licenses, but
 the rest of the code is covered by the BSD-style MIT license\.
 
-\" SHA256STAMP:c927bd3afb61288bb67d941d113cdeefe1363b0c7a28936ef30d43af3ce66098
+\" SHA256STAMP:8e18374d48aff1d2574667c603e36cdac81c35e09a49397dc6982f1688dd454a

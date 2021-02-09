@@ -504,6 +504,10 @@ bool outpointfilter_matches(struct outpointfilter *of UNNEEDED,
 /* Generated stub for outpointfilter_new */
 struct outpointfilter *outpointfilter_new(tal_t *ctx UNNEEDED)
 { fprintf(stderr, "outpointfilter_new called!\n"); abort(); }
+/* Generated stub for outpointfilter_remove */
+void outpointfilter_remove(struct outpointfilter *of UNNEEDED,
+			   const struct bitcoin_txid *txid UNNEEDED, const u32 outnum UNNEEDED)
+{ fprintf(stderr, "outpointfilter_remove called!\n"); abort(); }
 /* Generated stub for param */
 bool param(struct command *cmd UNNEEDED, const char *buffer UNNEEDED,
 	   const jsmntok_t params[] UNNEEDED, ...)
@@ -596,11 +600,16 @@ struct subd *peer_get_owning_subd(struct peer *peer UNNEEDED)
 /* Generated stub for peer_memleak_done */
 void peer_memleak_done(struct command *cmd UNNEEDED, struct subd *leaker UNNEEDED)
 { fprintf(stderr, "peer_memleak_done called!\n"); abort(); }
+/* Generated stub for peer_restart_dualopend */
+void peer_restart_dualopend(struct peer *peer UNNEEDED,
+			    struct per_peer_state *pps UNNEEDED,
+			    struct channel *channel UNNEEDED,
+			    const u8 *send_msg UNNEEDED)
+{ fprintf(stderr, "peer_restart_dualopend called!\n"); abort(); }
 /* Generated stub for peer_start_channeld */
 void peer_start_channeld(struct channel *channel UNNEEDED,
 			 struct per_peer_state *pps UNNEEDED,
 			 const u8 *fwd_msg UNNEEDED,
-			 const struct wally_psbt *psbt UNNEEDED,
 			 bool reconnected UNNEEDED)
 { fprintf(stderr, "peer_start_channeld called!\n"); abort(); }
 /* Generated stub for peer_start_closingd */
@@ -716,6 +725,9 @@ u8 *towire_connectd_peer_disconnected(const tal_t *ctx UNNEEDED, const struct no
 /* Generated stub for towire_custommsg_out */
 u8 *towire_custommsg_out(const tal_t *ctx UNNEEDED, const u8 *msg UNNEEDED)
 { fprintf(stderr, "towire_custommsg_out called!\n"); abort(); }
+/* Generated stub for towire_dualopend_send_shutdown */
+u8 *towire_dualopend_send_shutdown(const tal_t *ctx UNNEEDED, const u8 *shutdown_scriptpubkey UNNEEDED)
+{ fprintf(stderr, "towire_dualopend_send_shutdown called!\n"); abort(); }
 /* Generated stub for towire_errorfmt */
 u8 *towire_errorfmt(const tal_t *ctx UNNEEDED,
 		    const struct channel_id *channel UNNEEDED,
@@ -784,6 +796,11 @@ u8 *towire_temporary_node_failure(const tal_t *ctx UNNEEDED)
 /* Generated stub for towire_unknown_next_peer */
 u8 *towire_unknown_next_peer(const tal_t *ctx UNNEEDED)
 { fprintf(stderr, "towire_unknown_next_peer called!\n"); abort(); }
+/* Generated stub for towire_warningfmt */
+u8 *towire_warningfmt(const tal_t *ctx UNNEEDED,
+		      const struct channel_id *channel UNNEEDED,
+		      const char *fmt UNNEEDED, ...)
+{ fprintf(stderr, "towire_warningfmt called!\n"); abort(); }
 /* Generated stub for watch_txid */
 struct txwatch *watch_txid(const tal_t *ctx UNNEEDED,
 			   struct chain_topology *topo UNNEEDED,
