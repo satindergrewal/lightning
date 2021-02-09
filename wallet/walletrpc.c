@@ -124,7 +124,7 @@ static struct command_result *json_newaddr(struct command *cmd,
 	u8 *b32script;
 
 	if (!param(cmd, buffer, params,
-		   p_opt_def("addresstype", param_newaddr, &addrtype, ADDR_BECH32),
+		   p_opt_def("addresstype", param_newaddr, &addrtype, ADDR_P2SH_SEGWIT),
 		   NULL))
 		return command_param_failed();
 
