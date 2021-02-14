@@ -2580,7 +2580,6 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 // static void json_peer_channel_state(struct command *cmd, const char *buffer,
 // 				    const jsmntok_t *params)
 // {
-	struct json_escape *label;
 	struct json_stream *response;
 	// struct json_result *response = new_json_result(cmd);
 	jsmntok_t *idtok;
@@ -2589,7 +2588,8 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 	int channel_state=-1,peer_exits;
 	
 	if (!param(cmd, buffer, params,
-		p_opt("id", param_label, &label),
+		p_req("id", param_tok, &idtok),
+		// p_opt("id", param_tok, &idtok),
 		NULL))
 	return command_param_failed();
 
