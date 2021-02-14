@@ -2678,6 +2678,7 @@ static const struct json_command peer_channel_state = {
 	json_peer_channel_state,
 	"Find the state of the channel with the peer {id}"
 };
+AUTODATA(json_command, &peer_channel_state);
 
 // static void json_check_if_peer_exits(struct command *cmd, const char *buffer,
 // 				    const jsmntok_t *params)
