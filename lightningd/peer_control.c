@@ -2571,19 +2571,36 @@ static const struct json_command sendcustommsg_command = {
 
 AUTODATA(json_command, &sendcustommsg_command);
 
-static void json_peer_channel_state(struct command *cmd, const char *buffer,
-				    const jsmntok_t *params)
+
+static struct command_result *json_peer_channel_state(struct command *cmd,
+					       const char *buffer,
+					       const jsmntok_t *obj UNNEEDED,
+					       const jsmntok_t *params)
 {
-	struct json_result *response = new_json_result(cmd);
+// static void json_peer_channel_state(struct command *cmd, const char *buffer,
+// 				    const jsmntok_t *params)
+// {
+	struct json_escape *label;
+	struct json_stream *response;
+	// struct json_result *response = new_json_result(cmd);
 	jsmntok_t *idtok;
 	char buf[100];
 	sqlite3_stmt *stmt,*stmt1;
 	int channel_state=-1,peer_exits;
-	if (!json_get_params(cmd, buffer, params,
-			     "id", &idtok,
-			     NULL)) {
-		return;
-	}
+	
+	if (!param(cmd, buffer, params,
+		p_opt("id", param_label, &label),
+		NULL))
+	return command_param_failed();
+
+	response = json_stream_success(cmd);
+
+	// if (!json_get_params(cmd, buffer, params,
+	// 		     "id", &idtok,
+	// 		     NULL)) {
+	// 	return;
+	// }
+
 	memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
 	buf[idtok->end - idtok->start]='\0';
 	/*stmt = db_prepare(cmd->ld->wallet->db,
@@ -2651,11 +2668,13 @@ static void json_peer_channel_state(struct command *cmd, const char *buffer,
 	}
 	json_array_end(response);
 	json_object_end(response);
-	command_success(cmd, response);
+	// command_success(cmd, response);
+	return command_success(cmd, response);
 }
 
 static const struct json_command peer_channel_state = {
-	"peer-channel-state", 
+	"peer-channel-state",
+	"developer",
 	json_peer_channel_state,
 	"Find the state of the channel with the peer {id}"
 };
