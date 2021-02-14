@@ -2582,7 +2582,7 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 // {
 	struct json_stream *response;
 	// struct json_result *response = new_json_result(cmd);
-	jsmntok_t *idtok;
+	const jsmntok_t *idtok;
 	char buf[100];
 	sqlite3_stmt *stmt,*stmt1;
 	int channel_state=-1,peer_exits;
