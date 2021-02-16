@@ -2587,6 +2587,7 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 	// struct db_stmt *stmt,*stmt1;;
 	sqlite3_stmt *stmt,*stmt1;
 	int channel_state=-1,peer_exits;
+	int err, err1;
 	
 	if (!param(cmd, buffer, params,
 		p_req("id", param_tok, &idtok),
@@ -2611,7 +2612,7 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 						  " (SELECT COALESCE(sum(id),0)"
 						  "  FROM peers"
 						  "  WHERE lower(hex(node_id))=?);");*/
-	stmt = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;",-1, &stmt, NULL);
+	err = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;",-1, &stmt, NULL);
 	sqlite3_bind_text((sqlite3_stmt *)stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
 	// db_bind_text(stmt, 1, buf);
 	
@@ -2642,7 +2643,7 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 	}
 	else
 	{	
-			stmt1 = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT state FROM channels WHERE peer_id IN (SELECT id FROM peers WHERE lower(hex(node_id))=?);",-1, &stmt1, NULL);
+			err1 = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT state FROM channels WHERE peer_id IN (SELECT id FROM peers WHERE lower(hex(node_id))=?);",-1, &stmt1, NULL);
 			sqlite3_bind_text((sqlite3_stmt *)stmt1, 1, buf, strlen(buf), SQLITE_TRANSIENT);
 			// db_bind_text(stmt1, 1, buf);
 			
