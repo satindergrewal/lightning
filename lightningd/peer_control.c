@@ -2572,113 +2572,124 @@ static const struct json_command sendcustommsg_command = {
 AUTODATA(json_command, &sendcustommsg_command);
 
 
-// static struct command_result *json_peer_channel_state(struct command *cmd,
-// 					       const char *buffer,
-// 					       const jsmntok_t *obj UNNEEDED,
-// 					       const jsmntok_t *params)
+static struct command_result *json_peer_channel_state(struct command *cmd,
+					       const char *buffer,
+					       const jsmntok_t *obj UNNEEDED,
+					       const jsmntok_t *params)
+{
+// static void json_peer_channel_state(struct command *cmd, const char *buffer,
+// 				    const jsmntok_t *params)
 // {
-// // static void json_peer_channel_state(struct command *cmd, const char *buffer,
-// // 				    const jsmntok_t *params)
-// // {
-// 	struct json_stream *response;
-// 	// struct json_result *response = new_json_result(cmd);
-// 	const jsmntok_t *idtok;
-// 	char buf[100];
-// 	sqlite3_stmt *stmt,*stmt1;
-// 	int channel_state=-1,peer_exits;
+	struct json_stream *response;
+	// struct json_result *response = new_json_result(cmd);
+	const jsmntok_t *idtok;
+	char buf[100];
+	// struct db_stmt *stmt,*stmt1;;
+	sqlite3_stmt *stmt,*stmt1;
+	int channel_state=-1,peer_exits;
+	int err, err1;
 	
-// 	if (!param(cmd, buffer, params,
-// 		p_req("id", param_tok, &idtok),
-// 		// p_opt("id", param_tok, &idtok),
-// 		NULL))
-// 	return command_param_failed();
+	if (!param(cmd, buffer, params,
+		p_req("id", param_tok, &idtok),
+		// p_opt("id", param_tok, &idtok),
+		NULL))
+	return command_param_failed();
 
-// 	response = json_stream_success(cmd);
+	response = json_stream_success(cmd);
 
-// 	// if (!json_get_params(cmd, buffer, params,
-// 	// 		     "id", &idtok,
-// 	// 		     NULL)) {
-// 	// 	return;
-// 	// }
+	// if (!json_get_params(cmd, buffer, params,
+	// 		     "id", &idtok,
+	// 		     NULL)) {
+	// 	return;
+	// }
 
-// 	memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
-// 	buf[idtok->end - idtok->start]='\0';
-// 	/*stmt = db_prepare(cmd->ld->wallet->db,
-// 						  "SELECT COALESCE(sum(state),0)"
-// 						  " FROM channels"
-// 						  " Where id IN "
-// 						  " (SELECT COALESCE(sum(id),0)"
-// 						  "  FROM peers"
-// 						  "  WHERE lower(hex(node_id))=?);");*/
-// 	stmt = db_prepare(cmd->ld->wallet->db,"SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;");
-// 	sqlite3_bind_text(stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
+	memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
+	buf[idtok->end - idtok->start]='\0';
+	/*stmt = db_prepare(cmd->ld->wallet->db,
+						  "SELECT COALESCE(sum(state),0)"
+						  " FROM channels"
+						  " Where id IN "
+						  " (SELECT COALESCE(sum(id),0)"
+						  "  FROM peers"
+						  "  WHERE lower(hex(node_id))=?);");*/
+	err = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;",-1, &stmt, NULL);
+	sqlite3_bind_text((sqlite3_stmt *)stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
+	// db_bind_text(stmt, 1, buf);
+
+	if (err != SQLITE_OK) {
+		return false;
+	}
 	
-// 	while (sqlite3_step(stmt) == SQLITE_ROW) {
-// 		int i;
-// 		int num_cols = sqlite3_column_count(stmt);
+	while (sqlite3_step((sqlite3_stmt *)stmt) == SQLITE_ROW) {
+		int i;
+		int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
 		
-// 		for (i = 0; i < num_cols; i++)
-// 		{
-// 			switch (sqlite3_column_type(stmt, i))
-// 			{
-// 			case (SQLITE_INTEGER):
-// 				peer_exits=sqlite3_column_int(stmt, i);
-// 				break;
-// 			default:
-// 				break;
-// 			}
-// 		}
-// 	}
-// 	sqlite3_finalize(stmt);
-// 	json_object_start(response, NULL);
-// 	json_array_start(response,"channel-states");
-// 	if(peer_exits == 0)
-// 	{
-// 		json_object_start(response,NULL);
-// 		json_add_num(response, "channel-state", 0);
-// 		json_object_end(response);
-// 	}
-// 	else
-// 	{
-		
-// 			stmt1 = db_prepare(cmd->ld->wallet->db,"SELECT state FROM channels WHERE peer_id IN (SELECT id FROM peers WHERE lower(hex(node_id))=?);");
-// 			sqlite3_bind_text(stmt1, 1, buf, strlen(buf), SQLITE_TRANSIENT);
+		for (i = 0; i < num_cols; i++)
+		{
+			switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
+			{
+			case (SQLITE_INTEGER):
+				peer_exits=sqlite3_column_int((sqlite3_stmt *)stmt, i);
+				break;
+			default:
+				break;
+			}
+		}
+	}
+	sqlite3_finalize((sqlite3_stmt *)stmt);
+	json_object_start(response, NULL);
+	json_array_start(response,"channel-states");
+	if(peer_exits == 0)
+	{
+		json_object_start(response,NULL);
+		json_add_num(response, "channel-state", 0);
+		json_object_end(response);
+	}
+	else
+	{	
+			err1 = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT state FROM channels WHERE peer_id IN (SELECT id FROM peers WHERE lower(hex(node_id))=?);",-1, &stmt1, NULL);
+			sqlite3_bind_text((sqlite3_stmt *)stmt1, 1, buf, strlen(buf), SQLITE_TRANSIENT);
+			// db_bind_text(stmt1, 1, buf);
+
+			if (err1 != SQLITE_OK) {
+				return false;
+			}
 			
-// 			while (sqlite3_step(stmt1) == SQLITE_ROW) {
-// 				int i;
-// 				int num_cols = sqlite3_column_count(stmt1);
+			while (sqlite3_step((sqlite3_stmt *)stmt1) == SQLITE_ROW) {
+				int i;
+				int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt1);
 				
-// 				for (i = 0; i < num_cols; i++)
-// 				{
-// 					switch (sqlite3_column_type(stmt1, i))
-// 					{
-// 					case (SQLITE_INTEGER):
-// 						json_object_start(response,NULL);
-// 						channel_state=sqlite3_column_int(stmt1, i);
-// 						json_add_num(response, "channel-state", channel_state);
-// 						json_object_end(response);
-// 						break;
-// 					default:
-// 						break;
-// 					}
-// 				}
-// 			}
-// 			sqlite3_finalize(stmt1);
+				for (i = 0; i < num_cols; i++)
+				{
+					switch (sqlite3_column_type((sqlite3_stmt *)stmt1, i))
+					{
+					case (SQLITE_INTEGER):
+						json_object_start(response,NULL);
+						channel_state=sqlite3_column_int((sqlite3_stmt *)stmt1, i);
+						json_add_num(response, "channel-state", channel_state);
+						json_object_end(response);
+						break;
+					default:
+						break;
+					}
+				}
+			}
+			sqlite3_finalize((sqlite3_stmt *)stmt1);
 		
-// 	}
-// 	json_array_end(response);
-// 	json_object_end(response);
-// 	// command_success(cmd, response);
-// 	return command_success(cmd, response);
-// }
+	}
+	json_array_end(response);
+	json_object_end(response);
+	// command_success(cmd, response);
+	return command_success(cmd, response);
+}
 
-// static const struct json_command peer_channel_state = {
-// 	"peer-channel-state",
-// 	"developer",
-// 	json_peer_channel_state,
-// 	"Find the state of the channel with the peer {id}"
-// };
-// AUTODATA(json_command, &peer_channel_state);
+static const struct json_command peer_channel_state = {
+	"peer-channel-state",
+	"developer",
+	json_peer_channel_state,
+	"Find the state of the channel with the peer {id}"
+};
+AUTODATA(json_command, &peer_channel_state);
 
 // static void json_check_if_peer_exits(struct command *cmd, const char *buffer,
 // 				    const jsmntok_t *params)
