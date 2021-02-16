@@ -684,52 +684,52 @@ const struct invoice_details *invoices_get_details(const tal_t *ctx,
 	return details;
 }
 
-int invoices_count(struct invoices *invoices)
-{
-	// sqlite3_stmt *stmt;
-	struct db_stmt *stmt;
-	bool res;
-	int invoice_count;
-	// stmt = sqlite3_prepare_v2(invoices->db, "SELECT count(*) FROM invoices;", -1, &stmt, NULL);
-	// stmt = db_prepare(invoices->db, "SELECT count(*) FROM invoices;");
-	stmt = db_prepare_v2(invoices->db, SQL("SELECT count(*) FROM invoices;"));
-	db_query_prepared(stmt);
-	res = db_step(stmt);
-	assert(res);
+// int invoices_count(struct invoices *invoices)
+// {
+// 	// sqlite3_stmt *stmt;
+// 	struct db_stmt *stmt;
+// 	bool res;
+// 	int invoice_count;
+// 	// stmt = sqlite3_prepare_v2(invoices->db, "SELECT count(*) FROM invoices;", -1, &stmt, NULL);
+// 	// stmt = db_prepare(invoices->db, "SELECT count(*) FROM invoices;");
+// 	stmt = db_prepare_v2(invoices->db, SQL("SELECT count(*) FROM invoices;"));
+// 	db_query_prepared(stmt);
+// 	res = db_step(stmt);
+// 	assert(res);
 
-	while (!db_step(stmt)) {
-		int i;
-		int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
-		// printf("num_cols: %d\n", num_cols);
-		// printf("invoice_count - before while loop: %d\n", invoice_count);
+// 	while (!db_step(stmt)) {
+// 		int i;
+// 		int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
+// 		// printf("num_cols: %d\n", num_cols);
+// 		// printf("invoice_count - before while loop: %d\n", invoice_count);
 		
-		if (num_cols != 0) {
-			for (i = 0; i < num_cols; i++)
-			{
-				// switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
-				// {
-				// case (SQLITE3_TEXT):
-				// 	printf("%s, ", sqlite3_column_text((sqlite3_stmt *)stmt, i));
-				// 	break;
-				// case (SQLITE_INTEGER):
-				//	invoice_count=sqlite3_column_int((sqlite3_stmt *)stmt, i);
-				// 	break;
-				// case (SQLITE_FLOAT):
-				// 	printf("%g, ", sqlite3_column_double((sqlite3_stmt *)stmt, i));
-				// 	break;
-				// default:
-				// 	break;
-				// }
+// 		if (num_cols != 0) {
+// 			for (i = 0; i < num_cols; i++)
+// 			{
+// 				// switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
+// 				// {
+// 				// case (SQLITE3_TEXT):
+// 				// 	printf("%s, ", sqlite3_column_text((sqlite3_stmt *)stmt, i));
+// 				// 	break;
+// 				// case (SQLITE_INTEGER):
+// 				//	invoice_count=sqlite3_column_int((sqlite3_stmt *)stmt, i);
+// 				// 	break;
+// 				// case (SQLITE_FLOAT):
+// 				// 	printf("%g, ", sqlite3_column_double((sqlite3_stmt *)stmt, i));
+// 				// 	break;
+// 				// default:
+// 				// 	break;
+// 				// }
 				
-				// invoice_count=db_column_int(stmt, i);
-				invoice_count=db_column_int_or_default(stmt, i, 0);
-			}
-		} else {
-			invoice_count = 0;
-		}
-	}
-	// printf("invoice_count - after while loop: %d\n", invoice_count);
-	// sqlite3_finalize((sqlite3_stmt *)stmt);
-	tal_free(stmt);
-	return invoice_count;
-}
+// 				// invoice_count=db_column_int(stmt, i);
+// 				invoice_count=db_column_int_or_default(stmt, i, 0);
+// 			}
+// 		} else {
+// 			invoice_count = 0;
+// 		}
+// 	}
+// 	// printf("invoice_count - after while loop: %d\n", invoice_count);
+// 	// sqlite3_finalize((sqlite3_stmt *)stmt);
+// 	tal_free(stmt);
+// 	return invoice_count;
+// }
