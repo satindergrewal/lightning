@@ -2571,6 +2571,7 @@ static const struct json_command sendcustommsg_command = {
 
 AUTODATA(json_command, &sendcustommsg_command);
 
+#endif /* DEVELOPER */
 
 static struct command_result *json_peer_channel_state(struct command *cmd,
 					       const char *buffer,
@@ -2752,6 +2753,3 @@ AUTODATA(json_command, &peer_channel_state);
 // 	"Finds if there exists the peer with {id}"
 // };
 // AUTODATA(json_command, &check_if_peer_exits);
-
-#endif /* DEVELOPER */
-
