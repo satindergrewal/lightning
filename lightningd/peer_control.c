@@ -2731,7 +2731,7 @@ static struct command_result *json_peer_test(struct command *cmd,
 	sqlite3_bind_text((sqlite3_stmt *)stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
 	// db_bind_text(stmt, 1, buf);
 	
-	while (db_step(stmt) == SQLITE_ROW) {
+	while (!db_step(stmt)) {
 		int i;
 		int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
 		
@@ -2767,7 +2767,7 @@ static struct command_result *json_peer_test(struct command *cmd,
 			sqlite3_bind_text((sqlite3_stmt *)stmt1, 1, buf, strlen(buf), SQLITE_TRANSIENT);
 			// db_bind_text(stmt1, 1, buf);
 			
-			while (db_step(stmt1) == SQLITE_ROW) {
+			while (!db_step(stmt1)) {
 				int i;
 				int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt1);
 				
