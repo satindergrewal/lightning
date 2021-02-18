@@ -2701,10 +2701,13 @@ static struct command_result *json_peer_test(struct command *cmd,
 	struct json_stream *response;
 	const jsmntok_t *idtok;
 	char buf[100];
-	struct db_stmt *stmt,*stmt1;;
+	// struct db_stmt *stmt,*stmt1;
+	struct db_stmt *stmt;
 	// sqlite3_stmt *stmt,*stmt1;
-	int channel_state=-1,peer_exits;
-	int res, res1;
+	// int channel_state=-1,peer_exits;
+	int peer_exits;
+	// int res, res1;
+	int res;
 
 	// response = json_stream_success(cmd);
 	// invoice_count=wallet_invoice_count(cmd->ld->wallet);
