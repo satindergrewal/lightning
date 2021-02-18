@@ -2737,7 +2737,7 @@ static struct command_result *json_peer_test(struct command *cmd,
 	db_query_prepared(stmt);
 	res = db_step(stmt);
 	assert(res);
-	sqlite3_bind_text((sqlite3_stmt *)stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
+	// sqlite3_bind_text((sqlite3_stmt *)stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
 	// db_bind_text(stmt, 1, buf);
 	
 	while (!db_step(stmt)) {
@@ -2747,14 +2747,15 @@ static struct command_result *json_peer_test(struct command *cmd,
 		
 		for (i = 0; i < num_cols; i++)
 		{
-			switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
-			{
-			case (SQLITE_INTEGER):
-				peer_exits=sqlite3_column_int((sqlite3_stmt *)stmt, i);
-				break;
-			default:
-				break;
-			}
+			// switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
+			// {
+			// case (SQLITE_INTEGER):
+			// 	peer_exits=sqlite3_column_int((sqlite3_stmt *)stmt, i);
+			// 	break;
+			// default:
+			// 	break;
+			// }
+			peer_exits=db_column_int_or_default(stmt, i, 0);
 		}
 	}
 	printf("peer_exits: %d\n", peer_exits);
