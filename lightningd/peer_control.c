@@ -2733,7 +2733,7 @@ static struct command_result *json_peer_test(struct command *cmd,
 						  "  FROM peers"
 						  "  WHERE lower(hex(node_id))=?);");*/
 	// res = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;",-1, &stmt, NULL);
-	stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT count(*) FROM peers;"));
+	stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT count(*) FROM blocks;"));
 	db_query_prepared(stmt);
 	res = db_step(stmt);
 	assert(res);
