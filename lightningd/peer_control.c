@@ -2772,12 +2772,13 @@ static struct command_result *json_peer_test(struct command *cmd,
 	{
 		json_object_start(response,NULL);
 		json_add_num(response, "channel-state", 0);
-		// json_object_end(response);
-	} else {
-		json_object_start(response,NULL);
-		json_add_num(response, "channel-state", 0);
-		// json_object_end(response);
+		json_object_end(response);
 	}
+	// else {
+	// 	json_object_start(response,NULL);
+	// 	json_add_num(response, "channel-state", 0);
+	// 	json_object_end(response);
+	// }
 	// else
 	// {	
 	// 		// res1 = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT state FROM channels WHERE peer_id IN (SELECT id FROM peers WHERE lower(hex(node_id))=?);",-1, &stmt1, NULL);
