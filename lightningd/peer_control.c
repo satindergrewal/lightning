@@ -2723,7 +2723,7 @@ static struct command_result *json_peer_test(struct command *cmd,
 
 	response = json_stream_success(cmd);
 
-	printf("db filename: %s\n", cmd->ld->wallet->db);
+	// printf("db filename: %s\n", cmd->ld->wallet->db);
 
 	memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
 	buf[idtok->end - idtok->start]='\0';
