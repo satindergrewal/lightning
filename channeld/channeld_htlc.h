@@ -3,9 +3,10 @@
 #include "config.h"
 #include <bitcoin/locktime.h>
 #include <ccan/short_types/short_types.h>
+#include <common/amount.h>
 #include <common/htlc.h>
 #include <common/pseudorand.h>
-#include <wire/gen_onion_wire.h>
+#include <wire/onion_wire.h>
 
 struct htlc {
 	/* What's the status. */
@@ -13,7 +14,7 @@ struct htlc {
 	/* The unique ID for this peer and this direction (LOCAL or REMOTE) */
 	u64 id;
 	/* The amount in millisatoshi. */
-	u64 msatoshi;
+	struct amount_msat amount;
 	/* When the HTLC can no longer be redeemed. */
 	struct abs_locktime expiry;
 	/* The hash of the preimage which can redeem this HTLC */
@@ -21,14 +22,14 @@ struct htlc {
 	/* The preimage which hashes to rhash (if known) */
 	struct preimage *r;
 
-	/* The routing shared secret (only for incoming) */
-	struct secret *shared_secret;
+	/* If they fail the HTLC, we store why here. */
+	const struct failed_htlc *failed;
 
-	/* FIXME: We could union these together: */
-	/* Routing information sent with this HTLC. */
+	/* Routing information sent with this HTLC (outgoing only). */
 	const u8 *routing;
-	const u8 *fail;
-	enum onion_type malformed;
+
+	/* Blinding (optional). */
+	struct pubkey *blinding;
 };
 
 static inline bool htlc_has(const struct htlc *h, int flag)

@@ -12,6 +12,7 @@ struct bitcoin_tx;
 struct block;
 struct channel;
 struct chain_topology;
+struct lightningd;
 struct txowatch;
 struct txwatch;
 
@@ -43,17 +44,21 @@ struct txwatch *watch_txid(const tal_t *ctx,
 			   struct chain_topology *topo,
 			   struct channel *channel,
 			   const struct bitcoin_txid *txid,
-			   enum watch_result (*cb)(struct channel *channel,
-						    const struct bitcoin_tx *,
+			   enum watch_result (*cb)(struct lightningd *ld,
+						   struct channel *channel,
+						   const struct bitcoin_txid *,
+						   const struct bitcoin_tx *,
 						   unsigned int depth));
 
 struct txwatch *watch_tx(const tal_t *ctx,
 			 struct chain_topology *topo,
 			 struct channel *channel,
 			 const struct bitcoin_tx *tx,
-			 enum watch_result (*cb)(struct channel *channel,
-						  const struct bitcoin_tx *,
-						  unsigned int depth));
+			 enum watch_result (*cb)(struct lightningd *ld,
+						 struct channel *channel,
+						 const struct bitcoin_txid *,
+						 const struct bitcoin_tx *,
+						 unsigned int depth));
 
 struct txowatch *watch_txo(const tal_t *ctx,
 			   struct chain_topology *topo,
@@ -70,7 +75,7 @@ struct txwatch *find_txwatch(struct chain_topology *topo,
 			     const struct channel *channel);
 
 void txwatch_fire(struct chain_topology *topo,
-		  const struct bitcoin_tx *tx,
+		  const struct bitcoin_txid *txid,
 		  unsigned int depth);
 
 void txowatch_fire(const struct txowatch *txow,
@@ -79,6 +84,11 @@ void txowatch_fire(const struct txowatch *txow,
 
 bool watching_txid(const struct chain_topology *topo,
 		   const struct bitcoin_txid *txid);
+
+/* FIXME: Implement bitcoin_tx_dup() so we tx arg can be TAKEN */
+void txwatch_inform(const struct chain_topology *topo,
+		    const struct bitcoin_txid *txid,
+		    const struct bitcoin_tx *tx_may_steal);
 
 void watch_topology_changed(struct chain_topology *topo);
 #endif /* LIGHTNING_LIGHTNINGD_WATCH_H */

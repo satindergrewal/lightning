@@ -4,14 +4,33 @@
 #include <ccan/build_assert/build_assert.h>
 #include <ccan/crypto/ripemd160/ripemd160.h>
 #include <ccan/mem/mem.h>
-#include <ccan/structeq/structeq.h>
 #include <common/memleak.h>
 #include <common/pseudorand.h>
 #include <common/utils.h>
 #include <wallet/wallet.h>
 
+static size_t scriptpubkey_hash(const u8 *out)
+{
+	struct siphash24_ctx ctx;
+	siphash24_init(&ctx, siphash_seed());
+	siphash24_update(&ctx, out, tal_bytelen(out));
+	return siphash24_done(&ctx);
+}
+
+static const u8 *scriptpubkey_keyof(const u8 *out)
+{
+	return out;
+}
+
+static int scriptpubkey_eq(const u8 *a, const u8 *b)
+{
+	return memeq(a, tal_bytelen(a), b, tal_bytelen(b));
+}
+
+HTABLE_DEFINE_TYPE(u8, scriptpubkey_keyof, scriptpubkey_hash, scriptpubkey_eq, scriptpubkeyset);
+
 struct txfilter {
-	const u8 **scriptpubkeys;
+	struct scriptpubkeyset scriptpubkeyset;
 };
 
 struct outpointfilter_entry {
@@ -31,7 +50,7 @@ static size_t outpoint_hash(const struct outpointfilter_entry *out)
 static bool outpoint_eq(const struct outpointfilter_entry *o1,
 			const struct outpointfilter_entry *o2)
 {
-	return structeq(&o1->txid, &o2->txid) && o1->outnum == o2->outnum;
+	return bitcoin_txid_eq(&o1->txid, &o2->txid) && o1->outnum == o2->outnum;
 }
 
 static const struct outpointfilter_entry *outpoint_keyof(const struct outpointfilter_entry *out)
@@ -46,22 +65,28 @@ struct outpointfilter {
 	struct outpointset *set;
 };
 
+static void destroy_txfilter(struct txfilter *filter)
+{
+	scriptpubkeyset_clear(&filter->scriptpubkeyset);
+}
+
 struct txfilter *txfilter_new(const tal_t *ctx)
 {
 	struct txfilter *filter = tal(ctx, struct txfilter);
-	filter->scriptpubkeys = tal_arr(filter, const u8 *, 0);
+	scriptpubkeyset_init(&filter->scriptpubkeyset);
+	tal_add_destructor(filter, destroy_txfilter);
 	return filter;
 }
 
 void txfilter_add_scriptpubkey(struct txfilter *filter, const u8 *script TAKES)
 {
-	size_t count = tal_count(filter->scriptpubkeys);
-	tal_resize(&filter->scriptpubkeys, count + 1);
-	filter->scriptpubkeys[count] = tal_dup_arr(filter, u8, script, tal_len(script), 0);
+	scriptpubkeyset_add(
+	    &filter->scriptpubkeyset,
+	    notleak(tal_dup_talarr(filter, u8, script)));
 }
 
 void txfilter_add_derkey(struct txfilter *filter,
-			 const u8 derkey[PUBKEY_DER_LEN])
+			 const u8 derkey[PUBKEY_CMPR_LEN])
 {
 	u8 *skp, *p2sh;
 
@@ -75,13 +100,14 @@ void txfilter_add_derkey(struct txfilter *filter,
 
 bool txfilter_match(const struct txfilter *filter, const struct bitcoin_tx *tx)
 {
-	for (size_t i = 0; i < tal_count(tx->output); i++) {
-		u8 *oscript = tx->output[i].script;
+	for (size_t i = 0; i < tx->wtx->num_outputs; i++) {
+		const u8 *oscript = bitcoin_tx_output_get_script(tmpctx, tx, i);
 
-		for (size_t j = 0; j < tal_count(filter->scriptpubkeys); j++) {
-			if (scripteq(oscript, filter->scriptpubkeys[j]))
-				return true;
-		}
+		if (!oscript)
+			continue;
+
+		if (scriptpubkeyset_get(&filter->scriptpubkeyset, oscript))
+			return true;
 	}
 	return false;
 }
@@ -115,10 +141,16 @@ void outpointfilter_remove(struct outpointfilter *of, const struct bitcoin_txid 
 	outpointset_del(of->set, &op);
 }
 
+static void destroy_outpointfilter(struct outpointfilter *opf)
+{
+	outpointset_clear(opf->set);
+}
+
 struct outpointfilter *outpointfilter_new(tal_t *ctx)
 {
 	struct outpointfilter *opf = tal(ctx, struct outpointfilter);
 	opf->set = tal(opf, struct outpointset);
 	outpointset_init(opf->set);
+	tal_add_destructor(opf, destroy_outpointfilter);
 	return opf;
 }

@@ -3,18 +3,17 @@
 #include "wallet.h"
 #include <assert.h>
 #include <ccan/list/list.h>
-#include <ccan/structeq/structeq.h>
 #include <ccan/tal/str/str.h>
 #include <ccan/time/time.h>
 #include <ccan/timer/timer.h>
+#include <common/amount.h>
 #include <common/timeout.h>
 #include <common/utils.h>
 #include <lightningd/invoice.h>
-#include <lightningd/log.h>
 #include <sodium/randombytes.h>
-#include <sqlite3.h>
 #include <string.h>
 #include <stdio.h>
+#include <sqlite3.h>
 struct invoice_waiter {
 	/* Is this waiter already triggered? */
 	bool triggered;
@@ -33,8 +32,6 @@ struct invoice_waiter {
 struct invoices {
 	/* The database connection to use. */
 	struct db *db;
-	/* The log to report to. */
-	struct log *log;
 	/* The timers object to use for expirations. */
 	struct timers *timers;
 	/* Waiters waiting for invoices to be paid, expired, or deleted. */
@@ -43,10 +40,6 @@ struct invoices {
 	u64 min_expiry_time;
 	/* Expiration timer */
 	struct oneshot *expiration_timer;
-	/* Autoclean timer */
-	struct oneshot *autoclean_timer;
-	u64 autoclean_cycle_seconds;
-	u64 autoclean_expired_by;
 };
 
 static void trigger_invoice_waiter(struct invoice_waiter *w,
@@ -88,68 +81,86 @@ trigger_invoice_waiter_expire_or_delete(struct invoices *invoices,
 	}
 }
 
-static void wallet_stmt2invoice_details(const tal_t *ctx,
-					sqlite3_stmt *stmt,
-					struct invoice_details *dtl)
+static struct invoice_details *wallet_stmt2invoice_details(const tal_t *ctx,
+							   struct db_stmt *stmt)
 {
-	dtl->state = sqlite3_column_int(stmt, 0);
+	struct invoice_details *dtl = tal(ctx, struct invoice_details);
+	dtl->state = db_column_int(stmt, 0);
 
-	sqlite3_column_preimage(stmt, 1, &dtl->r);
+	db_column_preimage(stmt, 1, &dtl->r);
 
-	sqlite3_column_sha256(stmt, 2, &dtl->rhash);
+	db_column_sha256(stmt, 2, &dtl->rhash);
 
-	dtl->label = sqlite3_column_json_escaped(ctx, stmt, 3);
+	dtl->label = db_column_json_escape(dtl, stmt, 3);
 
-	if (sqlite3_column_type(stmt, 4) != SQLITE_NULL) {
-		dtl->msatoshi = tal(ctx, u64);
-		*dtl->msatoshi = sqlite3_column_int64(stmt, 4);
+	if (!db_column_is_null(stmt, 4)) {
+		dtl->msat = tal(dtl, struct amount_msat);
+		db_column_amount_msat(stmt, 4, dtl->msat);
 	} else {
-		dtl->msatoshi = NULL;
+		dtl->msat = NULL;
 	}
 
-	dtl->expiry_time = sqlite3_column_int64(stmt, 5);
+	dtl->expiry_time = db_column_u64(stmt, 5);
 
 	if (dtl->state == PAID) {
-		dtl->pay_index = sqlite3_column_int64(stmt, 6);
-		dtl->msatoshi_received = sqlite3_column_int64(stmt, 7);
-		dtl->paid_timestamp = sqlite3_column_int64(stmt, 8);
+		dtl->pay_index = db_column_u64(stmt, 6);
+		db_column_amount_msat(stmt, 7, &dtl->received);
+		dtl->paid_timestamp = db_column_u64(stmt, 8);
 	}
 
-	dtl->bolt11 = tal_strndup(ctx, sqlite3_column_blob(stmt, 9), sqlite3_column_bytes(stmt, 9));
-}
+	dtl->invstring = tal_strndup(dtl, db_column_blob(stmt, 9),
+				     db_column_bytes(stmt, 9));
 
-struct invoices *invoices_new(const tal_t *ctx,
-			      struct db *db,
-			      struct log *log,
-			      struct timers *timers)
-{
-	struct invoices *invs = tal(ctx, struct invoices);
+	if (!db_column_is_null(stmt, 10))
+		dtl->description = tal_strdup(
+		    dtl, (const char *)db_column_text(stmt, 10));
+	else
+		dtl->description = NULL;
 
-	invs->db = db;
-	invs->log = log;
-	invs->timers = timers;
+	dtl->features = tal_dup_arr(dtl, u8,
+				    db_column_blob(stmt, 11),
+				    db_column_bytes(stmt, 11), 0);
+	if (!db_column_is_null(stmt, 12)) {
+		dtl->local_offer_id = tal(dtl, struct sha256);
+		db_column_sha256(stmt, 12, dtl->local_offer_id);
+	} else
+		dtl->local_offer_id = NULL;
 
-	list_head_init(&invs->waiters);
-
-	invs->expiration_timer = NULL;
-	invs->autoclean_timer = NULL;
-
-	return invs;
+	return dtl;
 }
 
 /* Update expirations. */
 static void update_db_expirations(struct invoices *invoices, u64 now)
 {
-	sqlite3_stmt *stmt;
-	stmt = db_prepare(invoices->db,
-			  "UPDATE invoices"
-			  "   SET state = ?"
-			  " WHERE state = ?"
-			  "   AND expiry_time <= ?;");
-	sqlite3_bind_int(stmt, 1, EXPIRED);
-	sqlite3_bind_int(stmt, 2, UNPAID);
-	sqlite3_bind_int64(stmt, 3, now);
-	db_exec_prepared(invoices->db, stmt);
+	struct db_stmt *stmt;
+	stmt = db_prepare_v2(invoices->db, SQL("UPDATE invoices"
+					       "   SET state = ?"
+					       " WHERE state = ?"
+					       "   AND expiry_time <= ?;"));
+	db_bind_int(stmt, 0, EXPIRED);
+	db_bind_int(stmt, 1, UNPAID);
+	db_bind_u64(stmt, 2, now);
+	db_exec_prepared_v2(take(stmt));
+}
+
+static void install_expiration_timer(struct invoices *invoices);
+
+struct invoices *invoices_new(const tal_t *ctx,
+			      struct db *db,
+			      struct timers *timers)
+{
+	struct invoices *invs = tal(ctx, struct invoices);
+
+	invs->db = db;
+	invs->timers = timers;
+
+	list_head_init(&invs->waiters);
+
+	invs->expiration_timer = NULL;
+
+	update_db_expirations(invs, time_now().ts.tv_sec);
+	install_expiration_timer(invs);
+	return invs;
 }
 
 struct invoice_id_node {
@@ -157,13 +168,12 @@ struct invoice_id_node {
 	u64 id;
 };
 
-static void install_expiration_timer(struct invoices *invoices);
 static void trigger_expiration(struct invoices *invoices)
 {
 	struct list_head idlist;
 	struct invoice_id_node *idn;
 	u64 now = time_now().ts.tv_sec;
-	sqlite3_stmt *stmt;
+	struct db_stmt *stmt;
 	struct invoice i;
 
 	/* Free current expiration timer */
@@ -171,19 +181,20 @@ static void trigger_expiration(struct invoices *invoices)
 
 	/* Acquire all expired invoices and save them in a list */
 	list_head_init(&idlist);
-	stmt = db_prepare(invoices->db,
-			  "SELECT id"
-			  "  FROM invoices"
-			  " WHERE state = ?"
-			  "   AND expiry_time <= ?;");
-	sqlite3_bind_int(stmt, 1, UNPAID);
-	sqlite3_bind_int64(stmt, 2, now);
-	while (sqlite3_step(stmt) == SQLITE_ROW) {
+	stmt = db_prepare_v2(invoices->db, SQL("SELECT id"
+					       "  FROM invoices"
+					       " WHERE state = ?"
+					       "   AND expiry_time <= ?"));
+	db_bind_int(stmt, 0, UNPAID);
+	db_bind_u64(stmt, 1, now);
+	db_query_prepared(stmt);
+
+	while (db_step(stmt)) {
 		idn = tal(tmpctx, struct invoice_id_node);
 		list_add_tail(&idlist, &idn->list);
-		idn->id = sqlite3_column_int64(stmt, 0);
+		idn->id = db_column_u64(stmt, 0);
 	}
-	sqlite3_finalize(stmt);
+	tal_free(stmt);
 
 	/* Expire all those invoices */
 	update_db_expirations(invoices, now);
@@ -192,9 +203,7 @@ static void trigger_expiration(struct invoices *invoices)
 	list_for_each(&idlist, idn, list) {
 		/* Trigger expiration */
 		i.id = idn->id;
-		trigger_invoice_waiter_expire_or_delete(invoices,
-							idn->id,
-							&i);
+		trigger_invoice_waiter_expire_or_delete(invoices, idn->id, &i);
 	}
 
 	install_expiration_timer(invoices);
@@ -202,8 +211,8 @@ static void trigger_expiration(struct invoices *invoices)
 
 static void install_expiration_timer(struct invoices *invoices)
 {
-	int res;
-	sqlite3_stmt *stmt;
+	bool res;
+	struct db_stmt *stmt;
 	struct timerel rel;
 	struct timeabs expiry;
 	struct timeabs now = time_now();
@@ -211,20 +220,21 @@ static void install_expiration_timer(struct invoices *invoices)
 	assert(!invoices->expiration_timer);
 
 	/* Find unpaid invoice with nearest expiry time */
-	stmt = db_prepare(invoices->db,
-			  "SELECT MIN(expiry_time)"
-			  "  FROM invoices"
-			  " WHERE state = ?;");
-	sqlite3_bind_int(stmt, 1, UNPAID);
-	res = sqlite3_step(stmt);
-	assert(res == SQLITE_ROW);
-	if (sqlite3_column_type(stmt, 0) == SQLITE_NULL) {
+	stmt = db_prepare_v2(invoices->db, SQL("SELECT MIN(expiry_time)"
+					       "  FROM invoices"
+					       " WHERE state = ?;"));
+	db_bind_int(stmt, 0, UNPAID);
+
+	db_query_prepared(stmt);
+
+	res = db_step(stmt);
+	assert(res);
+
+	if (db_column_is_null(stmt, 0))
 		/* Nothing to install */
-		sqlite3_finalize(stmt);
-		return;
-	} else
-		invoices->min_expiry_time = sqlite3_column_int64(stmt, 0);
-	sqlite3_finalize(stmt);
+		goto done;
+
+	invoices->min_expiry_time = db_column_u64(stmt, 0);
 
 	memset(&expiry, 0, sizeof(expiry));
 	expiry.ts.tv_sec = invoices->min_expiry_time;
@@ -242,36 +252,30 @@ static void install_expiration_timer(struct invoices *invoices)
 						  rel,
 						  &trigger_expiration,
 						  invoices);
-}
-
-bool invoices_load(struct invoices *invoices)
-{
-	u64 now = time_now().ts.tv_sec;
-
-	update_db_expirations(invoices, now);
-
-	install_expiration_timer(invoices);
-
-	return true;
+done:
+	tal_free(stmt);
 }
 
 bool invoices_create(struct invoices *invoices,
 		     struct invoice *pinvoice,
-		     u64 *msatoshi TAKES,
-		     const struct json_escaped *label TAKES,
+		     const struct amount_msat *msat TAKES,
+		     const struct json_escape *label TAKES,
 		     u64 expiry,
 		     const char *b11enc,
+		     const char *description,
+		     const u8 *features,
 		     const struct preimage *r,
-		     const struct sha256 *rhash)
+		     const struct sha256 *rhash,
+		     const struct sha256 *local_offer_id)
 {
-	sqlite3_stmt *stmt;
+	struct db_stmt *stmt;
 	struct invoice dummy;
 	u64 expiry_time;
 	u64 now = time_now().ts.tv_sec;
 
 	if (invoices_find_by_label(invoices, &dummy, label)) {
-		if (taken(msatoshi))
-			tal_free(msatoshi);
+		if (taken(msat))
+			tal_free(msat);
 		if (taken(label))
 			tal_free(label);
 		return false;
@@ -281,34 +285,41 @@ bool invoices_create(struct invoices *invoices,
 	expiry_time = now + expiry;
 
 	/* Save to database. */
-	/* Need to use the lower level API of sqlite3 to bind
-	 * label. Otherwise we'd need to implement sanitization of
-	 * that string for sql injections... */
-	stmt = db_prepare(invoices->db,
-			  "INSERT INTO invoices"
-			  "            ( payment_hash, payment_key, state"
-			  "            , msatoshi, label, expiry_time"
-			  "            , pay_index, msatoshi_received"
-			  "            , paid_timestamp, bolt11)"
-			  "     VALUES ( ?, ?, ?"
-			  "            , ?, ?, ?"
-			  "            , NULL, NULL"
-			  "            , NULL, ?);");
+	stmt = db_prepare_v2(
+	    invoices->db,
+	    SQL("INSERT INTO invoices"
+		"            ( payment_hash, payment_key, state"
+		"            , msatoshi, label, expiry_time"
+		"            , pay_index, msatoshi_received"
+		"            , paid_timestamp, bolt11, description, features, local_offer_id)"
+		"     VALUES ( ?, ?, ?"
+		"            , ?, ?, ?"
+		"            , NULL, NULL"
+		"            , NULL, ?, ?, ?, ?);"));
 
-	sqlite3_bind_blob(stmt, 1, rhash, sizeof(struct sha256), SQLITE_TRANSIENT);
-	sqlite3_bind_blob(stmt, 2, r, sizeof(struct preimage), SQLITE_TRANSIENT);
-	sqlite3_bind_int(stmt, 3, UNPAID);
-	if (msatoshi)
-		sqlite3_bind_int64(stmt, 4, *msatoshi);
+	db_bind_sha256(stmt, 0, rhash);
+	db_bind_preimage(stmt, 1, r);
+	db_bind_int(stmt, 2, UNPAID);
+	if (msat)
+		db_bind_amount_msat(stmt, 3, msat);
 	else
-		sqlite3_bind_null(stmt, 4);
-	sqlite3_bind_json_escaped(stmt, 5, label);
-	sqlite3_bind_int64(stmt, 6, expiry_time);
-	sqlite3_bind_text(stmt, 7, b11enc, strlen(b11enc), SQLITE_TRANSIENT);
+		db_bind_null(stmt, 3);
+	db_bind_json_escape(stmt, 4, label);
+	db_bind_u64(stmt, 5, expiry_time);
+	db_bind_text(stmt, 6, b11enc);
+	if (!description)
+		db_bind_null(stmt, 7);
+	else
+		db_bind_text(stmt, 7, description);
+	db_bind_talarr(stmt, 8, features);
+	if (local_offer_id)
+		db_bind_sha256(stmt, 9, local_offer_id);
+	else
+		db_bind_null(stmt, 9);
 
-	db_exec_prepared(invoices->db, stmt);
+	db_exec_prepared_v2(stmt);
 
-	pinvoice->id = sqlite3_last_insert_rowid(invoices->db->sql);
+	pinvoice->id = db_last_insert_id_v2(take(stmt));
 
 	/* Install expiration trigger. */
 	if (!invoices->expiration_timer ||
@@ -318,8 +329,8 @@ bool invoices_create(struct invoices *invoices,
 		install_expiration_timer(invoices);
 	}
 
-	if (taken(msatoshi))
-		tal_free(msatoshi);
+	if (taken(msat))
+		tal_free(msat);
 	if (taken(label))
 		tal_free(label);
 	return true;
@@ -328,22 +339,44 @@ bool invoices_create(struct invoices *invoices,
 
 bool invoices_find_by_label(struct invoices *invoices,
 			    struct invoice *pinvoice,
-			    const struct json_escaped *label)
+			    const struct json_escape *label)
 {
-	sqlite3_stmt *stmt;
+	struct db_stmt *stmt;
+	stmt = db_prepare_v2(invoices->db, SQL("SELECT id"
+					       "  FROM invoices"
+					       " WHERE label = ?;"));
+	db_bind_json_escape(stmt, 0, label);
+	db_query_prepared(stmt);
 
-	stmt = db_prepare(invoices->db,
-			  "SELECT id"
-			  "  FROM invoices"
-			  " WHERE label = ?;");
-	sqlite3_bind_json_escaped(stmt, 1, label);
-	if (sqlite3_step(stmt) == SQLITE_ROW) {
-		pinvoice->id = sqlite3_column_int64(stmt, 0);
-		sqlite3_finalize(stmt);
-		return true;
-	} else {
-		sqlite3_finalize(stmt);
+	if (!db_step(stmt)) {
+		tal_free(stmt);
 		return false;
+	}
+
+	pinvoice->id = db_column_u64(stmt, 0);
+	tal_free(stmt);
+	return true;
+}
+
+bool invoices_find_by_rhash(struct invoices *invoices,
+			    struct invoice *pinvoice,
+			    const struct sha256 *rhash)
+{
+	struct db_stmt *stmt;
+
+	stmt = db_prepare_v2(invoices->db, SQL("SELECT id"
+					       "  FROM invoices"
+					       " WHERE payment_hash = ?;"));
+	db_bind_sha256(stmt, 0, rhash);
+	db_query_prepared(stmt);
+
+	if (!db_step(stmt)) {
+		tal_free(stmt);
+		return false;
+	} else {
+		pinvoice->id = db_column_u64(stmt, 0);
+		tal_free(stmt);
+		return true;
 	}
 }
 
@@ -351,125 +384,102 @@ bool invoices_find_unpaid(struct invoices *invoices,
 			  struct invoice *pinvoice,
 			  const struct sha256 *rhash)
 {
-	sqlite3_stmt *stmt;
+	struct db_stmt *stmt;
+	stmt = db_prepare_v2(invoices->db, SQL("SELECT id"
+					       "  FROM invoices"
+					       " WHERE payment_hash = ?"
+					       "   AND state = ?;"));
+	db_bind_sha256(stmt, 0, rhash);
+	db_bind_int(stmt, 1, UNPAID);
+	db_query_prepared(stmt);
 
-	stmt = db_prepare(invoices->db,
-			  "SELECT id"
-			  "  FROM invoices"
-			  " WHERE payment_hash = ?"
-			  "   AND state = ?;");
-	sqlite3_bind_blob(stmt, 1, rhash, sizeof(*rhash), SQLITE_TRANSIENT);
-	sqlite3_bind_int(stmt, 2, UNPAID);
-	if (sqlite3_step(stmt) == SQLITE_ROW) {
-		pinvoice->id = sqlite3_column_int64(stmt, 0);
-		sqlite3_finalize(stmt);
-		return true;
-	} else {
-		sqlite3_finalize(stmt);
+	if (!db_step(stmt)) {
+		tal_free(stmt);
 		return false;
+	} else  {
+		pinvoice->id = db_column_u64(stmt, 0);
+		tal_free(stmt);
+		return true;
 	}
 }
 
-bool invoices_delete(struct invoices *invoices,
-		     struct invoice invoice)
+bool invoices_delete(struct invoices *invoices, struct invoice invoice)
 {
-	sqlite3_stmt *stmt;
-
+	struct db_stmt *stmt;
+	int changes;
 	/* Delete from database. */
-	stmt = db_prepare(invoices->db, "DELETE FROM invoices WHERE id=?;");
-	sqlite3_bind_int64(stmt, 1, invoice.id);
-	db_exec_prepared(invoices->db, stmt);
+	stmt = db_prepare_v2(invoices->db,
+			     SQL("DELETE FROM invoices WHERE id=?;"));
+	db_bind_u64(stmt, 0, invoice.id);
+	db_exec_prepared_v2(stmt);
 
-	if (sqlite3_changes(invoices->db->sql) != 1)
+	changes = db_count_changes(stmt);
+	tal_free(stmt);
+
+	if (changes != 1) {
 		return false;
-
+	}
 	/* Tell all the waiters about the fact that it was deleted. */
-	trigger_invoice_waiter_expire_or_delete(invoices,
-						invoice.id, NULL);
+	trigger_invoice_waiter_expire_or_delete(invoices, invoice.id, NULL);
 	return true;
 }
 
 void invoices_delete_expired(struct invoices *invoices,
 			     u64 max_expiry_time)
 {
-	sqlite3_stmt *stmt;
-	stmt = db_prepare(invoices->db,
+	struct db_stmt *stmt;
+	stmt = db_prepare_v2(invoices->db, SQL(
 			  "DELETE FROM invoices"
 			  " WHERE state = ?"
-			  "   AND expiry_time <= ?;");
-	sqlite3_bind_int(stmt, 1, EXPIRED);
-	sqlite3_bind_int64(stmt, 2, max_expiry_time);
-	db_exec_prepared(invoices->db, stmt);
-}
-
-static void refresh_autoclean(struct invoices *invoices);
-static void trigger_autoclean(struct invoices *invoices)
-{
-	u64 now = time_now().ts.tv_sec;
-
-	invoices_delete_expired(invoices,
-				now - invoices->autoclean_expired_by);
-
-	refresh_autoclean(invoices);
-}
-static void refresh_autoclean(struct invoices *invoices)
-{
-	struct timerel rel = time_from_sec(invoices->autoclean_cycle_seconds);
-	invoices->autoclean_timer = tal_free(invoices->autoclean_timer);
-	invoices->autoclean_timer = new_reltimer(invoices->timers,
-						 invoices,
-						 rel,
-						 &trigger_autoclean,
-						 invoices);
-}
-
-void invoices_autoclean_set(struct invoices *invoices,
-			    u64 cycle_seconds,
-			    u64 expired_by)
-{
-	/* If not perform autoclean, just clear */
-	if (cycle_seconds == 0) {
-		invoices->autoclean_timer = tal_free(invoices->autoclean_timer);
-		return;
-	}
-
-	invoices->autoclean_cycle_seconds = cycle_seconds;
-	invoices->autoclean_expired_by = expired_by;
-	refresh_autoclean(invoices);
+			  "   AND expiry_time <= ?;"));
+	db_bind_int(stmt, 0, EXPIRED);
+	db_bind_u64(stmt, 1, max_expiry_time);
+	db_exec_prepared_v2(take(stmt));
 }
 
 bool invoices_iterate(struct invoices *invoices,
 		      struct invoice_iterator *it)
 {
-	sqlite3_stmt *stmt;
-	int res;
+	struct db_stmt *stmt;
+
 	if (!it->p) {
-		stmt = db_prepare(invoices->db,
-				  "SELECT state, payment_key, payment_hash"
-				  "     , label, msatoshi, expiry_time, pay_index"
-				  "     , msatoshi_received, paid_timestamp, bolt11"
-				  "  FROM invoices;");
+		stmt = db_prepare_v2(invoices->db, SQL("SELECT"
+						       "  state"
+						       ", payment_key"
+						       ", payment_hash"
+						       ", label"
+						       ", msatoshi"
+						       ", expiry_time"
+						       ", pay_index"
+						       ", msatoshi_received"
+						       ", paid_timestamp"
+						       ", bolt11"
+						       ", description"
+						       ", features"
+						       " FROM invoices"
+						       " ORDER BY id;"));
+		db_query_prepared(stmt);
 		it->p = stmt;
 	} else
 		stmt = it->p;
 
-	res = sqlite3_step(stmt);
-	if (res == SQLITE_DONE) {
-		sqlite3_finalize(stmt);
-		it->p = NULL;
-		return false;
-	} else {
-		assert(res == SQLITE_ROW);
+
+	if (db_step(stmt))
+		/* stmt doesn't need to be freed since we expect to be called
+		 * again, and stmt will be freed on the last iteration. */
 		return true;
-	}
+
+	tal_free(stmt);
+	it->p = NULL;
+	return false;
 }
-void invoices_iterator_deref(const tal_t *ctx,
-			     struct invoices *invoices UNUSED,
-			     const struct invoice_iterator *it,
-			     struct invoice_details *details)
+
+const struct invoice_details *
+invoices_iterator_deref(const tal_t *ctx, struct invoices *invoices UNUSED,
+			const struct invoice_iterator *it)
 {
 	assert(it->p);
-	wallet_stmt2invoice_details(ctx, (sqlite3_stmt*) it->p, details);
+	return wallet_stmt2invoice_details(ctx, (struct db_stmt*) it->p);
 }
 
 static s64 get_next_pay_index(struct db *db)
@@ -483,36 +493,81 @@ static s64 get_next_pay_index(struct db *db)
 	return next_pay_index;
 }
 
-
-void invoices_resolve(struct invoices *invoices,
-		      struct invoice invoice,
-		      u64 msatoshi_received)
+static enum invoice_status invoice_get_status(struct invoices *invoices, struct invoice invoice)
 {
-	sqlite3_stmt *stmt;
+	struct db_stmt *stmt;
+	enum invoice_status state;
+	bool res;
+
+	stmt = db_prepare_v2(
+	    invoices->db, SQL("SELECT state FROM invoices WHERE id = ?;"));
+	db_bind_u64(stmt, 0, invoice.id);
+	db_query_prepared(stmt);
+
+	res = db_step(stmt);
+	assert(res);
+	state = db_column_int(stmt, 0);
+	tal_free(stmt);
+	return state;
+}
+
+/* If there's an associated offer, mark it used. */
+static void maybe_mark_offer_used(struct db *db, struct invoice invoice)
+{
+	struct db_stmt *stmt;
+	struct sha256 local_offer_id;
+
+	stmt = db_prepare_v2(
+		db, SQL("SELECT local_offer_id FROM invoices WHERE id = ?;"));
+	db_bind_u64(stmt, 0, invoice.id);
+	db_query_prepared(stmt);
+
+	db_step(stmt);
+	if (db_column_is_null(stmt, 0)) {
+		tal_free(stmt);
+		return;
+	}
+	db_column_sha256(stmt, 0, &local_offer_id);
+	tal_free(stmt);
+
+	wallet_offer_mark_used(db, &local_offer_id);
+}
+
+bool invoices_resolve(struct invoices *invoices,
+		      struct invoice invoice,
+		      struct amount_msat received)
+{
+	struct db_stmt *stmt;
 	s64 pay_index;
 	u64 paid_timestamp;
+	enum invoice_status state = invoice_get_status(invoices, invoice);
+
+	if (state != UNPAID)
+		return false;
 
 	/* Assign a pay-index. */
 	pay_index = get_next_pay_index(invoices->db);
 	paid_timestamp = time_now().ts.tv_sec;
 
 	/* Update database. */
-	stmt = db_prepare(invoices->db,
-			  "UPDATE invoices"
-			  "   SET state=?"
-			  "     , pay_index=?"
-			  "     , msatoshi_received=?"
-			  "     , paid_timestamp=?"
-			  " WHERE id=?;");
-	sqlite3_bind_int(stmt, 1, PAID);
-	sqlite3_bind_int64(stmt, 2, pay_index);
-	sqlite3_bind_int64(stmt, 3, msatoshi_received);
-	sqlite3_bind_int64(stmt, 4, paid_timestamp);
-	sqlite3_bind_int64(stmt, 5, invoice.id);
-	db_exec_prepared(invoices->db, stmt);
+	stmt = db_prepare_v2(invoices->db, SQL("UPDATE invoices"
+					       "   SET state=?"
+					       "     , pay_index=?"
+					       "     , msatoshi_received=?"
+					       "     , paid_timestamp=?"
+					       " WHERE id=?;"));
+	db_bind_int(stmt, 0, PAID);
+	db_bind_u64(stmt, 1, pay_index);
+	db_bind_amount_msat(stmt, 2, &received);
+	db_bind_u64(stmt, 3, paid_timestamp);
+	db_bind_u64(stmt, 4, invoice.id);
+	db_exec_prepared_v2(take(stmt));
+
+	maybe_mark_offer_used(invoices->db, invoice);
 
 	/* Tell all the waiters about the paid invoice. */
 	trigger_invoice_waiter_resolve(invoices, invoice.id, &invoice);
+	return true;
 }
 
 /* Called when an invoice waiter is destructed. */
@@ -549,55 +604,41 @@ void invoices_waitany(const tal_t *ctx,
 		      void (*cb)(const struct invoice *, void*),
 		      void *cbarg)
 {
-	sqlite3_stmt *stmt;
+	struct db_stmt *stmt;
 	struct invoice invoice;
-	int res;
 
 	/* Look for an already-paid invoice. */
-	stmt = db_prepare(invoices->db,
-			  "SELECT id"
-			  "  FROM invoices"
-			  " WHERE pay_index NOT NULL"
-			  "   AND pay_index > ?"
-			  " ORDER BY pay_index ASC LIMIT 1;");
-	sqlite3_bind_int64(stmt, 1, lastpay_index);
+	stmt = db_prepare_v2(invoices->db,
+			     SQL("SELECT id"
+				 "  FROM invoices"
+				 " WHERE pay_index IS NOT NULL"
+				 "   AND pay_index > ?"
+				 " ORDER BY pay_index ASC LIMIT 1;"));
+	db_bind_u64(stmt, 0, lastpay_index);
+	db_query_prepared(stmt);
 
-	res = sqlite3_step(stmt);
-	if (res == SQLITE_ROW) {
-		invoice.id = sqlite3_column_int64(stmt, 0);
-		sqlite3_finalize(stmt);
+	if (db_step(stmt)) {
+		invoice.id = db_column_u64(stmt, 0);
 
 		cb(&invoice, cbarg);
-		return;
-	}
-
-	sqlite3_finalize(stmt);
-
-	/* None found. */
-	add_invoice_waiter(ctx, &invoices->waiters,
+	} else {
+		/* None found. */
+		add_invoice_waiter(ctx, &invoices->waiters,
 			   true, 0, cb, cbarg);
+	}
+	tal_free(stmt);
 }
 
 
 void invoices_waitone(const tal_t *ctx,
-		      struct invoices *invoices UNUSED,
+		      struct invoices *invoices,
 		      struct invoice invoice,
 		      void (*cb)(const struct invoice *, void*),
 		      void *cbarg)
 {
-	sqlite3_stmt *stmt;
-	int res;
 	enum invoice_status state;
 
-	stmt = db_prepare(invoices->db,
-			  "SELECT state"
-			  "  FROM invoices"
-			  " WHERE id = ?;");
-	sqlite3_bind_int64(stmt, 1, invoice.id);
-	res = sqlite3_step(stmt);
-	assert(res == SQLITE_ROW);
-	state = sqlite3_column_int(stmt, 0);
-	sqlite3_finalize(stmt);
+	state = invoice_get_status(invoices, invoice);
 
 	if (state == PAID || state == EXPIRED) {
 		cb(&invoice, cbarg);
@@ -609,58 +650,86 @@ void invoices_waitone(const tal_t *ctx,
 			   false, invoice.id, cb, cbarg);
 }
 
-void invoices_get_details(const tal_t *ctx,
-			  struct invoices *invoices,
-			  struct invoice invoice,
-			  struct invoice_details *dtl)
+const struct invoice_details *invoices_get_details(const tal_t *ctx,
+						   struct invoices *invoices,
+						   struct invoice invoice)
 {
-	sqlite3_stmt *stmt;
-	int result;
+	struct db_stmt *stmt;
+	bool res;
+	struct invoice_details *details;
 
-	stmt = db_prepare(invoices->db,
-			  "SELECT state, payment_key, payment_hash"
-			  "     , label, msatoshi, expiry_time, pay_index"
-			  "     , msatoshi_received, paid_timestamp, bolt11"
-			  "  FROM invoices"
-			  " WHERE id = ?;");
-	sqlite3_bind_int64(stmt, 1, invoice.id);
-	result = sqlite3_step(stmt);
-	assert(result == SQLITE_ROW);
+	stmt = db_prepare_v2(invoices->db, SQL("SELECT"
+					       "  state"
+					       ", payment_key"
+					       ", payment_hash"
+					       ", label"
+					       ", msatoshi"
+					       ", expiry_time"
+					       ", pay_index"
+					       ", msatoshi_received"
+					       ", paid_timestamp"
+					       ", bolt11"
+					       ", description"
+					       ", features"
+					       ", local_offer_id"
+					       " FROM invoices"
+					       " WHERE id = ?;"));
+	db_bind_u64(stmt, 0, invoice.id);
+	db_query_prepared(stmt);
+	res = db_step(stmt);
+	assert(res);
 
-	wallet_stmt2invoice_details(ctx, stmt, dtl);
-
-	sqlite3_finalize(stmt);
+	details = wallet_stmt2invoice_details(ctx, stmt);
+	tal_free(stmt);
+	return details;
 }
 
 int invoices_count(struct invoices *invoices)
 {
-	sqlite3_stmt *stmt;
+	// sqlite3_stmt *stmt;
+	struct db_stmt *stmt;
+	bool res;
 	int invoice_count;
-	stmt = db_prepare(invoices->db,
-					  "SELECT count(*)"
-					  "  FROM invoices;");
-	while (sqlite3_step(stmt) != SQLITE_DONE) {
+	// stmt = sqlite3_prepare_v2(invoices->db, "SELECT count(*) FROM invoices;", -1, &stmt, NULL);
+	// stmt = db_prepare(invoices->db, "SELECT count(*) FROM invoices;");
+	stmt = db_prepare_v2(invoices->db, SQL("SELECT count(*) FROM invoices;"));
+	db_query_prepared(stmt);
+	res = db_step(stmt);
+	assert(res);
+
+	while (!db_step(stmt)) {
 		int i;
-		int num_cols = sqlite3_column_count(stmt);
+		int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
+		// printf("num_cols: %d\n", num_cols);
+		// printf("invoice_count - before while loop: %d\n", invoice_count);
 		
-		for (i = 0; i < num_cols; i++)
-		{
-			switch (sqlite3_column_type(stmt, i))
+		if (num_cols != 0) {
+			for (i = 0; i < num_cols; i++)
 			{
-			case (SQLITE3_TEXT):
-				printf("%s, ", sqlite3_column_text(stmt, i));
-				break;
-			case (SQLITE_INTEGER):
-				invoice_count=sqlite3_column_int(stmt, i);
-				break;
-			case (SQLITE_FLOAT):
-				printf("%g, ", sqlite3_column_double(stmt, i));
-				break;
-			default:
-				break;
+				// switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
+				// {
+				// case (SQLITE3_TEXT):
+				// 	printf("%s, ", sqlite3_column_text((sqlite3_stmt *)stmt, i));
+				// 	break;
+				// case (SQLITE_INTEGER):
+				//	invoice_count=sqlite3_column_int((sqlite3_stmt *)stmt, i);
+				// 	break;
+				// case (SQLITE_FLOAT):
+				// 	printf("%g, ", sqlite3_column_double((sqlite3_stmt *)stmt, i));
+				// 	break;
+				// default:
+				// 	break;
+				// }
+				
+				// invoice_count=db_column_int(stmt, i);
+				invoice_count=db_column_int_or_default(stmt, i, 0);
 			}
+		} else {
+			invoice_count = 0;
 		}
 	}
-		sqlite3_finalize(stmt);
+	// printf("invoice_count - after while loop: %d\n", invoice_count);
+	// sqlite3_finalize((sqlite3_stmt *)stmt);
+	tal_free(stmt);
 	return invoice_count;
 }

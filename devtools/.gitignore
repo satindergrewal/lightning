@@ -1,3 +1,15 @@
 bolt11-cli
 decodemsg
 onion
+dump-gossipstore
+gossipwith
+mkcommit
+mkfunding
+mkclose
+mkgossip
+mkencoded
+create-gossipstore 
+checkchannels 
+mkquery 
+lightning-checkmessage 
+blindedpath

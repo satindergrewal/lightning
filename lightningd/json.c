@@ -1,135 +1,105 @@
-#include "json.h"
 #include <arpa/inet.h>
+#include <bitcoin/address.h>
+#include <bitcoin/base58.h>
+#include <bitcoin/script.h>
+#include <ccan/json_escape/json_escape.h>
+#include <ccan/mem/mem.h>
 #include <ccan/str/hex/hex.h>
+#include <ccan/tal/str/str.h>
+#include <common/bech32.h>
+#include <common/channel_id.h>
 #include <common/json.h>
+#include <common/json_command.h>
+#include <common/json_helpers.h>
+#include <common/jsonrpc_errors.h>
+#include <common/memleak.h>
+#include <common/param.h>
 #include <common/type_to_string.h>
-#include <common/wireaddr.h>
+#include <common/utils.h>
 #include <gossipd/routing.h>
+#include <lightningd/chaintopology.h>
+#include <lightningd/jsonrpc.h>
 #include <lightningd/options.h>
 #include <sys/socket.h>
-#include <wallet/wallet.h>
+#include <wire/wire.h>
 
-/* Output a route hop */
-static void
-json_add_route_hop(struct json_result *r, char const *n,
-		   const struct route_hop *h)
+struct command_result *param_pubkey(struct command *cmd, const char *name,
+				    const char *buffer, const jsmntok_t *tok,
+				    struct pubkey **pubkey)
 {
-	/* Imitate what getroute/sendpay use */
-	json_object_start(r, n);
-	json_add_pubkey(r, "id", &h->nodeid);
-	json_add_short_channel_id(r, "channel",
-				  &h->channel_id);
-	json_add_u64(r, "msatoshi", h->amount);
-	json_add_num(r, "delay", h->delay);
-	json_object_end(r);
+	*pubkey = tal(cmd, struct pubkey);
+	if (json_to_pubkey(buffer, tok, *pubkey))
+		return NULL;
+
+	return command_fail_badparam(cmd, name, buffer, tok,
+				     "should be a compressed pubkey");
 }
 
-/* Output a route */
-void
-json_add_route(struct json_result *r, char const *n,
-	       const struct route_hop *hops, size_t hops_len)
+struct command_result *param_short_channel_id(struct command *cmd,
+					      const char *name,
+					      const char *buffer,
+					      const jsmntok_t *tok,
+					      struct short_channel_id **scid)
 {
-	size_t i;
-	json_array_start(r, n);
-	for (i = 0; i < hops_len; ++i) {
-		json_add_route_hop(r, NULL, &hops[i]);
+	*scid = tal(cmd, struct short_channel_id);
+	if (json_to_short_channel_id(buffer, tok, *scid))
+		return NULL;
+
+	return command_fail_badparam(cmd, name, buffer, tok,
+				     "should be a short_channel_id of form NxNxN");
+}
+
+struct command_result *param_feerate_style(struct command *cmd,
+					   const char *name,
+					   const char *buffer,
+					   const jsmntok_t *tok,
+					   enum feerate_style **style)
+{
+	*style = tal(cmd, enum feerate_style);
+	if (json_tok_streq(buffer, tok,
+			   feerate_style_name(FEERATE_PER_KSIPA))) {
+		**style = FEERATE_PER_KSIPA;
+		return NULL;
+	} else if (json_tok_streq(buffer, tok,
+				  feerate_style_name(FEERATE_PER_KBYTE))) {
+		**style = FEERATE_PER_KBYTE;
+		return NULL;
 	}
-	json_array_end(r);
+
+	return command_fail(cmd, JSONRPC2_INVALID_PARAMS,
+			    "'%s' should be '%s' or '%s', not '%.*s'",
+			    name,
+			    feerate_style_name(FEERATE_PER_KSIPA),
+			    feerate_style_name(FEERATE_PER_KBYTE),
+			    json_tok_full_len(tok), json_tok_full(buffer, tok));
 }
 
-/* Outputs fields, not a separate object*/
-void
-json_add_payment_fields(struct json_result *response,
-			const struct wallet_payment *t)
+struct command_result *param_feerate(struct command *cmd, const char *name,
+				     const char *buffer, const jsmntok_t *tok,
+				     u32 **feerate)
 {
-	json_add_u64(response, "id", t->id);
-	json_add_hex(response, "payment_hash", &t->payment_hash, sizeof(t->payment_hash));
-	json_add_pubkey(response, "destination", &t->destination);
-	json_add_u64(response, "msatoshi", t->msatoshi);
-	json_add_u64(response, "msatoshi_sent", t->msatoshi_sent);
-	if (deprecated_apis)
-		json_add_u64(response, "timestamp", t->timestamp);
-	json_add_u64(response, "created_at", t->timestamp);
-
-	switch (t->status) {
-	case PAYMENT_PENDING:
-		json_add_string(response, "status", "pending");
-		break;
-	case PAYMENT_COMPLETE:
-		json_add_string(response, "status", "complete");
-		break;
-	case PAYMENT_FAILED:
-		json_add_string(response, "status", "failed");
-		break;
+	for (size_t i = 0; i < NUM_FEERATES; i++) {
+		if (json_tok_streq(buffer, tok, feerate_name(i)))
+			return param_feerate_estimate(cmd, feerate, i);
 	}
-	if (t->payment_preimage)
-		json_add_hex(response, "payment_preimage",
-			     t->payment_preimage,
-			     sizeof(*t->payment_preimage));
+	/* We used SLOW, NORMAL, and URGENT as feerate targets previously,
+	 * and many commands rely on this syntax now.
+	 * It's also really more natural for an user interface. */
+	if (json_tok_streq(buffer, tok, "slow"))
+		return param_feerate_estimate(cmd, feerate, FEERATE_MIN);
+	else if (json_tok_streq(buffer, tok, "normal"))
+		return param_feerate_estimate(cmd, feerate, FEERATE_OPENING);
+	else if (json_tok_streq(buffer, tok, "urgent"))
+		return param_feerate_estimate(cmd, feerate, FEERATE_UNILATERAL_CLOSE);
+
+	/* It's a number... */
+	return param_feerate_val(cmd, name, buffer, tok, feerate);
 }
 
-void json_add_pubkey(struct json_result *response,
-		     const char *fieldname,
-		     const struct pubkey *key)
+bool
+json_tok_channel_id(const char *buffer, const jsmntok_t *tok,
+		    struct channel_id *cid)
 {
-	u8 der[PUBKEY_DER_LEN];
-
-	pubkey_to_der(der, key);
-	json_add_hex(response, fieldname, der, sizeof(der));
+	return hex_decode(buffer + tok->start, tok->end - tok->start,
+			  cid, sizeof(*cid));
 }
-
-void json_add_txid(struct json_result *result, const char *fieldname,
-		   const struct bitcoin_txid *txid)
-{
-	char hex[hex_str_size(sizeof(*txid))];
-
-	bitcoin_txid_to_hex(txid, hex, sizeof(hex));
-	json_add_string(result, fieldname, hex);
-}
-
-bool json_tok_pubkey(const char *buffer, const jsmntok_t *tok,
-		     struct pubkey *pubkey)
-{
-	return pubkey_from_hexstr(buffer + tok->start,
-				  tok->end - tok->start, pubkey);
-}
-
-void json_add_short_channel_id(struct json_result *response,
-			       const char *fieldname,
-			       const struct short_channel_id *id)
-{
-	json_add_string(response, fieldname,
-			type_to_string(response, struct short_channel_id, id));
-}
-
-bool json_tok_short_channel_id(const char *buffer, const jsmntok_t *tok,
-			       struct short_channel_id *scid)
-{
-	return short_channel_id_from_str(buffer + tok->start,
-					 tok->end - tok->start,
-					 scid);
-}
-
-void json_add_address(struct json_result *response, const char *fieldname,
-		      const struct wireaddr *addr)
-{
-	/* No need to print padding */
-	if (addr->type == ADDR_TYPE_PADDING)
-		return;
-
-	json_object_start(response, fieldname);
-	char *addrstr = tal_arr(response, char, INET6_ADDRSTRLEN);
-	if (addr->type == ADDR_TYPE_IPV4) {
-		inet_ntop(AF_INET, addr->addr, addrstr, INET_ADDRSTRLEN);
-		json_add_string(response, "type", "ipv4");
-		json_add_string(response, "address", addrstr);
-		json_add_num(response, "port", addr->port);
-	} else if (addr->type == ADDR_TYPE_IPV6) {
-		inet_ntop(AF_INET6, addr->addr, addrstr, INET6_ADDRSTRLEN);
-		json_add_string(response, "type", "ipv6");
-		json_add_string(response, "address", addrstr);
-		json_add_num(response, "port", addr->port);
-	}
-	json_object_end(response);
-}
-

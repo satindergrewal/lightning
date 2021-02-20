@@ -8,6 +8,7 @@
 #include <ccan/tal/str/str.h>
 #include <common/configdir.h>
 #include <common/json.h>
+#include <common/utils.h>
 #include <common/version.h>
 #include <stdio.h>
 #include <sys/socket.h>
@@ -26,7 +27,7 @@
 /* Tal wrappers for opt. */
 static void *opt_allocfn(size_t size)
 {
-    return tal_alloc_(NULL, size, false, false,
+    return tal_alloc_(NULL, size, false,
                       TAL_LABEL("opt_allocfn", ""));
 }
 
@@ -73,7 +74,7 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
     err_set_progname(argv[0]);
     
     opt_set_alloc(opt_allocfn, tal_reallocfn, tal_freefn);
-    configdir_register_opts(ctx, &lightning_dir, &rpc_filename);
+    initial_config_opts(ctx, 0, NULL, NULL, &lightning_dir, NULL, &rpc_filename);
     
     opt_register_noarg("--help|-h", opt_usage_and_exit,
                        "<command> [<params>...]", "Show this message");
@@ -163,10 +164,13 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
         return 0;
     }
     
-    toks = json_parse_input(resp, off, &valid);
-    if (!toks || !valid)
+    bool ok;
+    jsmn_parser parser;
+    ok = json_parse_input(&parser, &toks, resp, off, &valid);
+    if (!ok || !valid)
         errx(ERROR_TALKING_TO_LIGHTNINGD,
              "Malformed response '%s'", resp);
+    toks = json_parse_simple(tmpctx, resp, strlen(resp));
     
     if (toks->type != JSMN_OBJECT)
         errx(ERROR_TALKING_TO_LIGHTNINGD,
@@ -184,26 +188,26 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
     if (!json_tok_streq(resp, id, idstr))
         errx(ERROR_TALKING_TO_LIGHTNINGD,
              "Incorrect 'id' in response: %.*s",
-             json_tok_len(id), json_tok_contents(resp, id));
+             json_tok_full_len(id), json_tok_full(resp, id));
     
     /*if (!error || json_tok_is_null(resp, error)) {
         printf("%.*s\n",
-               json_tok_len(result),
-               json_tok_contents(resp, result));
+               json_tok_full_len(result),
+               json_tok_full(resp, result));
         tal_free(ctx);
         return 0;
     }
     
     printf("%.*s\n",
-           json_tok_len(error), json_tok_contents(resp, error));
+           json_tok_full_len(error), json_tok_full(resp, error));
     tal_free(ctx);
     return 1;*/
     
     if (!error || json_tok_is_null(resp, error)) {
-        if ( strlen(json_tok_contents(resp, result)) < maxsize )
-            sprintf(buffer,"%.*s\n",json_tok_len(result), json_tok_contents(resp, result));
+        if ( strlen(json_tok_full(resp, result)) < maxsize )
+            sprintf(buffer,"%.*s\n",json_tok_full_len(result), json_tok_full(resp, result));
         else strcpy(buffer,"{\"error\":\"return too big\"}");
-        //printf("%.*s\n",json_tok_len(result),json_tok_contents(resp, result));
+        //printf("%.*s\n",json_tok_full_len(result),json_tok_full(resp, result));
        /*if(ctx) {
 			tal_free(ctx);
 		}
@@ -211,8 +215,8 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[])
         close(fd);
         return 0;
     }
-    if ( strlen(json_tok_contents(resp, error)) < maxsize )
-        sprintf(buffer,"%.*s\n",json_tok_len(error), json_tok_contents(resp, error));
+    if ( strlen(json_tok_full(resp, error)) < maxsize )
+        sprintf(buffer,"%.*s\n",json_tok_full_len(error), json_tok_full(resp, error));
     else strcpy(buffer,"{\"error\":\"return too big\"}");
 	/*if(ctx) {
 		tal_free(ctx);
@@ -381,19 +385,19 @@ int cli_main(char *buffer,int32_t maxsize,int argc, char *argv[],char *cmd)
 	if (!json_tok_streq(resp, id, idstr))
 		errx(ERROR_TALKING_TO_LIGHTNINGD,
 		     "Incorrect 'id' in response: %.*s",
-		     json_tok_len(id), json_tok_contents(resp, id));
+		     json_tok_full_len(id), json_tok_full(resp, id));
 
 	if (!error || json_tok_is_null(resp, error)) {
-        if ( strlen(json_tok_contents(resp, result)) < maxsize )
-            sprintf(buffer,"%.*s\n",json_tok_len(result), json_tok_contents(resp, result));
+        if ( strlen(json_tok_full(resp, result)) < maxsize )
+            sprintf(buffer,"%.*s\n",json_tok_full_len(result), json_tok_full(resp, result));
         else strcpy(buffer,"{\"error\":\"return too big\"}");
-		//printf("%.*s\n",json_tok_len(result),json_tok_contents(resp, result));
+		//printf("%.*s\n",json_tok_full_len(result),json_tok_full(resp, result));
 		tal_free(ctx);
         close(fd);
         return 0;
 	}
-    if ( strlen(json_tok_contents(resp, error)) < maxsize )
-        sprintf(buffer,"%.*s\n",json_tok_len(error), json_tok_contents(resp, error));
+    if ( strlen(json_tok_full(resp, error)) < maxsize )
+        sprintf(buffer,"%.*s\n",json_tok_full_len(error), json_tok_full(resp, error));
     else strcpy(buffer,"{\"error\":\"return too big\"}");
 	tal_free(ctx);
     close(fd);

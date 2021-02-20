@@ -5,54 +5,50 @@
 #ifndef LIGHTNING_LIGHTNINGD_JSON_H
 #define LIGHTNING_LIGHTNINGD_JSON_H
 #include "config.h"
+#include <bitcoin/feerate.h>
+#include <bitcoin/privkey.h>
+#include <ccan/short_types/short_types.h>
+#include <ccan/tal/tal.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define JSMN_STRICT 1
 # include <external/jsmn/jsmn.h>
 
 struct bitcoin_txid;
-struct json_result;
+struct chainparams;
+struct channel_id;
+struct command;
+struct json_escape;
 struct pubkey;
-struct route_hop;
+struct node_id;
 struct short_channel_id;
-struct wallet_payment;
-struct wireaddr;
 
-/* Output a route array. */
-void json_add_route(struct json_result *r, char const *n,
-		    const struct route_hop *hops, size_t hops_len);
+struct command_result *param_pubkey(struct command *cmd, const char *name,
+				    const char *buffer, const jsmntok_t *tok,
+				    struct pubkey **pubkey);
 
-/* Output the fields of a wallet payment.
- * Should be used within an object context. */
-void json_add_payment_fields(struct json_result *response,
-			     const struct wallet_payment *t);
+struct command_result *param_short_channel_id(struct command *cmd,
+					      const char *name,
+					      const char *buffer,
+					      const jsmntok_t *tok,
+					      struct short_channel_id **scid);
 
-/* '"fieldname" : "0289abcdef..."' or "0289abcdef..." if fieldname is NULL */
-void json_add_pubkey(struct json_result *response,
-		     const char *fieldname,
-		     const struct pubkey *key);
+/* Extract a feerate style. */
+struct command_result *param_feerate_style(struct command *cmd,
+					   const char *name,
+					   const char *buffer,
+					   const jsmntok_t *tok,
+					   enum feerate_style **style);
 
-/* '"fieldname" : <hexrev>' or "<hexrev>" if fieldname is NULL */
-void json_add_txid(struct json_result *result, const char *fieldname,
-		   const struct bitcoin_txid *txid);
+const char *json_feerate_style_name(enum feerate_style style);
 
-/* Extract a pubkey from this */
-bool json_tok_pubkey(const char *buffer, const jsmntok_t *tok,
-		     struct pubkey *pubkey);
+/* Extract a feerate with optional style suffix. */
+struct command_result *param_feerate(struct command *cmd, const char *name,
+				     const char *buffer, const jsmntok_t *tok,
+				     u32 **feerate);
 
-/* Extract a short_channel_id from this */
-bool json_tok_short_channel_id(const char *buffer, const jsmntok_t *tok,
-			       struct short_channel_id *scid);
-
-/* '"fieldname" : "1234:5:6"' */
-void json_add_short_channel_id(struct json_result *response,
-			       const char *fieldname,
-			       const struct short_channel_id *id);
-
-/* JSON serialize a network address for a node */
-void json_add_address(struct json_result *response, const char *fieldname,
-		      const struct wireaddr *addr);
-
-
+bool json_tok_channel_id(const char *buffer, const jsmntok_t *tok,
+			 struct channel_id *cid);
 #endif /* LIGHTNING_LIGHTNINGD_JSON_H */

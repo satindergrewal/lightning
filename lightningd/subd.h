@@ -11,11 +11,18 @@
 
 struct crypto_state;
 struct io_conn;
+struct per_peer_state;
 
 /* By convention, replies are requests + 100 */
 #define SUBD_REPLY_OFFSET 100
 /* And reply failures are requests + 200 */
 #define SUBD_REPLYFAIL_OFFSET 200
+
+enum channel_type {
+	UNCOMMITTED,
+	CHANNEL,
+	NONE,
+};
 
 /* One of our subds. */
 struct subd {
@@ -30,23 +37,24 @@ struct subd {
 
 	/* If we are associated with a single channel, this points to it. */
 	void *channel;
+	enum channel_type ctype;
 
 	/* For logging */
 	struct log *log;
+	const struct node_id *node_id;
 
 	/* Callback when non-reply message comes in (inside db transaction) */
 	unsigned (*msgcb)(struct subd *, const u8 *, const int *);
 	const char *(*msgname)(int msgtype);
 
-	/* If peer_fd == -1, it was a disconnect/crash.  Otherwise,
+	/* If per_peer_state == NULL, it was a disconnect/crash.  Otherwise,
 	 * sufficient information to hand back to gossipd, including the
 	 * error message we sent them if any. */
 	void (*errcb)(void *channel,
-		      int peer_fd, int gossip_fd,
-		      const struct crypto_state *cs,
-		      u64 gossip_index,
+		      struct per_peer_state *pps,
 		      const struct channel_id *channel_id,
 		      const char *desc,
+		      bool warning,
 		      const u8 *err_for_them);
 
 	/* Callback to display information for listpeers RPC */
@@ -62,8 +70,11 @@ struct subd {
 	/* For global daemons: we fail if they fail. */
 	bool must_not_exit;
 
+	/* Do we talk to a peer?  ie. not onchaind */
+	bool talks_to_peer;
+
 	/* Messages queue up here. */
-	struct msg_queue outq;
+	struct msg_queue *outq;
 
 	/* Callbacks for replies. */
 	struct list_head reqs;
@@ -74,7 +85,7 @@ struct subd {
  * @ld: global state
  * @name: basename of daemon
  * @msgname: function to get name from messages
- * @msgcb: function to call (inside db transaction) when non-fatal message received (or NULL)
+ * @msgcb: function to call (inside db transaction) when non-fatal message received
  * @...: NULL-terminated list of pointers to  fds to hand as fd 3, 4...
  *	(can be take, if so, set to -1)
  *
@@ -94,6 +105,8 @@ struct subd *new_global_subd(struct lightningd *ld,
  * @ld: global state
  * @name: basename of daemon
  * @channel: channel to associate.
+ * @ctype: type of @channel struct.
+ * @node_id: node_id of peer, for logging.
  * @base_log: log to use (actually makes a copy so it has name in prefix)
  * @msgname: function to get name from messages
  * @msgcb: function to call (inside db transaction) when non-fatal message received (or NULL)
@@ -109,40 +122,64 @@ struct subd *new_global_subd(struct lightningd *ld,
 struct subd *new_channel_subd_(struct lightningd *ld,
 			       const char *name,
 			       void *channel,
+			       enum channel_type ctype,
+			       const struct node_id *node_id,
 			       struct log *base_log,
+			       bool talks_to_peer,
 			       const char *(*msgname)(int msgtype),
 			       unsigned int (*msgcb)(struct subd *, const u8 *,
 						     const int *fds),
 			       void (*errcb)(void *channel,
-					     int peer_fd, int gossip_fd,
-					     const struct crypto_state *cs,
-					     u64 gossip_index,
+					     struct per_peer_state *pps,
 					     const struct channel_id *channel_id,
 					     const char *desc,
+					     bool warning,
 					     const u8 *err_for_them),
 			       void (*billboardcb)(void *channel, bool perm,
 						   const char *happenings),
 			       ...);
 
-#define new_channel_subd(ld, name, channel, log, msgname, \
-			 msgcb, errcb, billboardcb, ...)		\
-	new_channel_subd_((ld), (name), (channel), (log), (msgname), (msgcb), \
+#define new_channel_subd(ld, name, channel, ctype, node_id, log, 	\
+			 talks_to_peer, msgname, msgcb, errcb, 		\
+			 billboardcb, ...)				\
+	new_channel_subd_((ld), (name), (channel), (ctype), (node_id), 	\
+			  (log), (talks_to_peer),			\
+			  (msgname), (msgcb),				\
 			  typesafe_cb_postargs(void, void *, (errcb),	\
-					       (channel), int, int,	\
-					       const struct crypto_state *, \
-					       u64,			\
+					       (channel),		\
+					       struct per_peer_state *,	\
 					       const struct channel_id *, \
-					       const char *, const u8 *), \
+					       const char *, bool, const u8 *), \
 			  typesafe_cb_postargs(void, void *, (billboardcb), \
 					       (channel), bool,		\
 					       const char *),		\
 			  __VA_ARGS__)
-/**
- * subd_raw - raw interface to get a subdaemon on an fd (for HSM)
- * @ld: global state
- * @name: basename of daemon
- */
-int subd_raw(struct lightningd *ld, const char *name);
+
+/* subd_swap_channel - Swap the daemon's channel out */
+#define subd_swap_channel(subd, channel, ctype, errcb, billboardcb)	\
+	subd_swap_channel_((subd), (channel), (ctype),			\
+			   typesafe_cb_postargs(void, void *,		\
+						(errcb),		\
+						(channel),		\
+						struct per_peer_state *,\
+						const struct channel_id *, \
+						const char *, bool,	\
+						const u8 *),		\
+			   typesafe_cb_postargs(void, void *, (billboardcb), \
+						(channel), bool,	\
+						const char *))
+
+void subd_swap_channel_(struct subd *daemon, void *channel,
+			enum channel_type ctype,
+			void (*errcb)(void *channel,
+				      struct per_peer_state *pps,
+				      const struct channel_id *channel_id,
+				      const char *desc,
+				      bool warning,
+				      const u8 *err_for_them),
+			void (*billboardcb)(void *channel, bool perm,
+					    const char *happenings));
+
 
 /**
  * subd_send_msg - queue a message to the subdaemon.
@@ -203,11 +240,17 @@ void subd_release_channel(struct subd *owner, void *channel);
  *
  * This closes the fd to the subdaemon, and gives it a little while to exit.
  * The @finished callback will never be called.
+ *
+ * Return value is null, so pattern should be:
+ *
+ * sd = subd_shutdown(sd, 10);
  */
-void subd_shutdown(struct subd *subd, unsigned int seconds);
+struct subd *subd_shutdown(struct subd *subd, unsigned int seconds);
+
+/* Ugly helper to get full pathname of the current binary. */
+const char *find_my_abspath(const tal_t *ctx, const char *argv0);
 
 #if DEVELOPER
-char *opt_subd_debug(const char *optarg, struct lightningd *ld);
 char *opt_subd_dev_disconnect(const char *optarg, struct lightningd *ld);
 
 bool dev_disconnect_permanent(struct lightningd *ld);
