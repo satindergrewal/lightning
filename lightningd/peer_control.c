@@ -2586,9 +2586,11 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 	const jsmntok_t *idtok;
 	char buf[100];
 	// struct db_stmt *stmt,*stmt1;;
-	sqlite3_stmt *stmt,*stmt1;
+	// sqlite3_stmt *stmt,*stmt1;
+	sqlite3_stmt *stmt;
 	int channel_state=-1,peer_exits;
-	int err, err1;
+	// int err, err1;
+	int err;
 	
 	if (!param(cmd, buffer, params,
 		p_req("id", param_tok, &idtok),
@@ -2608,6 +2610,7 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 	buf[idtok->end - idtok->start]='\0';
 	printf("-----------\n");
 	printf("buf %s\n", buf);
+	printf("channel_state %s\n", channel_state);
 	printf("-----------\n");
 	/*stmt = db_prepare(cmd->ld->wallet->db,
 						  "SELECT COALESCE(sum(state),0)"
