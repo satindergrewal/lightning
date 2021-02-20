@@ -2723,10 +2723,13 @@ static struct command_result *json_peer_test(struct command *cmd,
 
 	response = json_stream_success(cmd);
 
-	// printf("db filename: %s\n", cmd->ld->wallet->db->filename);
+	printf("db filename: %s\n", cmd->ld->wallet->db);
 
 	memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
 	buf[idtok->end - idtok->start]='\0';
+	printf("-----------\n",;
+	printf("buf %s\n", buf);
+	printf("-----------\n",;
 	/*stmt = db_prepare(cmd->ld->wallet->db,
 						  "SELECT COALESCE(sum(state),0)"
 						  " FROM channels"
