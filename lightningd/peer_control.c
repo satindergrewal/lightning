@@ -2610,7 +2610,7 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 	buf[idtok->end - idtok->start]='\0';
 	printf("-----------\n");
 	printf("buf %s\n", buf);
-	printf("channel_state %s\n", channel_state);
+	printf("channel_state %d\n", channel_state);
 	printf("-----------\n");
 	/*stmt = db_prepare(cmd->ld->wallet->db,
 						  "SELECT COALESCE(sum(state),0)"
