@@ -2606,6 +2606,9 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 
 	memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
 	buf[idtok->end - idtok->start]='\0';
+	printf("-----------\n");
+	printf("buf %s\n", buf);
+	printf("-----------\n");
 	/*stmt = db_prepare(cmd->ld->wallet->db,
 						  "SELECT COALESCE(sum(state),0)"
 						  " FROM channels"
@@ -2638,7 +2641,7 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 		}
 	}
 	sqlite3_finalize((sqlite3_stmt *)stmt);
-	json_object_start(response, NULL);
+	// json_object_start(response, NULL);
 	json_array_start(response,"channel-states");
 	if(peer_exits == 0)
 	{
@@ -2678,8 +2681,9 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 			sqlite3_finalize((sqlite3_stmt *)stmt1);
 		
 	}
+	printf("peer_exits: %d\n", peer_exits);
 	json_array_end(response);
-	json_object_end(response);
+	// json_object_end(response);
 	// command_success(cmd, response);
 	return command_success(cmd, response);
 }
