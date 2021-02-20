@@ -2862,7 +2862,7 @@ static struct command_result *json_peer_test2(struct command *cmd,
 					       const jsmntok_t *obj UNNEEDED,
 					       const jsmntok_t *params)
 {
-	struct json_escape *label;
+	// struct json_escape *label;
 	struct json_stream *response;
 	int invoice_count;
 
