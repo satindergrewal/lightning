@@ -2766,13 +2766,13 @@ static struct command_result *json_peer_test(struct command *cmd,
 	printf("peer_exits: %d\n", peer_exits);
 	// sqlite3_finalize((sqlite3_stmt *)stmt);
 	// tal_free(stmt);
-	json_object_start(response, NULL);
-	json_array_start(response,"channel-states");
+	// json_object_start(response, NULL);
+	// json_array_start(response,"channel-states");
 	if(peer_exits == 0)
 	{
-		// json_object_start(response,NULL);
+		json_object_start(response,NULL);
 		json_add_num(response, "channel-state", 0);
-		// json_object_end(response);
+		json_object_end(response);
 	}
 	// else {
 	// 	json_object_start(response,NULL);
@@ -2812,8 +2812,8 @@ static struct command_result *json_peer_test(struct command *cmd,
 	// 		tal_free(stmt1);
 		
 	// }
-	json_array_end(response);
-	json_object_end(response);
+	// json_array_end(response);
+	// json_object_end(response);
 	return command_success(cmd, response);
 }
 
