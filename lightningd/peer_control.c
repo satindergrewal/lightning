@@ -64,7 +64,6 @@
 #include <wire/onion_wire.h>
 #include <wire/wire_sync.h>
 #include <stdio.h>
-#include "invoice.h"
 
 struct close_command {
 	/* Inside struct lightningd close_commands. */
@@ -2867,10 +2866,10 @@ static struct command_result *json_peer_test2(struct command *cmd,
 	struct json_stream *response;
 	int invoice_count;
 
-	if (!param(cmd, buffer, params,
-		   p_opt("label", param_label, &label),
-		   NULL))
-		return command_param_failed();
+	// if (!param(cmd, buffer, params,
+	// 	   p_opt("label", param_label, &label),
+	// 	   NULL))
+	// 	return command_param_failed();
 
 	response = json_stream_success(cmd);
 	invoice_count=ld_peer_test2(cmd->ld);
