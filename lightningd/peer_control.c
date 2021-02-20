@@ -2738,34 +2738,34 @@ static struct command_result *json_peer_test(struct command *cmd,
 						  "  FROM peers"
 						  "  WHERE lower(hex(node_id))=?);");*/
 	// res = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;",-1, &stmt, NULL);
-	stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT count(*) FROM blocks;"));
-	db_query_prepared(stmt);
-	res = db_step(stmt);
-	assert(res);
-	// sqlite3_bind_text((sqlite3_stmt *)stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
-	// db_bind_text(stmt, 1, buf);
+	// stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT count(*) FROM blocks;"));
+	// db_query_prepared(stmt);
+	// res = db_step(stmt);
+	// assert(res);
+	// // sqlite3_bind_text((sqlite3_stmt *)stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
+	// // db_bind_text(stmt, 1, buf);
 	
-	while (!db_step(stmt)) {
-		int i;
-		int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
-		printf("num_cols: %d\n", num_cols);
+	// while (!db_step(stmt)) {
+	// 	int i;
+	// 	int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
+	// 	printf("num_cols: %d\n", num_cols);
 		
-		for (i = 0; i < num_cols; i++)
-		{
-			// switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
-			// {
-			// case (SQLITE_INTEGER):
-			// 	peer_exits=sqlite3_column_int((sqlite3_stmt *)stmt, i);
-			// 	break;
-			// default:
-			// 	break;
-			// }
-			peer_exits=db_column_int_or_default(stmt, i, 0);
-		}
-	}
+	// 	for (i = 0; i < num_cols; i++)
+	// 	{
+	// 		// switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
+	// 		// {
+	// 		// case (SQLITE_INTEGER):
+	// 		// 	peer_exits=sqlite3_column_int((sqlite3_stmt *)stmt, i);
+	// 		// 	break;
+	// 		// default:
+	// 		// 	break;
+	// 		// }
+	// 		peer_exits=db_column_int_or_default(stmt, i, 0);
+	// 	}
+	// }
 	printf("peer_exits: %d\n", peer_exits);
 	// sqlite3_finalize((sqlite3_stmt *)stmt);
-	tal_free(stmt);
+	// tal_free(stmt);
 	json_object_start(response, NULL);
 	json_array_start(response,"channel-states");
 	if(peer_exits == 0)
