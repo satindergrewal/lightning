@@ -1583,34 +1583,34 @@ static const struct json_command createinvoice_command = {
 };
 AUTODATA(json_command, &createinvoice_command);
 
-// static struct command_result *json_invoice_count(struct command *cmd,
-// 					       const char *buffer,
-// 					       const jsmntok_t *obj UNNEEDED,
-// 					       const jsmntok_t *params)
-// {
-// 	struct json_escape *label;
-// 	struct json_stream *response;
-// 	int invoice_count;
+static struct command_result *json_invoice_count(struct command *cmd,
+					       const char *buffer,
+					       const jsmntok_t *obj UNNEEDED,
+					       const jsmntok_t *params)
+{
+	struct json_escape *label;
+	struct json_stream *response;
+	int invoice_count;
 
-// 	if (!param(cmd, buffer, params,
-// 		   p_opt("label", param_label, &label),
-// 		   NULL))
-// 		return command_param_failed();
+	if (!param(cmd, buffer, params,
+		   p_opt("label", param_label, &label),
+		   NULL))
+		return command_param_failed();
 
-// 	response = json_stream_success(cmd);
-// 	invoice_count=wallet_invoice_count(cmd->ld->wallet);
-// 	// printf("invoice_count - at command fn: %d\n", invoice_count);
+	response = json_stream_success(cmd);
+	invoice_count=wallet_invoice_count(cmd->ld->wallet);
+	// printf("invoice_count - at command fn: %d\n", invoice_count);
 	
-// 	// json_object_start(response, NULL);
-// 	json_add_num(response,"invoice count",invoice_count);
-// 	// json_object_end(response);
-// 	return command_success(cmd, response);
-// }
+	// json_object_start(response, NULL);
+	json_add_num(response,"invoice count",invoice_count);
+	// json_object_end(response);
+	return command_success(cmd, response);
+}
 
-// static const struct json_command bet_command = {
-// 	"invoice-count",
-// 	"payment",
-// 	json_invoice_count,
-// 	"Gives the count of the invoices"
-// };
-// AUTODATA(json_command, &bet_command);
+static const struct json_command bet_command = {
+	"invoice-count",
+	"payment",
+	json_invoice_count,
+	"Gives the count of the invoices"
+};
+AUTODATA(json_command, &bet_command);

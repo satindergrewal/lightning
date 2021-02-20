@@ -2723,6 +2723,8 @@ static struct command_result *json_peer_test(struct command *cmd,
 
 	response = json_stream_success(cmd);
 
+	// printf("db filename: %s\n", cmd->ld->wallet->db->filename);
+
 	memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
 	buf[idtok->end - idtok->start]='\0';
 	/*stmt = db_prepare(cmd->ld->wallet->db,
@@ -2818,6 +2820,74 @@ static const struct json_command peer_test = {
 	"Find the state of the channel with the peer {id}"
 };
 AUTODATA(json_command, &peer_test);
+
+
+int ld_peer_test2(struct lightningd *ld)
+{
+	// sqlite3_stmt *stmt;
+	struct db_stmt *stmt;
+	bool res;
+	int invoice_count;
+	// stmt = sqlite3_prepare_v2(invoices->db, "SELECT count(*) FROM invoices;", -1, &stmt, NULL);
+	// stmt = db_prepare(invoices->db, "SELECT count(*) FROM invoices;");
+	stmt = db_prepare_v2(ld->wallet->db, SQL("SELECT count(*) FROM invoices;"));
+	db_query_prepared(stmt);
+	res = db_step(stmt);
+	assert(res);
+
+	while (!db_step(stmt)) {
+		int i;
+		int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
+		// printf("num_cols: %d\n", num_cols);
+		// printf("invoice_count - before while loop: %d\n", invoice_count);
+		
+		if (num_cols != 0) {
+			for (i = 0; i < num_cols; i++)
+			{				
+				// invoice_count=db_column_int(stmt, i);
+				invoice_count=db_column_int_or_default(stmt, i, 0);
+			}
+		} else {
+			invoice_count = 0;
+		}
+	}
+	// printf("invoice_count - after while loop: %d\n", invoice_count);
+	// sqlite3_finalize((sqlite3_stmt *)stmt);
+	tal_free(stmt);
+	return invoice_count;
+}
+
+static struct command_result *json_peer_test2(struct command *cmd,
+					       const char *buffer,
+					       const jsmntok_t *obj UNNEEDED,
+					       const jsmntok_t *params)
+{
+	struct json_escape *label;
+	struct json_stream *response;
+	int invoice_count;
+
+	if (!param(cmd, buffer, params,
+		   p_opt("label", param_label, &label),
+		   NULL))
+		return command_param_failed();
+
+	response = json_stream_success(cmd);
+	invoice_count=ld_peer_test2(cmd->ld);
+	// printf("invoice_count - at command fn: %d\n", invoice_count);
+	
+	// json_object_start(response, NULL);
+	json_add_num(response,"invoice count",invoice_count);
+	// json_object_end(response);
+	return command_success(cmd, response);
+}
+
+static const struct json_command peer_test2 = {
+	"peer-test2",
+	"payment",
+	json_peer_test2,
+	"Gives the count of the invoices"
+};
+AUTODATA(json_command, &peer_test2);
 
 // static void json_check_if_peer_exits(struct command *cmd, const char *buffer,
 // 				    const jsmntok_t *params)
