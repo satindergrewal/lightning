@@ -2700,7 +2700,7 @@ static struct command_result *json_peer_test(struct command *cmd,
 {
 	struct node_id *id;
 	struct json_stream *response;
-	const jsmntok_t *idtok;
+	// const jsmntok_t *idtok;
 	// char buf[100];
 	// struct db_stmt *stmt,*stmt1;
 	struct db_stmt *stmt;
