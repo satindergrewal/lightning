@@ -64,7 +64,7 @@
 #include <wire/onion_wire.h>
 #include <wire/wire_sync.h>
 #include <stdio.h>
-#include "invoices.h"
+#include "invoice.h"
 
 struct close_command {
 	/* Inside struct lightningd close_commands. */
