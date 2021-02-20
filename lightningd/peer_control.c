@@ -2705,7 +2705,7 @@ static struct command_result *json_peer_test(struct command *cmd,
 	// struct db_stmt *stmt;
 	// sqlite3_stmt *stmt,*stmt1;
 	// int channel_state=-1,peer_exits;
-	int peer_exits;
+	int peer_exits = 0;
 	// int res, res1;
 	// int res;
 
@@ -2727,9 +2727,9 @@ static struct command_result *json_peer_test(struct command *cmd,
 
 	memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
 	buf[idtok->end - idtok->start]='\0';
-	printf("-----------\n",;
+	printf("-----------\n");
 	printf("buf %s\n", buf);
-	printf("-----------\n",;
+	printf("-----------\n");
 	/*stmt = db_prepare(cmd->ld->wallet->db,
 						  "SELECT COALESCE(sum(state),0)"
 						  " FROM channels"
