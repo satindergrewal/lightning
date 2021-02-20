@@ -2698,10 +2698,9 @@ static struct command_result *json_peer_test(struct command *cmd,
 					       const jsmntok_t *obj UNNEEDED,
 					       const jsmntok_t *params)
 {
-	struct node_id *id;
 	struct json_stream *response;
-	// const jsmntok_t *idtok;
-	// char buf[100];
+	const jsmntok_t *idtok;
+	char buf[100];
 	// struct db_stmt *stmt,*stmt1;
 	struct db_stmt *stmt;
 	// sqlite3_stmt *stmt,*stmt1;
@@ -2717,7 +2716,7 @@ static struct command_result *json_peer_test(struct command *cmd,
 	// return command_success(cmd, response);
 	
 	if (!param(cmd, buffer, params,
-		p_req("id", param_node_id, &id),
+		p_req("id", param_tok, &idtok),
 		// p_opt("id", param_tok, &idtok),
 		NULL))
 	return command_param_failed();
@@ -2726,8 +2725,8 @@ static struct command_result *json_peer_test(struct command *cmd,
 
 	// printf("db filename: %s\n", cmd->ld->wallet->db->filename);
 
-	// memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
-	// buf[idtok->end - idtok->start]='\0';
+	memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
+	buf[idtok->end - idtok->start]='\0';
 	/*stmt = db_prepare(cmd->ld->wallet->db,
 						  "SELECT COALESCE(sum(state),0)"
 						  " FROM channels"
