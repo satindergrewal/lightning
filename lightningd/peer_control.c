@@ -2768,12 +2768,12 @@ static struct command_result *json_peer_test(struct command *cmd,
 	// tal_free(stmt);
 	// json_object_start(response, NULL);
 	// json_array_start(response,"channel-states");
-	if(peer_exits == 0)
-	{
-		json_object_start(response,NULL);
-		json_add_num(response, "channel-state", 0);
-		json_object_end(response);
-	}
+	// if(peer_exits == 0)
+	// {
+	// 	json_object_start(response,NULL);
+	// 	json_add_num(response, "channel-state", 0);
+	// 	json_object_end(response);
+	// }
 	// else {
 	// 	json_object_start(response,NULL);
 	// 	json_add_num(response, "channel-state", 0);
@@ -2814,6 +2814,7 @@ static struct command_result *json_peer_test(struct command *cmd,
 	// }
 	// json_array_end(response);
 	// json_object_end(response);
+	json_add_num(response, "channel-state", 0);
 	return command_success(cmd, response);
 }
 
