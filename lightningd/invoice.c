@@ -1614,3 +1614,76 @@ static const struct json_command bet_command = {
 	"Gives the count of the invoices"
 };
 AUTODATA(json_command, &bet_command);
+
+static struct command_result *json_peer_test(struct command *cmd,
+					       const char *buffer,
+					       const jsmntok_t *obj UNNEEDED,
+					       const jsmntok_t *params)
+{
+	struct json_stream *response;
+	const jsmntok_t *idtok;
+	char buf[100];
+	struct db_stmt *stmt;
+	int peer_exits;
+	int res;
+	
+	if (!param(cmd, buffer, params,
+		p_req("id", param_tok, &idtok),
+		// p_opt("id", param_tok, &idtok),
+		NULL))
+	return command_param_failed();
+
+	response = json_stream_success(cmd);
+
+	memcpy(buf,buffer + idtok->start,idtok->end - idtok->start);
+	buf[idtok->end - idtok->start]='\0';
+	printf("-----------\n");
+	printf("buf %s\n", buf);
+	printf("-----------\n");
+	/* Update database. */
+	stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;"));
+	db_bind_text(stmt, 0, buf);
+	db_query_prepared(stmt);
+	// db_exec_prepared_v2(stmt);
+	res = db_step(stmt);
+	assert(res);
+
+	while (!db_step(stmt)) {
+		int i;
+		int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
+		printf("num_cols: %d\n", num_cols);
+		
+		for (i = 0; i < num_cols; i++)
+		{
+			switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
+			{
+			case (SQLITE_INTEGER):
+				peer_exits=db_column_int_or_default(stmt, i, 0);
+				break;
+			default:
+				break;
+			}
+		}
+	}
+	printf("peer_exits: %d\n", peer_exits);
+	tal_free(stmt);
+	// json_object_start(response, NULL);
+	json_array_start(response,"channel-states");
+	if(peer_exits == 0)
+	{
+		json_object_start(response,NULL);
+		json_add_num(response, "channel-state", 0);
+		json_object_end(response);
+	}
+	json_array_end(response);
+	// json_object_end(response);
+	return command_success(cmd, response);
+}
+
+static const struct json_command peer_test = {
+	"peer-test",
+	"channels",
+	json_peer_test,
+	"Find the state of the channel with the peer {id}"
+};
+AUTODATA(json_command, &peer_test);
