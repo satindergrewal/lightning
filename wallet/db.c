@@ -727,6 +727,8 @@ struct db_stmt *db_prepare_v2_(const char *location, struct db *db,
 		}
 	}
 	if (stmt->query == NULL)
+		printf("qurry name: %s", stmt->query->name);
+		printf("qurry query: %s", stmt->query->query);
 		fatal("Could not resolve query %s", query_id);
 
 	num_slots = stmt->query->placeholders;
