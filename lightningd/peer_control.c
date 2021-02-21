@@ -2716,7 +2716,7 @@ static struct command_result *json_peer_test(struct command *cmd,
 	// int channel_state=-1,peer_exits;
 	int peer_exits;
 	// int res, res1;
-	// int res;
+	int res;
 
 	// response = json_stream_success(cmd);
 	// invoice_count=wallet_invoice_count(cmd->ld->wallet);
@@ -2748,20 +2748,15 @@ static struct command_result *json_peer_test(struct command *cmd,
 						  "  WHERE lower(hex(node_id))=?);");*/
 	// res = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;",-1, &stmt, NULL);
 	/* Update database. */
-	stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT count(*)"
-							" FROM peers WHERE"
-							" lower(hex(node_id))=?;"));
+	stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;"));
 	db_bind_text(stmt, 0, buf);
-	db_exec_prepared_v2(take(stmt));
-	
-	// stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT count(*) FROM blocks;"));
-	// // db_query_prepared(stmt);
+	// db_exec_prepared_v2(take(stmt));
+	db_query_prepared(stmt);
 	// db_exec_prepared_v2(stmt);
-	// res = db_step(stmt);
-	// assert(res);
+	res = db_step(stmt);
+	assert(res);
 	// sqlite3_bind_text((sqlite3_stmt *)stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
 	
-
 	// if (res != SQLITE_OK) {
 	// 	return false;
 	// }
