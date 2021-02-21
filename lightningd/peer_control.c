@@ -2748,8 +2748,9 @@ static struct command_result *json_peer_test(struct command *cmd,
 						  "  WHERE lower(hex(node_id))=?);");*/
 	// res = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;",-1, &stmt, NULL);
 	/* Update database. */
-	stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;"));
-	db_bind_text(stmt, 0, buf);
+	stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT count(*) FROM peers WHERE lower(hex(node_id))=02ee01b7e8597ad1dea110a89791f529a563e55031660c1fba2a08ff4d6395c6a2;"));
+	// db_bind_text(stmt, 0, buf);
+	// db_bind_text(stmt, 1, buf);
 	// db_exec_prepared_v2(take(stmt));
 	db_query_prepared(stmt);
 	// db_exec_prepared_v2(stmt);
