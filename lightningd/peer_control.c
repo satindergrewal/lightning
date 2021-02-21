@@ -2713,8 +2713,8 @@ static struct command_result *json_peer_test(struct command *cmd,
 	// struct db_stmt *stmt;
 	// sqlite3_stmt *stmt,*stmt1;
 	sqlite3_stmt *stmt;
-	int channel_state=-1,peer_exits;
-	// int peer_exits = 0;
+	// int channel_state=-1,peer_exits;
+	int peer_exits;
 	// int res, res1;
 	int res;
 
