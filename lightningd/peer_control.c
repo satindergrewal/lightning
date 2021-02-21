@@ -2712,10 +2712,11 @@ static struct command_result *json_peer_test(struct command *cmd,
 	// struct db_stmt *stmt,*stmt1;
 	// struct db_stmt *stmt;
 	// sqlite3_stmt *stmt,*stmt1;
-	// int channel_state=-1,peer_exits;
-	int peer_exits = 0;
+	sqlite3_stmt *stmt;
+	int channel_state=-1,peer_exits;
+	// int peer_exits = 0;
 	// int res, res1;
-	// int res;
+	int res;
 
 	// response = json_stream_success(cmd);
 	// invoice_count=wallet_invoice_count(cmd->ld->wallet);
@@ -2745,14 +2746,18 @@ static struct command_result *json_peer_test(struct command *cmd,
 						  " (SELECT COALESCE(sum(id),0)"
 						  "  FROM peers"
 						  "  WHERE lower(hex(node_id))=?);");*/
-	// res = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;",-1, &stmt, NULL);
+	res = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;",-1, &stmt, NULL);
 	// stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT count(*) FROM blocks;"));
 	// db_query_prepared(stmt);
 	// res = db_step(stmt);
 	// assert(res);
-	// // sqlite3_bind_text((sqlite3_stmt *)stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
+	sqlite3_bind_text((sqlite3_stmt *)stmt, 1, buf, strlen(buf), SQLITE_TRANSIENT);
 	// // db_bind_text(stmt, 1, buf);
-	
+
+	if (res != SQLITE_OK) {
+		return false;
+	}
+
 	// while (!db_step(stmt)) {
 	// 	int i;
 	// 	int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
@@ -2771,6 +2776,23 @@ static struct command_result *json_peer_test(struct command *cmd,
 	// 		peer_exits=db_column_int_or_default(stmt, i, 0);
 	// 	}
 	// }
+	while (sqlite3_step((sqlite3_stmt *)stmt) == SQLITE_ROW) {
+		int i;
+		int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
+		
+		for (i = 0; i < num_cols; i++)
+		{
+			switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
+			{
+			case (SQLITE_INTEGER):
+				peer_exits=sqlite3_column_int((sqlite3_stmt *)stmt, i);
+				break;
+			default:
+				break;
+			}
+		}
+	}
+	sqlite3_finalize((sqlite3_stmt *)stmt);
 	printf("peer_exits: %d\n", peer_exits);
 	// sqlite3_finalize((sqlite3_stmt *)stmt);
 	// tal_free(stmt);
