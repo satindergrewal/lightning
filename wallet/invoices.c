@@ -750,75 +750,14 @@ int peers_ch_test(struct invoices *invoices, char my_node_id[100])
 	res = db_step(stmt);
 	assert(res);
 
-	// if(!db_column_is_null(stmt, 0)) {
+	if (db_step(stmt)) {
+		if (!db_column_is_null(stmt, 0)) {
+			peer_exits=db_column_int_or_default(stmt, i, 0);
+		} else {
+			peer_exits = 0;
+		}
+	}
 
-	// }
-	// if (db_step(stmt)) {
-	// 	if (!db_column_is_null(stmt, 0)) {
-	// 		*min = db_column_int(stmt, 0);
-	// 		*max = db_column_int(stmt, 1);
-	// 	}
-	// }
-
-	printf("db_step - %d\n", db_step(stmt));
-
-	// while (!db_step(stmt)) {
-	// 	int i;
-	// 	int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
-	// 	printf("num_cols: %d\n", num_cols);
-	// 	printf("peer_exits - before while loop: %d\n", peer_exits);
-		
-	// 	if (num_cols != 0){
-	// 		for (i = 0; i < num_cols; i++)
-	// 		// {
-	// 		// 	switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
-	// 		// 	{
-	// 		// 	case (SQLITE_INTEGER):
-	// 		// 		peer_exits=db_column_int_or_default(stmt, i, 0);
-	// 		// 		break;
-	// 		// 	default:
-	// 		// 		break;
-	// 		// 	}
-	// 		// }
-	// 		peer_exits=db_column_int_or_default(stmt, i, 0);
-	// 	} else {
-	// 		peer_exits = 0;
-	// 	}
-	// }
-
-	// while (!db_step(stmt)) {
-	// 	int i;
-	// 	int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
-	// 	// printf("num_cols: %d\n", num_cols);
-	// 	// printf("peer_exits - before while loop: %d\n", peer_exits);
-		
-	// 	if (num_cols != 0) {
-	// 		for (i = 0; i < num_cols; i++)
-	// 		{
-	// 			// switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
-	// 			// {
-	// 			// case (SQLITE3_TEXT):
-	// 			// 	printf("%s, ", sqlite3_column_text((sqlite3_stmt *)stmt, i));
-	// 			// 	break;
-	// 			// case (SQLITE_INTEGER):
-	// 			//	peer_exits=sqlite3_column_int((sqlite3_stmt *)stmt, i);
-	// 			// 	break;
-	// 			// case (SQLITE_FLOAT):
-	// 			// 	printf("%g, ", sqlite3_column_double((sqlite3_stmt *)stmt, i));
-	// 			// 	break;
-	// 			// default:
-	// 			// 	break;
-	// 			// }
-				
-	// 			// peer_exits=db_column_int(stmt, i);
-	// 			peer_exits=db_column_int_or_default(stmt, i, 0);
-	// 		}
-	// 	} else {
-	// 		peer_exits = 0;
-	// 	}
-	// }
-	// printf("peer_exits - after while loop: %d\n", peer_exits);
-	// sqlite3_finalize((sqlite3_stmt *)stmt);
 	tal_free(stmt);
 	return peer_exits;
 }
