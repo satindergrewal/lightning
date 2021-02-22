@@ -739,7 +739,7 @@ int peers_ch_test(struct invoices *invoices, char my_node_id[100])
 	struct db_stmt *stmt;
 	bool res;
 	int peer_exits=0;
-	int channel_state=-1;
+	// int channel_state=-1;
 
 	printf("-----------\n");
 	printf("my_node_id %s\n", my_node_id);
