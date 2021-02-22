@@ -753,8 +753,8 @@ int peers_ch_test(struct invoices *invoices, char my_node_id[100])
 	while (!db_step(stmt)) {
 		int i;
 		int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
-		// printf("num_cols: %d\n", num_cols);
-		// printf("peer_exits - before while loop: %d\n", peer_exits);
+		printf("num_cols: %d\n", num_cols);
+		printf("peer_exits - before while loop: %d\n", peer_exits);
 		
 		if (num_cols != 0){
 			for (i = 0; i < num_cols; i++)
