@@ -1693,9 +1693,8 @@ static struct command_result *json_peer_test(struct command *cmd,
 					       const jsmntok_t *obj UNNEEDED,
 					       const jsmntok_t *params)
 {
-	struct json_escape *label;
-	struct json_stream *response;
 	const jsmntok_t *idtok;
+	struct json_stream *response;
 	char my_node_id[100];
 	int peer_exits;
 
