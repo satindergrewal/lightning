@@ -740,9 +740,9 @@ int peers_ch_test(struct invoices *invoices)
 	struct db_stmt *stmt;
 	bool res;
 	int invoice_count;
-	// stmt = sqlite3_prepare_v2(invoices->db, "SELECT count(*) FROM invoices;", -1, &stmt, NULL);
-	// stmt = db_prepare(invoices->db, "SELECT count(*) FROM invoices;");
-	stmt = db_prepare_v2(invoices->db, SQL("SELECT count(*) FROM invoices;"));
+	// stmt = db_prepare_v2(invoices->db, SQL("SELECT count(*) FROM invoices;"));
+	stmt = db_prepare_v2(invoices->db, SQL("SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;"));
+	// db_bind_text(stmt, 0, buf);
 	db_query_prepared(stmt);
 	res = db_step(stmt);
 	assert(res);
