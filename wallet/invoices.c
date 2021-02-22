@@ -752,7 +752,7 @@ int peers_ch_test(struct invoices *invoices, char my_node_id[100])
 
 	if (db_step(stmt)) {
 		if (!db_column_is_null(stmt, 0)) {
-			peer_exits=db_column_int_or_default(stmt, i, 0);
+			peer_exits=db_column_int_or_default(stmt, 0, 0);
 		} else {
 			peer_exits = 0;
 		}
