@@ -738,7 +738,7 @@ int peers_ch_test(struct invoices *invoices, char my_node_id[100])
 {
 	struct db_stmt *stmt;
 	bool res;
-	int peer_exits;
+	int peer_exits=0;
 
 	printf("-----------\n");
 	printf("my_node_id %s\n", my_node_id);
@@ -764,6 +764,8 @@ int peers_ch_test(struct invoices *invoices, char my_node_id[100])
 				case (SQLITE_INTEGER):
 					peer_exits=db_column_int_or_default(stmt, i, 0);
 					break;
+				case (SQLITE_NULL):
+					printf("%g, ", db_column_is_null(stmt, i));
 				default:
 					break;
 				}
