@@ -760,11 +760,7 @@ int peers_ch_test(struct invoices *invoices, char my_node_id[100])
 	// 	}
 	// }
 
-	int i;
-	while(db_step(stmt)) {
-		i++;
-		printf("while db_step - %d\n", i);
-	}
+	printf("db_step - %d\n", db_step(stmt));
 
 	// while (!db_step(stmt)) {
 	// 	int i;
