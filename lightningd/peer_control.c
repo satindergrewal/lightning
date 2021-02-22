@@ -2623,30 +2623,30 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 						  "  WHERE lower(hex(node_id))=?);");*/
 	err = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;",-1, &stmt, NULL);
 	// err = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT count(*) FROM peers;",-1, &stmt, NULL);
-	sqlite3_bind_text((sqlite3_stmt *)stmt, 0, buf, strlen(buf), SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt, 0, buf, strlen(buf), SQLITE_TRANSIENT);
 	// db_bind_text(stmt, 1, buf);
 
 	if (err != SQLITE_OK) {
 		return false;
 	}
 	
-	while (sqlite3_step((sqlite3_stmt *)stmt) == SQLITE_ROW) {
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
 		int i;
-		int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
+		int num_cols = sqlite3_column_count(stmt);
 		
 		for (i = 0; i < num_cols; i++)
 		{
-			switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
+			switch (sqlite3_column_type(stmt, i))
 			{
 			case (SQLITE_INTEGER):
-				peer_exits=sqlite3_column_int((sqlite3_stmt *)stmt, i);
+				peer_exits=sqlite3_column_int(stmt, i);
 				break;
 			default:
 				break;
 			}
 		}
 	}
-	sqlite3_finalize((sqlite3_stmt *)stmt);
+	sqlite3_finalize(stmt);
 	// json_object_start(response, NULL);
 	json_array_start(response,"channel-states");
 	if(peer_exits == 0)
@@ -2658,24 +2658,24 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 	else
 	{	
 			err1 = sqlite3_prepare_v2((sqlite3 *)cmd->ld->wallet->db, "SELECT state FROM channels WHERE peer_id IN (SELECT id FROM peers WHERE lower(hex(node_id))=?);",-1, &stmt1, NULL);
-			sqlite3_bind_text((sqlite3_stmt *)stmt1, 0, buf, strlen(buf), SQLITE_TRANSIENT);
+			sqlite3_bind_text(stmt1, 0, buf, strlen(buf), SQLITE_TRANSIENT);
 			// db_bind_text(stmt1, 1, buf);
 
 			if (err1 != SQLITE_OK) {
 				return false;
 			}
 			
-			while (sqlite3_step((sqlite3_stmt *)stmt1) == SQLITE_ROW) {
+			while (sqlite3_step(stmt1) == SQLITE_ROW) {
 				int i;
-				int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt1);
+				int num_cols = sqlite3_column_count(stmt1);
 				
 				for (i = 0; i < num_cols; i++)
 				{
-					switch (sqlite3_column_type((sqlite3_stmt *)stmt1, i))
+					switch (sqlite3_column_type(stmt1, i))
 					{
 					case (SQLITE_INTEGER):
 						json_object_start(response,NULL);
-						channel_state=sqlite3_column_int((sqlite3_stmt *)stmt1, i);
+						channel_state=sqlite3_column_int(stmt1, i);
 						json_add_num(response, "channel-state", channel_state);
 						json_object_end(response);
 						break;
@@ -2684,7 +2684,7 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 					}
 				}
 			}
-			sqlite3_finalize((sqlite3_stmt *)stmt1);
+			sqlite3_finalize(stmt1);
 		
 	}
 	printf("peer_exits: %d\n", peer_exits);
