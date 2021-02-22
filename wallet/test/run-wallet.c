@@ -210,7 +210,7 @@ const struct invoice_details *invoices_get_details(const tal_t *ctx UNNEEDED,
 int invoices_count(struct invoices *invoices UNNEEDED)
 { fprintf(stderr, "invoices_count called!\n"); abort(); }	
 /* Generated stub for peers_ch_test */
-int peers_ch_test(struct invoices *invoices UNNEEDED)
+int peers_ch_test(struct invoices *invoices UNNEEDED, char my_node_id[100] UNNEEDED)
 { fprintf(stderr, "peers_ch_test called!\n"); abort(); }	
 
 /* Generated stub for invoices_iterate */

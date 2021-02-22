@@ -734,15 +734,18 @@ int invoices_count(struct invoices *invoices)
 	return invoice_count;
 }
 
-int peers_ch_test(struct invoices *invoices)
+int peers_ch_test(struct invoices *invoices, char my_node_id[100])
 {
-	// sqlite3_stmt *stmt;
 	struct db_stmt *stmt;
 	bool res;
-	int invoice_count;
+	int peer_exits;
+
+	printf("-----------\n");
+	printf("my_node_id %s\n", my_node_id);
+	printf("-----------\n");
 	// stmt = db_prepare_v2(invoices->db, SQL("SELECT count(*) FROM invoices;"));
 	stmt = db_prepare_v2(invoices->db, SQL("SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;"));
-	// db_bind_text(stmt, 0, buf);
+	db_bind_text(stmt, 0, my_node_id);
 	db_query_prepared(stmt);
 	res = db_step(stmt);
 	assert(res);
@@ -751,7 +754,7 @@ int peers_ch_test(struct invoices *invoices)
 		int i;
 		int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
 		// printf("num_cols: %d\n", num_cols);
-		// printf("invoice_count - before while loop: %d\n", invoice_count);
+		// printf("peer_exits - before while loop: %d\n", peer_exits);
 		
 		if (num_cols != 0) {
 			for (i = 0; i < num_cols; i++)
@@ -762,7 +765,7 @@ int peers_ch_test(struct invoices *invoices)
 				// 	printf("%s, ", sqlite3_column_text((sqlite3_stmt *)stmt, i));
 				// 	break;
 				// case (SQLITE_INTEGER):
-				//	invoice_count=sqlite3_column_int((sqlite3_stmt *)stmt, i);
+				//	peer_exits=sqlite3_column_int((sqlite3_stmt *)stmt, i);
 				// 	break;
 				// case (SQLITE_FLOAT):
 				// 	printf("%g, ", sqlite3_column_double((sqlite3_stmt *)stmt, i));
@@ -771,15 +774,15 @@ int peers_ch_test(struct invoices *invoices)
 				// 	break;
 				// }
 				
-				// invoice_count=db_column_int(stmt, i);
-				invoice_count=db_column_int_or_default(stmt, i, 0);
+				// peer_exits=db_column_int(stmt, i);
+				peer_exits=db_column_int_or_default(stmt, i, 0);
 			}
 		} else {
-			invoice_count = 0;
+			peer_exits = 0;
 		}
 	}
-	// printf("invoice_count - after while loop: %d\n", invoice_count);
+	// printf("peer_exits - after while loop: %d\n", peer_exits);
 	// sqlite3_finalize((sqlite3_stmt *)stmt);
 	tal_free(stmt);
-	return invoice_count;
+	return peer_exits;
 }
