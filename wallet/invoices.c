@@ -758,18 +758,17 @@ int peers_ch_test(struct invoices *invoices, char my_node_id[100])
 		
 		if (num_cols != 0){
 			for (i = 0; i < num_cols; i++)
-			{
-				switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
-				{
-				case (SQLITE_INTEGER):
-					peer_exits=db_column_int_or_default(stmt, i, 0);
-					break;
-				case (SQLITE_NULL):
-					printf("%d, ", db_column_is_null(stmt, i));
-				default:
-					break;
-				}
-			}
+			// {
+			// 	switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
+			// 	{
+			// 	case (SQLITE_INTEGER):
+			// 		peer_exits=db_column_int_or_default(stmt, i, 0);
+			// 		break;
+			// 	default:
+			// 		break;
+			// 	}
+			// }
+			peer_exits=db_column_int_or_default(stmt, i, 0);
 		} else {
 			peer_exits = 0;
 		}
