@@ -758,6 +758,7 @@ int peers_ch_test(struct invoices *invoices, char my_node_id[100])
 		
 		if (num_cols != 0){
 			for (i = 0; i < num_cols; i++)
+			printf("i - %d\n", i);
 			// {
 			// 	switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
 			// 	{
