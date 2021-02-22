@@ -1598,7 +1598,8 @@ static struct command_result *json_invoice_count(struct command *cmd,
 		return command_param_failed();
 
 	response = json_stream_success(cmd);
-	invoice_count=wallet_invoice_count(cmd->ld->wallet);
+	// invoice_count=wallet_invoice_count(cmd->ld->wallet);
+	invoice_count=peers_channel_test(cmd->ld->wallet);
 	// printf("invoice_count - at command fn: %d\n", invoice_count);
 	
 	// json_object_start(response, NULL);
