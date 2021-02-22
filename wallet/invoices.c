@@ -1,4 +1,5 @@
 #include "db.h"
+#include <sqlite3.h>
 #include "invoices.h"
 #include "wallet.h"
 #include <assert.h>
