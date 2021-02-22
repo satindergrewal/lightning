@@ -1715,9 +1715,14 @@ static struct command_result *json_peer_test(struct command *cmd,
 	peer_exits=peers_channel_test(cmd->ld->wallet, my_node_id);
 	// printf("peer_exits - at command fn: %d\n", peer_exits);
 	
-	// json_object_start(response, NULL);
-	json_add_num(response,"peer_exits",peer_exits);
-	// json_object_end(response);
+	json_array_start(response,"channel-states");
+	if(peer_exits == 0)
+	{
+		json_object_start(response,NULL);
+		json_add_num(response, "channel-state", 0);
+		json_object_end(response);
+	}
+	json_array_end(response);
 	return command_success(cmd, response);
 }
 
