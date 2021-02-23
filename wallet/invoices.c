@@ -751,6 +751,10 @@ int peers_ch_test(struct invoices *invoices, char my_node_id[100])
 	res = db_step(stmt);
 	assert(res);
 
+	printf("-----------\n");
+	printf("db_step result: %d\n", res);
+	printf("-----------\n");
+
 	if (db_step(stmt)) {
 		if (!db_column_is_null(stmt, 0)) {
 			peer_exits=db_column_int_or_default(stmt, 0, 0);
