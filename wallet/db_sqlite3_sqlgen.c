@@ -1065,6 +1065,18 @@ struct db_query db_sqlite3_queries[] = {
          .readonly = true,
     },
     {
+         .name = "SELECT count(*) FROM invoices;",
+         .query = "SELECT count(*) FROM invoices;",
+         .placeholders = 0,
+         .readonly = true,
+    },
+    {
+         .name = "SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;",
+         .query = "SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;",
+         .placeholders = 1,
+         .readonly = true,
+    },
+    {
          .name = "SELECT txid, outnum FROM utxoset WHERE spendheight is NULL",
          .query = "SELECT txid, outnum FROM utxoset WHERE spendheight is NULL",
          .placeholders = 0,
@@ -1780,10 +1792,10 @@ struct db_query db_sqlite3_queries[] = {
     },
 };
 
-#define DB_SQLITE3_QUERY_COUNT 295
+#define DB_SQLITE3_QUERY_COUNT 297
 
 #endif /* HAVE_SQLITE3 */
 
 #endif /* LIGHTNINGD_WALLET_GEN_DB_SQLITE3 */
 
-// SHA256STAMP:cfcc8729b714d7182b2d3f99b83475d4c8b7f489527b1f7ec3c9e2734281315e
+// SHA256STAMP:0360b887ec718a26ab7eb10d6947d9c437ca3d968c0e9fad9aec18b480ba86a0
