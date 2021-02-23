@@ -2758,6 +2758,10 @@ static struct command_result *json_peer_test2(struct command *cmd,
 	// 	return false;
 	// }
 
+	printf("-----------\n");
+	printf("db_step result: %d\n", res);
+	printf("-----------\n");
+
 	while (!db_step(stmt)) {
 	// while (sqlite3_step((sqlite3_stmt *)stmt) == SQLITE_ROW) {
 		int i;
