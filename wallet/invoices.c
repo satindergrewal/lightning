@@ -806,7 +806,7 @@ int peers_ch_test(struct invoices *invoices,
 {
 	struct db_stmt *stmt;
 	int peer_exits=0;
-	int channel_state=-1;
+	// int channel_state=-1;
 
 	printf("-----------\n");
 	printf("my_node_id %s\n", my_node_id);
