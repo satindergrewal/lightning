@@ -2695,7 +2695,7 @@ static struct command_result *json_peer_channel_state(struct command *cmd,
 }
 
 static const struct json_command peer_channel_state = {
-	"peer-channel-state1",
+	"peer-channel-state",
 	"developer",
 	json_peer_channel_state,
 	"Find the state of the channel with the peer {id}"
