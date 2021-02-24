@@ -2713,7 +2713,7 @@ static struct command_result *json_peer_test2(struct command *cmd,
 	const jsmntok_t *idtok;
 	char my_node_id[100];
 	struct db_stmt *stmt;
-	int channel_state=-1,peer_exits;
+	int channel_state=-1, peer_exits;
 	
 	if (!param(cmd, buffer, params,
 		p_req("id", param_tok, &idtok),
@@ -2787,6 +2787,7 @@ static struct command_result *json_peer_test2(struct command *cmd,
 		}
 		tal_free(stmt);
 	}
+	printf("channel_state - %d\n", channel_state);
 
 	json_array_end(response);
 	// json_object_end(response);
