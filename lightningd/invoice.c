@@ -1727,7 +1727,8 @@ static struct command_result *json_peer_test(struct command *cmd,
 }
 
 static const struct json_command peer_test = {
-	"peer-test",
+	// "peer-test",
+	"peer-channel-state",
 	"channels",
 	json_peer_test,
 	"Find the state of the channel with the peer {id}"
