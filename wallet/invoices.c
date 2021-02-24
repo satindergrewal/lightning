@@ -735,31 +735,90 @@ int invoices_count(struct invoices *invoices)
 	return invoice_count;
 }
 
-int peers_ch_test(struct invoices *invoices, char my_node_id[100])
+// int peers_ch_test(struct invoices *invoices, char my_node_id[100])
+// {
+// 	struct db_stmt *stmt;
+// 	bool res;
+// 	int peer_exits=0;
+// 	// int channel_state=-1;
+
+// 	printf("-----------\n");
+// 	printf("my_node_id %s\n", my_node_id);
+// 	printf("-----------\n");
+// 	stmt = db_prepare_v2(invoices->db, SQL("SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;"));
+// 	db_bind_text(stmt, 0, my_node_id);
+// 	db_query_prepared(stmt);
+// 	res = db_step(stmt);
+// 	assert(res);
+
+// 	printf("-----------\n");
+// 	printf("db_step result: %d\n", res);
+// 	printf("-----------\n");
+
+// 	if (res != SQLITE_OK) {
+// 		return 0;
+// 	}
+
+// 	if (db_step(stmt)) {
+// 		if (!db_column_is_null(stmt, 0)) {
+// 			peer_exits=db_column_int_or_default(stmt, 0, 0);
+// 		} else {
+// 			peer_exits = 0;
+// 		}
+// 	}
+// 	tal_free(stmt);
+
+// 	// stmt = db_prepare_v2(invoices->db, SQL("SELECT state FROM channels WHERE peer_id IN (SELECT id FROM peers WHERE lower(hex(node_id))=?);"));
+// 	// db_bind_text(stmt, 0, my_node_id);
+// 	// db_query_prepared(stmt);
+// 	// res = db_step(stmt);
+// 	// assert(res);
+
+// 	// if (db_step(stmt) == sqlite3_column_count) {
+
+// 	// }
+
+// 	// while (!db_step(stmt)) {
+// 	// 	int i;
+// 	// 	int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
+		
+// 	// 	for (i = 0; i < num_cols; i++)
+// 	// 	{
+// 	// 		switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
+// 	// 		{
+// 	// 		case (SQLITE_INTEGER):
+// 	// 			// json_object_start(response,NULL);
+// 	// 			channel_state=sqlite3_column_int((sqlite3_stmt *)stmt, i);
+// 	// 			// json_add_num(response, "channel-state", channel_state);
+// 	// 			// json_object_end(response);
+// 	// 			break;
+// 	// 		default:
+// 	// 			break;
+// 	// 		}
+// 	// 	}
+// 	// }
+
+// 	return peer_exits;
+// }
+
+int peers_ch_test(struct invoices *invoices,
+			  char my_node_id[100])
 {
 	struct db_stmt *stmt;
-	bool res;
 	int peer_exits=0;
 	// int channel_state=-1;
 
 	printf("-----------\n");
 	printf("my_node_id %s\n", my_node_id);
 	printf("-----------\n");
-	stmt = db_prepare_v2(invoices->db, SQL("SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;"));
+	
+	stmt = db_prepare_v2(invoices->db, SQL("SELECT count(*) FROM peers WHERE"
+					       "  lower(hex(node_id))=?;"));
 	db_bind_text(stmt, 0, my_node_id);
+	// db_exec_prepared_v2(take(stmt));
 	db_query_prepared(stmt);
-	res = db_step(stmt);
-	assert(res);
 
-	printf("-----------\n");
-	printf("db_step result: %d\n", res);
-	printf("-----------\n");
-
-	if (res != SQLITE_OK) {
-		return 0;
-	}
-
-	if (db_step(stmt)) {
+	while (db_step(stmt)) {
 		if (!db_column_is_null(stmt, 0)) {
 			peer_exits=db_column_int_or_default(stmt, 0, 0);
 		} else {
@@ -767,36 +826,6 @@ int peers_ch_test(struct invoices *invoices, char my_node_id[100])
 		}
 	}
 	tal_free(stmt);
-
-	// stmt = db_prepare_v2(invoices->db, SQL("SELECT state FROM channels WHERE peer_id IN (SELECT id FROM peers WHERE lower(hex(node_id))=?);"));
-	// db_bind_text(stmt, 0, my_node_id);
-	// db_query_prepared(stmt);
-	// res = db_step(stmt);
-	// assert(res);
-
-	// if (db_step(stmt) == sqlite3_column_count) {
-
-	// }
-
-	// while (!db_step(stmt)) {
-	// 	int i;
-	// 	int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
-		
-	// 	for (i = 0; i < num_cols; i++)
-	// 	{
-	// 		switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
-	// 		{
-	// 		case (SQLITE_INTEGER):
-	// 			// json_object_start(response,NULL);
-	// 			channel_state=sqlite3_column_int((sqlite3_stmt *)stmt, i);
-	// 			// json_add_num(response, "channel-state", channel_state);
-	// 			// json_object_end(response);
-	// 			break;
-	// 		default:
-	// 			break;
-	// 		}
-	// 	}
-	// }
 
 	return peer_exits;
 }
