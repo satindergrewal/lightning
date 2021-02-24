@@ -745,7 +745,7 @@ int peers_ch_test(struct invoices *invoices, char my_node_id[100])
 	printf("-----------\n");
 	printf("my_node_id %s\n", my_node_id);
 	printf("-----------\n");
-	stmt = db_prepare_v2(invoices->db, SQL("SELECT count(*) FROM peers WHERE lower(hex(node_id))=?;"));
+	stmt = db_prepare_v2(invoices->db, SQL("SELECT count(*) FROM peers WHERE lower(hex(node_id))=\"?\";"));
 	db_bind_text(stmt, 0, my_node_id);
 	db_query_prepared(stmt);
 	res = db_step(stmt);
