@@ -236,6 +236,7 @@ const struct invoice_details *invoices_get_details(const tal_t *ctx,
 						   struct invoice invoice);
 
 int invoices_count(struct invoices *invoices);
+int peers_ch_test(struct invoices *invoices, char my_node_id[100]);
 
 
 #endif /* LIGHTNING_WALLET_INVOICES_H */

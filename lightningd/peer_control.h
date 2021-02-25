@@ -94,6 +94,8 @@ struct amount_msat channel_amount_receivable(const struct channel *channel);
  * Returns any HTLCs we have to resubmit via htlcs_resubmit. */
 struct htlc_in_map *load_channels_from_wallet(struct lightningd *ld);
 
+int ld_peer_test2(struct lightningd *ld);
+
 #if DEVELOPER
 void peer_dev_memleak(struct command *cmd);
 void handle_custommsg_in(struct lightningd *ld, const struct node_id *peer_id,

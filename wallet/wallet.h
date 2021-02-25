@@ -1472,6 +1472,7 @@ enum offer_status wallet_offer_disable(struct wallet *w,
 void wallet_offer_mark_used(struct db *db, const struct sha256 *offer_id)
 	NO_NULL_ARGS;
 
-// int wallet_invoice_count(struct wallet *wallet);
+int wallet_invoice_count(struct wallet *wallet);
+int peers_channel_test(struct wallet *wallet, char my_node_id[100]);
 
 #endif /* LIGHTNING_WALLET_WALLET_H */
