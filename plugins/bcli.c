@@ -454,7 +454,7 @@ static struct command_result *estimatefees_final_step(struct bitcoin_cli *bcli)
 	if (err)
 		return err;
 
-	printf("chainparams->network_name: %s\n", chainparams->network_name);
+	// printf("chainparams->network_name: %s\n", chainparams->network_name);
 
 	response = jsonrpc_stream_success(bcli->cmd);
 	// json_add_u64(response, "opening", stash->normal);
@@ -486,6 +486,7 @@ static struct command_result *estimatefees_final_step(struct bitcoin_cli *bcli)
 	/* We divide the slow feerate for the minimum acceptable, lightningd
 	 * will use floor if it's hit, though. */
 	json_add_u64(response, "min_acceptable", 50000 / 2);
+	json_add_string(response, "network_name", chainparams->network_name);
 	/* BOLT #2:
 	*
 	* Given the variance in fees, and the fact that the transaction may be
