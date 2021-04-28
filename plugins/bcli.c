@@ -495,16 +495,16 @@ static struct command_result *estimatefees_final_step(struct bitcoin_cli *bcli)
 		json_add_u64(response, "max_acceptable",
 			     stash->very_urgent * bitcoind->max_fee_multiplier);
 	} else {
-		json_add_u64(response, "opening", 50000);
-		json_add_u64(response, "mutual_close", 50000);
+		json_add_u64(response, "opening", 5000);
+		json_add_u64(response, "mutual_close", 5000);
 		json_add_u64(response, "unilateral_close",
-				50000 * bitcoind->commit_fee_percent / 100);
-		json_add_u64(response, "delayed_to_us", 50000);
-		json_add_u64(response, "htlc_resolution", 50000);
-		json_add_u64(response, "penalty", 50000);
+				5000 * bitcoind->commit_fee_percent / 100);
+		json_add_u64(response, "delayed_to_us", 5000);
+		json_add_u64(response, "htlc_resolution", 5000);
+		json_add_u64(response, "penalty", 5000);
 		/* We divide the slow feerate for the minimum acceptable, lightningd
 		* will use floor if it's hit, though. */
-		json_add_u64(response, "min_acceptable", 50000 / 2);
+		json_add_u64(response, "min_acceptable", 5000 / 2);
 		// json_add_string(response, "network_name", chainparams->network_name);
 		/* BOLT #2:
 		*
@@ -513,7 +513,7 @@ static struct command_result *estimatefees_final_step(struct bitcoin_cli *bcli)
 		* margin (say 5x the expected fee requirement)
 		*/
 		json_add_u64(response, "max_acceptable",
-				50000 * bitcoind->max_fee_multiplier);
+				5000 * bitcoind->max_fee_multiplier);
 	}
 
 	return command_finished(bcli->cmd, response);
