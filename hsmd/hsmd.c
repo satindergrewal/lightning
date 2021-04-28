@@ -69,6 +69,9 @@ static struct {
 	secp256k1_keypair bolt12;
 } secretstuff;
 
+/* Have we initialized the secretstuff? */
+static bool initialized = false;
+
 /* Version codes for BIP32 extended keys in libwally-core.
  * It's not suitable to add this struct into client struct,
  * so set it static.*/
@@ -772,6 +775,10 @@ static struct io_plan *init_hsm(struct io_conn *conn,
 		status_failed(STATUS_FAIL_INTERNAL_ERROR,
 		              "Could derive bolt12 public key.");
 
+	/* Now we can consider ourselves initialized, and we won't get
+	 * upset if we get a non-init message. */
+	initialized = true;
+
 	/*~ Note: marshalling a bip32 tree only marshals the public side,
 	 * not the secrets!  So we're not actually handing them out here!
 	 */
@@ -1104,7 +1111,7 @@ static struct io_plan *handle_sign_remote_htlc_tx(struct io_conn *conn,
 		return bad_req_fmt(conn, c, msg_in,
 				   "Failed deriving htlc pubkey");
 
-	/* BOLT-a12da24dd0102c170365124782b46d9710950ac1 #3:
+	/* BOLT #3:
 	 * ## HTLC-Timeout and HTLC-Success Transactions
 	 *...
 	 * * if `option_anchor_outputs` applies to this commitment transaction,
@@ -1236,7 +1243,7 @@ static struct io_plan *handle_sign_remote_htlc_to_us(struct io_conn *conn,
 		return bad_req_fmt(conn, c, msg_in,
 				   "Failed deriving htlc privkey");
 
-	/* BOLT-a12da24dd0102c170365124782b46d9710950ac1 #3:
+	/* BOLT #3:
 	 * ## HTLC-Timeout and HTLC-Success Transactions
 	 *...
 	 * * if `option_anchor_outputs` applies to this commitment transaction,
@@ -1347,7 +1354,7 @@ static struct io_plan *handle_sign_local_htlc_tx(struct io_conn *conn,
 
 	/* FIXME: Check that output script is correct! */
 
-	/* BOLT-a12da24dd0102c170365124782b46d9710950ac1 #3:
+	/* BOLT #3:
 	 * ## HTLC-Timeout and HTLC-Success Transactions
 	 *...
 	 * * if `option_anchor_outputs` applies to this commitment transaction,
@@ -2014,6 +2021,15 @@ static struct io_plan *handle_client(struct io_conn *conn, struct client *c)
 	if (!check_client_capabilities(c, t))
 		return bad_req_fmt(conn, c, c->msg_in,
 				   "does not have capability to run %d", t);
+
+	/* If we aren't initialized yet we better get an init message
+	 * first. Otherwise we don't load the secret and every
+	 * signature we produce is just going to be junk. */
+	if (!initialized && t != WIRE_HSMD_INIT)
+		status_failed(STATUS_FAIL_MASTER_IO,
+			      "hsmd was not initialized correctly, expected "
+			      "message type %d, got %d",
+			      WIRE_HSMD_INIT, t);
 
 	/* Now actually go and do what the client asked for */
 	switch (t) {

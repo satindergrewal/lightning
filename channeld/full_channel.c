@@ -489,7 +489,6 @@ static enum channel_add_err add_htlc(struct channel *channel,
 	enum side sender = htlc_state_owner(state), recipient = !sender;
 	const struct htlc **committed, **adding, **removing;
 	const struct channel_view *view;
-	u32 min_concurrent_htlcs;
 
 	htlc = tal(tmpctx, struct htlc);
 
@@ -573,16 +572,19 @@ static enum channel_add_err add_htlc(struct channel *channel,
 	 *     HTLCs to its local commitment transaction...
 	 *     - SHOULD fail the channel.
 	 */
-	/* Also we should not add more htlc's than sender or recipient
-	 * configured.  This mitigates attacks in which a peer can force the
-	 * opener of the channel to pay unnecessary onchain fees during a fee
+	if (tal_count(committed) - tal_count(removing) + tal_count(adding)
+	    > channel->config[recipient].max_accepted_htlcs) {
+		return CHANNEL_ERR_TOO_MANY_HTLCS;
+	}
+
+	/* Also *we* should not add more htlc's we configured.  This
+	 * mitigates attacks in which a peer can force the opener of
+	 * the channel to pay unnecessary onchain fees during a fee
 	 * spike with large commitment transactions.
 	 */
-	min_concurrent_htlcs = channel->config[recipient].max_accepted_htlcs;
-	if (min_concurrent_htlcs > channel->config[sender].max_accepted_htlcs)
-		min_concurrent_htlcs = channel->config[sender].max_accepted_htlcs;
-	if (tal_count(committed) - tal_count(removing) + tal_count(adding)
-	    > min_concurrent_htlcs) {
+	if (sender == LOCAL
+	    && tal_count(committed) - tal_count(removing) + tal_count(adding)
+	    > channel->config[LOCAL].max_accepted_htlcs) {
 		return CHANNEL_ERR_TOO_MANY_HTLCS;
 	}
 
@@ -935,7 +937,6 @@ static bool fee_incstate(struct channel *channel,
 			 enum htlc_state hstate)
 {
 	int preflags, postflags;
-	const int committed_f = HTLC_FLAG(sidechanged, HTLC_F_COMMITTED);
 
 	preflags = htlc_state_flags(hstate);
 	postflags = htlc_state_flags(hstate + 1);
@@ -951,12 +952,11 @@ static bool fee_incstate(struct channel *channel,
 	if (!inc_fee_state(channel->fee_states, hstate))
 		return false;
 
-	if (!(preflags & committed_f) && (postflags & committed_f))
-		status_debug("Feerate: %s->%s %s now %u",
-			     htlc_state_name(hstate),
-			     htlc_state_name(hstate+1),
-			     side_to_str(sidechanged),
-			     *channel->fee_states->feerate[hstate+1]);
+	status_debug("Feerate: %s->%s %s now %u",
+		     htlc_state_name(hstate),
+		     htlc_state_name(hstate+1),
+		     side_to_str(sidechanged),
+		     *channel->fee_states->feerate[hstate+1]);
 	return true;
 }
 
@@ -971,7 +971,7 @@ static int change_htlcs(struct channel *channel,
 	struct htlc_map_iter it;
 	struct htlc *h;
 	int cflags = 0;
-	size_t i;
+	int i;
 	struct balance owed[NUM_SIDES];
 
 	for (i = 0; i < NUM_SIDES; i++)
@@ -1003,8 +1003,8 @@ static int change_htlcs(struct channel *channel,
 		}
 	}
 
-	/* Update fees. */
-	for (i = 0; i < n_hstates; i++) {
+	/* Update fees (do backwards, to avoid double-increment!). */
+	for (i = n_hstates - 1; i >= 0; i--) {
 		if (fee_incstate(channel, sidechanged, htlc_states[i]))
 			cflags |= (htlc_state_flags(htlc_states[i])
 				   ^ htlc_state_flags(htlc_states[i]+1));

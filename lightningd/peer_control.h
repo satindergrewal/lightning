@@ -39,6 +39,7 @@ struct peer {
 
 	/* Where we connected to, or it connected from. */
 	struct wireaddr_internal addr;
+	bool connected_incoming;
 
 	/* We keep a copy of their feature bits */
 	const u8 *their_features;
@@ -56,7 +57,8 @@ struct peer *find_peer_by_dbid(struct lightningd *ld, u64 dbid);
 
 struct peer *new_peer(struct lightningd *ld, u64 dbid,
 		      const struct node_id *id,
-		      const struct wireaddr_internal *addr);
+		      const struct wireaddr_internal *addr,
+		      bool connected_incoming);
 
 /* Last one out deletes peer.  Also removes from db. */
 void maybe_delete_peer(struct peer *peer);
@@ -87,6 +89,8 @@ void activate_peers(struct lightningd *ld);
 void drop_to_chain(struct lightningd *ld, struct channel *channel, bool cooperative);
 
 void channel_watch_funding(struct lightningd *ld, struct channel *channel);
+/* If this channel has a "wrong funding" shutdown, watch that too. */
+void channel_watch_wrong_funding(struct lightningd *ld, struct channel *channel);
 
 struct amount_msat channel_amount_receivable(const struct channel *channel);
 

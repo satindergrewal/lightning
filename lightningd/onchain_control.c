@@ -37,6 +37,7 @@ static void onchaind_tell_fulfill(struct channel *channel)
 		 *  for which it has committed to an outgoing HTLC:
 		 *    - MUST *resolve* the output by spending it, using the
 		 *      HTLC-success transaction.
+		 *    - MUST NOT reveal its own preimage when it's not the final recipient...
 		 *    - MUST resolve the output of that HTLC-success transaction.
 		 *  - otherwise:
 		 *      - if the *remote node* is NOT irrevocably committed to
@@ -588,7 +589,7 @@ enum watch_result onchaind_funding_spent(struct channel *channel,
 
 	channel_set_owner(channel, new_channel_subd(ld,
 						    "lightning_onchaind",
-						    channel, CHANNEL,
+						    channel,
 						    &channel->peer->id,
 						    channel->log, false,
 						    onchaind_wire_name,

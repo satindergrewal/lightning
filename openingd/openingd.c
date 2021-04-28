@@ -34,6 +34,7 @@
 #include <common/peer_status_wiregen.h>
 #include <common/penalty_base.h>
 #include <common/read_peer_msg.h>
+#include <common/shutdown_scriptpubkey.h>
 #include <common/status.h>
 #include <common/subdaemon.h>
 #include <common/type_to_string.h>
@@ -321,6 +322,24 @@ static bool setup_channel_funder(struct state *state)
 	return true;
 }
 
+static void set_remote_upfront_shutdown(struct state *state,
+					u8 *shutdown_scriptpubkey STEALS)
+{
+	bool anysegwit = feature_negotiated(state->our_features,
+					    state->their_features,
+					    OPT_SHUTDOWN_ANYSEGWIT);
+
+	state->upfront_shutdown_script[REMOTE]
+		= tal_steal(state, shutdown_scriptpubkey);
+
+	if (shutdown_scriptpubkey
+	    && !valid_shutdown_scriptpubkey(shutdown_scriptpubkey, anysegwit))
+		peer_failed_err(state->pps,
+				&state->channel_id,
+				"Unacceptable upfront_shutdown_script %s",
+				tal_hex(tmpctx, shutdown_scriptpubkey));
+}
+
 /* We start the 'open a channel' negotation with the supplied peer, but
  * stop when we get to the part where we need the funding txid */
 static u8 *funder_channel_start(struct state *state, u8 channel_flags)
@@ -404,8 +423,7 @@ static u8 *funder_channel_start(struct state *state, u8 channel_flags)
 				&state->channel_id,
 				"Parsing accept_channel %s", tal_hex(msg, msg));
 	}
-	state->upfront_shutdown_script[REMOTE]
-		= tal_steal(state, accept_tlvs->upfront_shutdown_script);
+	set_remote_upfront_shutdown(state, accept_tlvs->upfront_shutdown_script);
 
 	/* BOLT #2:
 	 *
@@ -628,8 +646,8 @@ static bool funder_finalize_channel_setup(struct state *state,
 	/* BOLT #2:
 	 *
 	 * The recipient:
-	 *   - if `signature` is incorrect:
-	 *     - MUST fail the channel.
+	 *   - if `signature` is incorrect OR non-compliant with LOW-S-standard rule...:
+	 *     - MUST fail the channel
 	 */
 	/* So we create *our* initial commitment transaction, and check the
 	 * signature they sent against that. */
@@ -764,8 +782,7 @@ static u8 *fundee_channel(struct state *state, const u8 *open_channel_msg)
 		    peer_failed_err(state->pps,
 				    &state->channel_id,
 				    "Parsing open_channel %s", tal_hex(tmpctx, open_channel_msg));
-	state->upfront_shutdown_script[REMOTE]
-		= tal_steal(state, open_tlvs->upfront_shutdown_script);
+	set_remote_upfront_shutdown(state, open_tlvs->upfront_shutdown_script);
 
 	/* BOLT #2:
 	 *
@@ -1004,7 +1021,8 @@ static u8 *fundee_channel(struct state *state, const u8 *open_channel_msg)
 	/* BOLT #2:
 	 *
 	 * The recipient:
-	 *   - if `signature` is incorrect:
+	 *   - if `signature` is incorrect OR non-compliant with LOW-S-standard
+	 *     rule...:
 	 *     - MUST fail the channel.
 	 */
 	local_commit = initial_channel_tx(state, &wscript, state->channel,
@@ -1224,7 +1242,10 @@ static void handle_dev_memleak(struct state *state, const u8 *msg)
  * just forward it here. */
 static void openingd_send_custommsg(struct state *state, const u8 *msg)
 {
-	sync_crypto_write(state->pps, take(msg));
+	u8 *inner;
+	if (!fromwire_custommsg_out(tmpctx, msg, &inner))
+		master_badmsg(WIRE_CUSTOMMSG_OUT, msg);
+	sync_crypto_write(state->pps, take(inner));
 }
 #endif /* DEVELOPER */
 

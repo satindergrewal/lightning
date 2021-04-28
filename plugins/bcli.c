@@ -69,6 +69,14 @@ struct bitcoind {
 
 	/* Percent of CONSERVATIVE/2 feerate we'll use for commitment txs. */
 	u64 commit_fee_percent;
+
+	/* Whether we fake fees (regtest) */
+	bool fake_fees;
+
+#if DEVELOPER
+	/* Override in case we're developer mode for testing*/
+	bool no_fake_fees;
+#endif
 };
 
 static struct bitcoind *bitcoind;
@@ -431,9 +439,14 @@ estimatefees_parse_feerate(struct bitcoin_cli *bcli, u64 *feerate)
 		/* Paranoia: if it had a feerate, but was malformed: */
 		if (json_get_member(bcli->output, tokens, "feerate"))
 			return command_err_bcli_badjson(bcli, "cannot scan");
+		/* Regtest fee estimation is generally awful: Fake it at min. */
+		if (bitcoind->fake_fees) {
+			*feerate = 1000;
+			return NULL;
+		}
 		/* We return null if estimation failed, and bitcoin-cli will
 		 * exit with 0 but no feerate field on failure. */
-		return estimatefees_null_response(bcli);
+		// return estimatefees_null_response(bcli);
 	}
 
 	return NULL;
@@ -446,33 +459,62 @@ static struct command_result *estimatefees_final_step(struct bitcoin_cli *bcli)
 	struct json_stream *response;
 	struct estimatefees_stash *stash = bcli->stash;
 
-	/* bitcoind could theoretically fail to estimate for a higher target. */
-	if (*bcli->exitstatus != 0)
-		return estimatefees_null_response(bcli);
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
+		/* bitcoind could theoretically fail to estimate for a higher target. */
+		if (*bcli->exitstatus != 0)
+			return estimatefees_null_response(bcli);
+	}
 
 	err = estimatefees_parse_feerate(bcli, &stash->slow);
 	if (err)
 		return err;
 
+	
+
 	response = jsonrpc_stream_success(bcli->cmd);
-	json_add_u64(response, "opening", stash->normal);
-	json_add_u64(response, "mutual_close", stash->slow);
-	json_add_u64(response, "unilateral_close",
-		     stash->very_urgent * bitcoind->commit_fee_percent / 100);
-	json_add_u64(response, "delayed_to_us", stash->normal);
-	json_add_u64(response, "htlc_resolution", stash->urgent);
-	json_add_u64(response, "penalty", stash->urgent);
-	/* We divide the slow feerate for the minimum acceptable, lightningd
-	 * will use floor if it's hit, though. */
-	json_add_u64(response, "min_acceptable", stash->slow / 2);
-	/* BOLT #2:
-	*
-	* Given the variance in fees, and the fact that the transaction may be
-	* spent in the future, it's a good idea for the fee payer to keep a good
-	* margin (say 5x the expected fee requirement)
-	*/
-	json_add_u64(response, "max_acceptable",
-		     stash->very_urgent * bitcoind->max_fee_multiplier);
+	
+	
+
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
+		json_add_u64(response, "opening", stash->normal);
+		json_add_u64(response, "mutual_close", stash->slow);
+		json_add_u64(response, "unilateral_close",
+			     stash->very_urgent * bitcoind->commit_fee_percent / 100);
+		json_add_u64(response, "delayed_to_us", stash->normal);
+		json_add_u64(response, "htlc_resolution", stash->urgent);
+		json_add_u64(response, "penalty", stash->urgent);
+		/* We divide the slow feerate for the minimum acceptable, lightningd
+		 * will use floor if it's hit, though. */
+		json_add_u64(response, "min_acceptable", stash->slow / 2);
+		/* BOLT #2:
+		*
+		* Given the variance in fees, and the fact that the transaction may be
+		* spent in the future, it's a good idea for the fee payer to keep a good
+		* margin (say 5x the expected fee requirement)
+		*/
+		json_add_u64(response, "max_acceptable",
+			     stash->very_urgent * bitcoind->max_fee_multiplier);
+	} else {
+		json_add_u64(response, "opening", 50000);
+		json_add_u64(response, "mutual_close", 50000);
+		json_add_u64(response, "unilateral_close",
+				50000 * bitcoind->commit_fee_percent / 100);
+		json_add_u64(response, "delayed_to_us", 50000);
+		json_add_u64(response, "htlc_resolution", 50000);
+		json_add_u64(response, "penalty", 50000);
+		/* We divide the slow feerate for the minimum acceptable, lightningd
+		* will use floor if it's hit, though. */
+		json_add_u64(response, "min_acceptable", 50000 / 2);
+		// json_add_string(response, "network_name", chainparams->network_name);
+		/* BOLT #2:
+		*
+		* Given the variance in fees, and the fact that the transaction may be
+		* spent in the future, it's a good idea for the fee payer to keep a good
+		* margin (say 5x the expected fee requirement)
+		*/
+		json_add_u64(response, "max_acceptable",
+				50000 * bitcoind->max_fee_multiplier);
+	}
 
 	return command_finished(bcli->cmd, response);
 }
@@ -484,9 +526,11 @@ static struct command_result *estimatefees_fourth_step(struct bitcoin_cli *bcli)
 	struct estimatefees_stash *stash = bcli->stash;
 	const char **params = tal_arr(bcli->cmd, const char *, 2);
 
-	/* bitcoind could theoretically fail to estimate for a higher target. */
-	if (*bcli->exitstatus != 0)
-		return estimatefees_null_response(bcli);
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
+		/* bitcoind could theoretically fail to estimate for a higher target. */
+		if (*bcli->exitstatus != 0)
+			return estimatefees_null_response(bcli);
+	}
 
 	err = estimatefees_parse_feerate(bcli, &stash->normal);
 	if (err)
@@ -507,9 +551,11 @@ static struct command_result *estimatefees_third_step(struct bitcoin_cli *bcli)
 	struct estimatefees_stash *stash = bcli->stash;
 	const char **params = tal_arr(bcli->cmd, const char *, 2);
 
-	/* If we cannot estimate fees, no need to continue bothering bitcoind. */
-	if (*bcli->exitstatus != 0)
-		return estimatefees_null_response(bcli);
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
+		/* If we cannot estimate fees, no need to continue bothering bitcoind. */
+		if (*bcli->exitstatus != 0)
+			return estimatefees_null_response(bcli);
+	}
 
 	err = estimatefees_parse_feerate(bcli, &stash->urgent);
 	if (err)
@@ -530,9 +576,11 @@ static struct command_result *estimatefees_second_step(struct bitcoin_cli *bcli)
 	struct estimatefees_stash *stash = bcli->stash;
 	const char **params = tal_arr(bcli->cmd, const char *, 2);
 
-	/* If we cannot estimate fees, no need to continue bothering bitcoind. */
-	if (*bcli->exitstatus != 0)
-		return estimatefees_null_response(bcli);
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
+		/* If we cannot estimate fees, no need to continue bothering bitcoind. */
+		if (*bcli->exitstatus != 0)
+			return estimatefees_null_response(bcli);
+	}
 
 	err = estimatefees_parse_feerate(bcli, &stash->very_urgent);
 	if (err)
@@ -874,6 +922,11 @@ static const char *init(struct plugin *p, const char *buffer UNUSED,
 			const jsmntok_t *config UNUSED)
 {
 	wait_and_check_bitcoind(p);
+
+	/* Usually we fake up fees in regtest */
+	if (streq(chainparams->network_name, "regtest"))
+		bitcoind->fake_fees = IFDEV(!bitcoind->no_fake_fees, true);
+
 	plugin_log(p, LOG_INFORM,
 		   "bitcoin-cli initialized and connected to bitcoind.");
 
@@ -914,7 +967,7 @@ static const struct plugin_command commands[] = {
 	{
 		"getutxout",
 		"bitcoin",
-		"Get informations about an output, identified by a {txid} an a {vout}",
+		"Get information about an output, identified by a {txid} an a {vout}",
 		"",
 		getutxout
 	},
@@ -938,6 +991,9 @@ static struct bitcoind *new_bitcoind(const tal_t *ctx)
 	bitcoind->rpcport = NULL;
 	bitcoind->max_fee_multiplier = 10;
 	bitcoind->commit_fee_percent = 100;
+#if DEVELOPER
+	bitcoind->no_fake_fees = false;
+#endif
 
 	return bitcoind;
 }
@@ -994,6 +1050,10 @@ int main(int argc, char *argv[])
 				  " closed more often due to fee fluctuations,"
 				  " large values may result in large fees.",
 				  u32_option, &bitcoind->max_fee_multiplier),
+		    plugin_option("dev-no-fake-fees",
+				  "bool",
+				  "Suppress fee faking for regtest",
+				  bool_option, &bitcoind->no_fake_fees),
 #endif /* DEVELOPER */
 		    NULL);
 }

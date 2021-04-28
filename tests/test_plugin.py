@@ -16,6 +16,7 @@ import ast
 import json
 import os
 import pytest
+import random
 import re
 import signal
 import sqlite3
@@ -192,7 +193,7 @@ def test_plugin_slowinit(node_factory):
     os.environ['SLOWINIT_TIME'] = '61'
     n = node_factory.get_node()
 
-    with pytest.raises(RpcError, match='failed to respond to \'init\' in time, terminating.'):
+    with pytest.raises(RpcError, match=': timed out before replying to init'):
         n.rpc.plugin_start(os.path.join(os.getcwd(), "tests/plugins/slow_init.py"))
 
     # It's not actually configured yet, see what happens;
@@ -252,8 +253,11 @@ def test_plugin_command(node_factory):
         n2.rpc.plugin_stop(plugin="static.py")
 
     # Test that we don't crash when starting a broken plugin
-    with pytest.raises(RpcError, match=r"Plugin exited before completing handshake."):
+    with pytest.raises(RpcError, match=r": exited before replying to getmanifest"):
         n2.rpc.plugin_start(plugin=os.path.join(os.getcwd(), "tests/plugins/broken.py"))
+
+    with pytest.raises(RpcError, match=r': timed out before replying to getmanifest'):
+        n2.rpc.plugin_start(os.path.join(os.getcwd(), 'contrib/plugins/fail/failtimeout.py'))
 
     # Test that we can add a directory with more than one new plugin in it.
     try:
@@ -1175,19 +1179,28 @@ def test_forward_event_notification(node_factory, bitcoind, executor):
     """
     amount = 10**8
     disconnects = ['-WIRE_UPDATE_FAIL_HTLC', 'permfail']
-
+    plugin = os.path.join(
+        os.path.dirname(__file__),
+        'plugins',
+        'forward_payment_status.py'
+    )
     l1, l2, l3, l4, l5 = node_factory.get_nodes(5, opts=[
         {},
-        {'plugin': os.path.join(os.getcwd(), 'tests/plugins/forward_payment_status.py')},
+        {'plugin': plugin},
         {},
         {},
         {'disconnect': disconnects}])
 
-    node_factory.join_nodes([l1, l2, l3], wait_for_announce=True)
-    l2.openchannel(l4, wait_for_announce=False)
-    l2.openchannel(l5, wait_for_announce=True)
-    sync_blockheight(bitcoind, [l1, l2, l3, l4, l5])
+    l1.openchannel(l2, confirm=False, wait_for_announce=False)
+    l2.openchannel(l3, confirm=False, wait_for_announce=False)
+    l2.openchannel(l4, confirm=False, wait_for_announce=False)
+    l2.openchannel(l5, confirm=False, wait_for_announce=False)
+
+    # Generate 5, then make sure everyone is up to date before
+    # last one, otherwise they might think it's in the future!
     bitcoind.generate_block(5)
+    sync_blockheight(bitcoind, [l1, l2, l3, l4, l5])
+    bitcoind.generate_block(1)
 
     wait_for(lambda: len(l1.rpc.listchannels()['channels']) == 8)
 
@@ -1327,28 +1340,42 @@ def test_sendpay_notifications_nowaiter(node_factory):
 
 
 def test_rpc_command_hook(node_factory):
-    """Test the `sensitive_command` hook"""
-    plugin = os.path.join(os.getcwd(), "tests/plugins/rpc_command.py")
+    """Test the `rpc_command` hook chain"""
+    plugin = [
+        os.path.join(os.getcwd(), "tests/plugins/rpc_command_1.py"),
+        os.path.join(os.getcwd(), "tests/plugins/rpc_command_2.py")
+    ]
     l1 = node_factory.get_node(options={"plugin": plugin})
 
-    # Usage of "sendpay" has been restricted by the plugin
-    with pytest.raises(RpcError, match=r"You cannot do this"):
+    # rpc_command_2 plugin restricts using "sendpay"
+    with pytest.raises(RpcError, match=r"rpc_command_2 cannot do this"):
         l1.rpc.call("sendpay")
 
-    # The plugin replaces a call made for the "invoice" command
+    # Both plugins will replace calls made for the "invoice" command
+    # The first will win, for the second a warning should be logged
     invoice = l1.rpc.invoice(10**6, "test_side", "test_input")
     decoded = l1.rpc.decodepay(invoice["bolt11"])
-    assert decoded["description"] == "A plugin modified this description"
+    assert decoded["description"] == "rpc_command_1 modified this description"
+    l1.daemon.wait_for_log("rpc_command hook 'invoice' already modified, ignoring.")
 
-    # The plugin sends a custom response to "listfunds"
+    # rpc_command_1 plugin sends a custom response to "listfunds"
     funds = l1.rpc.listfunds()
-    assert funds[0] == "Custom result"
+    assert funds[0] == "Custom rpc_command_1 result"
 
     # Test command redirection to a plugin
     l1.rpc.call('help', [0])
 
-    # Test command which removes plugin itself!
-    l1.rpc.plugin_stop('rpc_command.py')
+    # Check the 'already modified' warning is not logged on just 'continue'
+    assert not l1.daemon.is_in_log("rpc_command hook 'listfunds' already modified, ignoring.")
+
+    # Tests removing a chained hook in random order.
+    # Note: This will get flaky by design if theres a problem.
+    if bool(random.getrandbits(1)):
+        l1.rpc.plugin_stop('rpc_command_2.py')
+        l1.rpc.plugin_stop('rpc_command_1.py')
+    else:
+        l1.rpc.plugin_stop('rpc_command_1.py')
+        l1.rpc.plugin_stop('rpc_command_2.py')
 
 
 def test_libplugin(node_factory):
@@ -1791,11 +1818,13 @@ def test_plugin_fail(node_factory):
     time.sleep(2)
     # It should clean up!
     assert 'failcmd' not in [h['command'] for h in l1.rpc.help()['help']]
+    l1.daemon.wait_for_log(r': exited during normal operation')
 
     l1.rpc.plugin_start(plugin)
     time.sleep(2)
     # It should clean up!
     assert 'failcmd' not in [h['command'] for h in l1.rpc.help()['help']]
+    l1.daemon.wait_for_log(r': exited during normal operation')
 
 
 @unittest.skipIf(not DEVELOPER, "without DEVELOPER=1, gossip v slow")
@@ -2360,8 +2389,8 @@ def test_self_disable(node_factory):
 
     # Could happen before it gets set up.
     l1.daemon.logsearch_start = 0
-    l1.daemon.wait_for_logs(['test_selfdisable_after_getmanifest: disabled itself: "Self-disable test after getmanifest"',
-                             'test_libplugin: disabled itself at init: Disabled via selfdisable option'])
+    l1.daemon.wait_for_logs(['test_selfdisable_after_getmanifest: .* disabled itself: Self-disable test after getmanifest',
+                             'test_libplugin: .* disabled itself at init: Disabled via selfdisable option'])
 
     assert p1 not in [p['name'] for p in l1.rpc.plugin_list()['plugins']]
     assert p2 not in [p['name'] for p in l1.rpc.plugin_list()['plugins']]

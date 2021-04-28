@@ -24,7 +24,9 @@ CCANDIR := ccan
 
 # Where we keep the BOLT RFCs
 BOLTDIR := ../lightning-rfc/
-BOLTVERSION := 7e8c478aef0d23a445845b7d297b0e804583697c
+DEFAULT_BOLTVERSION := b201efe0546120c14bf154ce5f4e18da7243fe7a
+# Can be overridden on cmdline.
+BOLTVERSION := $(DEFAULT_BOLTVERSION)
 
 -include config.vars
 
@@ -78,7 +80,7 @@ endif
 
 # (method=thread to support xdist)
 PYTEST_OPTS := -v -p no:logging $(PYTEST_OPTS)
-PYTHONPATH=$(shell pwd)/contrib/pyln-client:$(shell pwd)/contrib/pyln-testing:$(shell pwd)/contrib/pyln-proto/
+PYTHONPATH=$(shell pwd)/contrib/pyln-client:$(shell pwd)/contrib/pyln-testing:$(shell pwd)/contrib/pyln-proto/:$(shell pwd)/external/lnprototest:$(shell pwd)/contrib/pyln-spec/bolt1:$(shell pwd)/contrib/pyln-spec/bolt2:$(shell pwd)/contrib/pyln-spec/bolt4:$(shell pwd)/contrib/pyln-spec/bolt7
 
 # This is where we add new features as bitcoin adds them.
 FEATURES :=
@@ -340,15 +342,11 @@ PKGLIBEXEC_PROGRAMS = \
 	       lightningd/lightning_channeld \
 	       lightningd/lightning_closingd \
 	       lightningd/lightning_connectd \
+	       lightningd/lightning_dualopend \
 	       lightningd/lightning_gossipd \
 	       lightningd/lightning_hsmd \
 	       lightningd/lightning_onchaind \
 	       lightningd/lightning_openingd
-
-# Only build dualopend if experimental features is on
-ifeq ($(EXPERIMENTAL_FEATURES),1)
-PKGLIBEXEC_PROGRAMS += lightningd/lightning_dualopend
-endif
 
 # Don't delete these intermediaries.
 .PRECIOUS: $(ALL_GEN_HEADERS) $(ALL_GEN_SOURCES)
@@ -376,7 +374,14 @@ endif
 
 check-units:
 
-check: check-units installcheck pytest
+check: check-units installcheck check-protos pytest
+
+check-protos: $(ALL_PROGRAMS)
+ifeq ($(PYTEST),)
+	@echo "py.test is required to run the protocol tests, please install using 'pip3 install -r requirements.txt', and rerun 'configure'."; false
+else
+	@(cd external/lnprototest && PYTHONPATH=$(PYTHONPATH) LIGHTNING_SRC=../.. $(PYTEST) --runner lnprototest.clightning.Runner $(PYTEST_OPTS))
+endif
 
 pytest: $(ALL_PROGRAMS)
 ifeq ($(PYTEST),)
@@ -405,11 +410,12 @@ SRC_TO_CHECK := $(filter-out $(ALL_TEST_PROGRAMS:=.c), $(ALL_NONGEN_SOURCES))
 check-src-includes: $(SRC_TO_CHECK:%=check-src-include-order/%)
 check-hdr-includes: $(ALL_NONGEN_HEADERS:%=check-hdr-include-order/%)
 
-# Experimental quotes quote the exact version.
-ifeq ($(EXPERIMENTAL_FEATURES),1)
-CHECK_BOLT_PREFIX=--prefix="BOLT-$(BOLTVERSION)"
-else
+# If you want to check a specific variant of quotes use:
+#   make check-source-bolt BOLTVERSION=xxx
+ifeq ($(BOLTVERSION),$(DEFAULT_BOLTVERSION))
 CHECK_BOLT_PREFIX=
+else
+CHECK_BOLT_PREFIX=--prefix="BOLT-$(BOLTVERSION)"
 endif
 
 # Any mention of BOLT# must be followed by an exact quote, modulo whitespace.
@@ -484,6 +490,18 @@ check-amount-access:
 check-source: check-makefile check-source-bolt check-whitespace check-markdown check-spelling check-python check-includes check-cppcheck check-shellcheck check-setup_locale check-tmpctx check-discouraged-functions check-amount-access
 
 full-check: check check-source
+
+# Simple target to be used on CI systems to check that all the derived
+# files were checked in and updated. It depends on the generated
+# targets, and checks if any of the tracked files changed. If they did
+# then one of the gen-targets caused this change, meaning either the
+# gen-target is not reproducible or the files were forgotten.
+#
+# Do not run on your development tree since it will complain if you
+# have a dirty tree.
+check-gen-updated: $(ALL_GEN_HEADERS) $(ALL_GEN_SOURCES) wallet/statements_gettextgen.po $(MANPAGES)
+	@echo "Checking for generated files being changed by make"
+	git diff --exit-code HEAD $?
 
 coverage/coverage.info: check pytest
 	mkdir coverage || true

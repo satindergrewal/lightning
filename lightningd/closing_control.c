@@ -19,6 +19,7 @@
 #include <lightningd/options.h>
 #include <lightningd/peer_control.h>
 #include <lightningd/subd.h>
+#include <wire/common_wiregen.h>
 
 static struct amount_sat calc_tx_fee(struct amount_sat sat_in,
 				     const struct bitcoin_tx *tx)
@@ -163,6 +164,19 @@ static unsigned closing_msg(struct subd *sd, const u8 *msg, const int *fds UNUSE
 		break;
 	}
 
+	switch ((enum common_wire)t) {
+#if DEVELOPER
+	case WIRE_CUSTOMMSG_IN:
+		handle_custommsg_in(sd->ld, sd->node_id, msg);
+		break;
+#else
+	case WIRE_CUSTOMMSG_IN:
+#endif
+	/* We send these. */
+	case WIRE_CUSTOMMSG_OUT:
+		break;
+	}
+
 	return 0;
 }
 
@@ -194,7 +208,7 @@ void peer_start_closingd(struct channel *channel,
 	channel_set_owner(channel,
 			  new_channel_subd(ld,
 					   "lightning_closingd",
-					   channel, CHANNEL, &channel->peer->id,
+					   channel, &channel->peer->id,
 					   channel->log, true,
 					   closingd_wire_name, closing_msg,
 					   channel_errmsg,
@@ -286,30 +300,31 @@ void peer_start_closingd(struct channel *channel,
 		return;
 	}
 	initmsg = towire_closingd_init(tmpctx,
-				      chainparams,
-				      pps,
-				      &channel->cid,
-				      &channel->funding_txid,
-				      channel->funding_outnum,
-				      channel->funding,
-				      &channel->local_funding_pubkey,
-				      &channel->channel_info.remote_fundingkey,
-				      channel->opener,
-				      amount_msat_to_sat_round_down(channel->our_msat),
-				      amount_msat_to_sat_round_down(their_msat),
-				      channel->our_config.dust_limit,
-				      minfee, feelimit, startfee,
-				      channel->shutdown_scriptpubkey[LOCAL],
-				      channel->shutdown_scriptpubkey[REMOTE],
-				      channel->closing_fee_negotiation_step,
-				      channel->closing_fee_negotiation_step_unit,
-				      reconnected,
-				      channel->next_index[LOCAL],
-				      channel->next_index[REMOTE],
-				      num_revocations,
-				      channel_reestablish,
-				      &last_remote_per_commit_secret,
-				      IFDEV(ld->dev_fast_gossip, false));
+				       chainparams,
+				       pps,
+				       &channel->cid,
+				       &channel->funding_txid,
+				       channel->funding_outnum,
+				       channel->funding,
+				       &channel->local_funding_pubkey,
+				       &channel->channel_info.remote_fundingkey,
+				       channel->opener,
+				       amount_msat_to_sat_round_down(channel->our_msat),
+				       amount_msat_to_sat_round_down(their_msat),
+				       channel->our_config.dust_limit,
+				       minfee, feelimit, startfee,
+				       channel->shutdown_scriptpubkey[LOCAL],
+				       channel->shutdown_scriptpubkey[REMOTE],
+				       channel->closing_fee_negotiation_step,
+				       channel->closing_fee_negotiation_step_unit,
+				       reconnected,
+				       channel->next_index[LOCAL],
+				       channel->next_index[REMOTE],
+				       num_revocations,
+				       channel_reestablish,
+				       &last_remote_per_commit_secret,
+				       IFDEV(ld->dev_fast_gossip, false),
+				       channel->shutdown_wrong_funding);
 
 	/* We don't expect a response: it will give us feedback on
 	 * signatures sent and received, then closing_complete. */

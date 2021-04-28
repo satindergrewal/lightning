@@ -79,13 +79,13 @@ wire/bolt12_wire.csv.raw: bolt-precheck
 	@$(BOLT_EXTRACT) $(LOCAL_BOLTDIR)/12*.md > $@
 
 # How to make the exp versions from non-exp versions:
-wire/peer_exp_wire.csv: wire/peer_wire.csv
+wire/peer_exp_wire.csv: wire/peer_wire.csv $(PEER_EXP_PATCHES)
 	@set -e; T=$@; trap "rm -f $$T.$$$$" 0; cp $< $$T.$$$$; for p in $(PEER_EXP_PATCHES); do echo APPLY $$p; patch $$T.$$$$ $$p; done; mv $$T.$$$$ $$T
 
-wire/onion_exp_wire.csv: wire/onion_wire.csv
+wire/onion_exp_wire.csv: wire/onion_wire.csv $(ONION_EXP_PATCHES)
 	@set -e; T=$@; trap "rm -f $$T.$$$$" 0; cp $< $$T.$$$$; for p in $(ONION_EXP_PATCHES); do echo APPLY $$p; patch $$T.$$$$ $$p; done; mv $$T.$$$$ $$T
 
-wire/bolt12_exp_wire.csv: wire/bolt12_wire.csv
+wire/bolt12_exp_wire.csv: wire/bolt12_wire.csv $(BOLT12_EXP_PATCHES)
 	@set -e; T=$@; trap "rm -f $$T.$$$$" 0; cp $< $$T.$$$$; for p in $(BOLT12_EXP_PATCHES); do echo APPLY $$p; patch $$T.$$$$ $$p; done; mv $$T.$$$$ $$T
 
 # These can be deleted.
@@ -127,7 +127,12 @@ $(filter %printgen.h %printgen.c %wiregen.h %wiregen.c, $(WIRE_SRC) $(WIRE_PRINT
 
 maintainer-clean: wire-maintainer-clean
 
-wire-maintainer-clean:
+clean: wire-clean
+
+wire-clean:
+	$(RM) wire/*.csv.*
+
+wire-maintainer-clean: wire-clean
 	$(RM) wire/gen_*_csv wire/extracted_*_experimental_csv
 
 include wire/test/Makefile

@@ -4,6 +4,7 @@
 #include <ccan/list/list.h>
 #include <common/channel_id.h>
 #include <common/per_peer_state.h>
+#include <common/tx_roles.h>
 #include <lightningd/channel_state.h>
 #include <lightningd/peer_htlcs.h>
 #include <wallet/wallet.h>
@@ -18,6 +19,47 @@ struct billboard {
 	const char *transient;
 };
 
+struct funding_info {
+	struct bitcoin_txid txid;
+	u16 outnum;
+	u32 feerate;
+	struct amount_sat total_funds;
+
+	/* Our original funds, in funding amount */
+	struct amount_sat our_funds;
+};
+
+struct channel_inflight {
+	/* Inside channel->inflights. */
+	struct list_node list;
+
+	/* Channel context */
+	struct channel *channel;
+
+	/* Funding info */
+	const struct funding_info *funding;
+	struct wally_psbt *funding_psbt;
+	bool remote_tx_sigs;
+	bool tx_broadcast;
+
+	/* Commitment tx and sigs */
+	struct bitcoin_tx *last_tx;
+	struct bitcoin_signature last_sig;
+};
+
+struct open_attempt {
+	/* on uncommitted_channel struct */
+	struct channel *channel;
+	struct channel_config our_config;
+	enum tx_role role;
+	bool aborted;
+
+	/* On funding_channel struct */
+	struct command *cmd;
+	struct amount_sat funding;
+	const u8 *our_upfront_shutdown_script;
+};
+
 struct channel {
 	/* Inside peer->channels. */
 	struct list_node list;
@@ -25,8 +67,17 @@ struct channel {
 	/* Peer context */
 	struct peer *peer;
 
+	/* Inflight channel opens */
+	struct list_head inflights;
+
+	/* Open attempt */
+	struct open_attempt *open_attempt;
+
 	/* Database ID: 0 == not in db yet */
 	u64 dbid;
+
+	/* Populated by new_unsaved_channel */
+	u64 unsaved_dbid;
 
 	/* Error message (iff in error state) */
 	u8 *error;
@@ -70,7 +121,6 @@ struct channel {
 
 	struct amount_msat push;
 	bool remote_funding_locked;
-	bool remote_tx_sigs;
 	/* Channel if locked locally. */
 	struct short_channel_id *scid;
 
@@ -114,6 +164,9 @@ struct channel {
 	/* Whether closing_fee_negotiation_step is in satoshi or %. */
 	u8 closing_fee_negotiation_step_unit;
 
+	/* optional wrong_funding for mutual close */
+	const struct bitcoin_outpoint *shutdown_wrong_funding;
+
 	/* Reestablishment stuff: last sent commit and revocation details. */
 	bool last_was_revoke;
 	struct changed_htlc *last_sent_commit;
@@ -150,9 +203,6 @@ struct channel {
 	/* Our position in the round-robin list.  */
 	u64 rr_number;
 
-	/* PSBT, for v2 channels. Saved until it's sent */
-	struct wally_psbt *psbt;
-
 	/* the one that initiated a bilateral close, NUM_SIDES if unknown. */
 	enum side closer;
 
@@ -162,6 +212,13 @@ struct channel {
 	/* Outstanding command for this channel, v2 only */
 	struct command *openchannel_signed_cmd;
 };
+
+/* For v2 opens, a channel that has not yet been committed/saved to disk */
+struct channel *new_unsaved_channel(struct peer *peer,
+				    u32 feerate_base,
+				    u32 feerate_ppm);
+
+struct open_attempt *new_channel_open_attempt(struct channel *channel);
 
 struct channel *new_channel(struct peer *peer, u64 dbid,
 			    /* NULL or stolen */
@@ -183,7 +240,6 @@ struct channel *new_channel(struct peer *peer, u64 dbid,
 			    struct amount_msat push,
 			    struct amount_sat our_funds,
 			    bool remote_funding_locked,
-                            bool remote_tx_sigs,
 			    /* NULL or stolen */
 			    struct short_channel_id *scid STEALS,
 			    struct channel_id *cid,
@@ -216,9 +272,33 @@ struct channel *new_channel(struct peer *peer, u64 dbid,
 			    const u8 *remote_upfront_shutdown_script STEALS,
 			    bool option_static_remotekey,
 			    bool option_anchor_outputs,
-			    struct wally_psbt *psbt STEALS,
 			    enum side closer,
-			    enum state_change reason);
+			    enum state_change reason,
+			    /* NULL or stolen */
+			    const struct bitcoin_outpoint *shutdown_wrong_funding STEALS);
+
+/* new_inflight - Create a new channel_inflight for a channel */
+struct channel_inflight *
+new_inflight(struct channel *channel,
+	     const struct bitcoin_txid funding_txid,
+	     u16 funding_outnum,
+	     u32 funding_feerate,
+	     struct amount_sat funding,
+	     struct amount_sat our_funds,
+	     struct wally_psbt *funding_psbt STEALS,
+	     struct bitcoin_tx *last_tx STEALS,
+	     const struct bitcoin_signature last_sig);
+
+/* Given a txid, find an inflight channel stub. Returns NULL if none found */
+struct channel_inflight *channel_inflight_find(struct channel *channel,
+					       const struct bitcoin_txid *txid);
+
+/* What's the most recent inflight for this channel? */
+struct channel_inflight *
+channel_current_inflight(const struct channel *channel);
+
+/* What's the last feerate used for a funding tx on this channel? */
+u32 channel_last_funding_feerate(const struct channel *channel);
 
 void delete_channel(struct channel *channel STEALS);
 
@@ -245,6 +325,9 @@ void channel_fail_forget(struct channel *channel, const char *fmt, ...);
 /* Permanent error, but due to internal problems, not peer. */
 void channel_internal_error(struct channel *channel, const char *fmt, ...);
 
+/* Clean up any in-progress commands for a channel */
+void channel_cleanup_commands(struct channel *channel, const char *why);
+
 void channel_set_state(struct channel *channel,
 		       enum channel_state old_state,
 		       enum channel_state state,
@@ -252,6 +335,9 @@ void channel_set_state(struct channel *channel,
 		       char *why);
 
 const char *channel_change_state_reason_str(enum state_change reason);
+
+/* Find a channel which is not yet saved to disk */
+struct channel *peer_unsaved_channel(struct peer *peer);
 
 /* Find a channel which is not onchain, if any */
 struct channel *peer_active_channel(struct peer *peer);
@@ -264,6 +350,10 @@ struct channel *active_channel_by_id(struct lightningd *ld,
 				     const struct node_id *id,
 				     struct uncommitted_channel **uc);
 
+/* Get unsaved channel for peer */
+struct channel *unsaved_channel_by_id(struct lightningd *ld,
+				      const struct node_id *id);
+
 struct channel *channel_by_dbid(struct lightningd *ld, const u64 dbid);
 
 struct channel *active_channel_by_scid(struct lightningd *ld,
@@ -271,10 +361,9 @@ struct channel *active_channel_by_scid(struct lightningd *ld,
 struct channel *any_channel_by_scid(struct lightningd *ld,
 				    const struct short_channel_id *scid);
 
-/* Get channel by channel_id, optionally returning uncommitted_channel. */
+/* Get channel by channel_id */
 struct channel *channel_by_cid(struct lightningd *ld,
-			       const struct channel_id *cid,
-			       struct uncommitted_channel **uc);
+			       const struct channel_id *cid);
 
 void channel_set_last_tx(struct channel *channel,
 			 struct bitcoin_tx *tx,
@@ -302,10 +391,17 @@ static inline bool channel_on_chain(const struct channel *channel)
 	return channel_state_on_chain(channel->state);
 }
 
+static inline bool channel_unsaved(const struct channel *channel)
+{
+	return channel->state == DUALOPEND_OPEN_INIT
+		&& channel->dbid == 0;
+}
+
 static inline bool channel_active(const struct channel *channel)
 {
 	return channel->state != FUNDING_SPEND_SEEN
 		&& channel->state != CLOSINGD_COMPLETE
+		&& !channel_unsaved(channel)
 		&& !channel_on_chain(channel);
 }
 
