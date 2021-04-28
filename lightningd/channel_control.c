@@ -12,6 +12,7 @@
 #include <common/memleak.h>
 #include <common/per_peer_state.h>
 #include <common/psbt_open.h>
+#include <common/shutdown_scriptpubkey.h>
 #include <common/timeout.h>
 #include <common/tx_roles.h>
 #include <common/utils.h>
@@ -21,6 +22,7 @@
 #include <lightningd/channel_control.h>
 #include <lightningd/closing_control.h>
 #include <lightningd/coin_mvts.h>
+#include <lightningd/dual_open_control.h>
 #include <lightningd/hsm_control.h>
 #include <lightningd/jsonrpc.h>
 #include <lightningd/lightningd.h>
@@ -31,10 +33,6 @@
 #include <wire/common_wiregen.h>
 #include <wire/wire_sync.h>
 
-#if EXPERIMENTAL_FEATURES
- #include <lightningd/dual_open_control.h>
-#endif
-
 static void update_feerates(struct lightningd *ld, struct channel *channel)
 {
 	u8 *msg;
@@ -43,6 +41,13 @@ static void update_feerates(struct lightningd *ld, struct channel *channel)
 	/* Nothing to do if we don't know feerate. */
 	if (!feerate)
 		return;
+
+	log_debug(ld->log,
+		  "update_feerates: feerate = %u, min=%u, max=%u, penalty=%u",
+		  feerate,
+		  feerate_min(ld, NULL),
+		  feerate_max(ld, NULL),
+		  try_get_feerate(ld->topology, FEERATE_PENALTY));
 
 	msg = towire_channeld_feerates(NULL, feerate,
 				       feerate_min(ld, NULL),
@@ -219,8 +224,13 @@ static void peer_got_shutdown(struct channel *channel, const u8 *msg)
 {
 	u8 *scriptpubkey;
 	struct lightningd *ld = channel->peer->ld;
+	struct bitcoin_outpoint *wrong_funding;
+	bool anysegwit = feature_negotiated(ld->our_features,
+					    channel->peer->their_features,
+					    OPT_SHUTDOWN_ANYSEGWIT);
 
-	if (!fromwire_channeld_got_shutdown(channel, msg, &scriptpubkey)) {
+	if (!fromwire_channeld_got_shutdown(channel, msg, &scriptpubkey,
+					    &wrong_funding)) {
 		channel_internal_error(channel, "bad channel_got_shutdown %s",
 				       tal_hex(msg, msg));
 		return;
@@ -230,21 +240,7 @@ static void peer_got_shutdown(struct channel *channel, const u8 *msg)
 	tal_free(channel->shutdown_scriptpubkey[REMOTE]);
 	channel->shutdown_scriptpubkey[REMOTE] = scriptpubkey;
 
-	/* BOLT #2:
-	 *
-	 * 1. `OP_DUP` `OP_HASH160` `20` 20-bytes `OP_EQUALVERIFY` `OP_CHECKSIG`
-	 *   (pay to pubkey hash), OR
-	 * 2. `OP_HASH160` `20` 20-bytes `OP_EQUAL` (pay to script hash), OR
-	 * 3. `OP_0` `20` 20-bytes (version 0 pay to witness pubkey), OR
-	 * 4. `OP_0` `32` 32-bytes (version 0 pay to witness script hash)
-	 *
-	 * A receiving node:
-	 *...
-	 *  - if the `scriptpubkey` is not in one of the above forms:
-	 *    - SHOULD fail the connection.
-	 */
-	if (!is_p2pkh(scriptpubkey, NULL) && !is_p2sh(scriptpubkey, NULL)
-	    && !is_p2wpkh(scriptpubkey, NULL) && !is_p2wsh(scriptpubkey, NULL)) {
+	if (!valid_shutdown_scriptpubkey(scriptpubkey, anysegwit)) {
 		channel_fail_permanent(channel,
 				       REASON_PROTOCOL,
 				       "Bad shutdown scriptpubkey %s",
@@ -259,6 +255,14 @@ static void peer_got_shutdown(struct channel *channel, const u8 *msg)
 				  CHANNELD_SHUTTING_DOWN,
 				  REASON_REMOTE,
 				  "Peer closes channel");
+
+	/* If we set it, that's what we want.  Otherwise use their preference.
+	 * We can't have both, since only opener can set this! */
+	if (!channel->shutdown_wrong_funding)
+		channel->shutdown_wrong_funding = wrong_funding;
+
+	/* We now watch the "wrong" funding, in case we spend it. */
+	channel_watch_wrong_funding(ld, channel);
 
 	/* TODO(cdecker) Selectively save updated fields to DB */
 	wallet_channel_save(ld->wallet, channel);
@@ -473,7 +477,7 @@ void peer_start_channeld(struct channel *channel,
 	channel_set_owner(channel,
 			  new_channel_subd(ld,
 					   "lightning_channeld",
-					   channel, CHANNEL,
+					   channel,
 					   &channel->peer->id,
 					   channel->log, true,
 					   channeld_wire_name,
@@ -641,10 +645,9 @@ bool channel_tell_depth(struct lightningd *ld,
 			return true;
 		}
 
-#if EXPERIMENTAL_FEATURES
-		dualopen_tell_depth(channel->owner, channel, depth);
+		dualopen_tell_depth(channel->owner, channel,
+				    txid, depth);
 		return true;
-#endif /* EXPERIMENTAL_FEATURES */
 	} else if (channel->state != CHANNELD_AWAITING_LOCKIN
 	    && channel->state != CHANNELD_NORMAL) {
 		/* If not awaiting lockin/announce, it doesn't
@@ -676,14 +679,13 @@ is_fundee_should_forget(struct lightningd *ld,
 			struct channel *channel,
 			u32 block_height)
 {
-	u32 max_funding_unconfirmed = ld->max_funding_unconfirmed;
-
 	/* BOLT #2:
 	 *
 	 * A non-funding node (fundee):
 	 *   - SHOULD forget the channel if it does not see the
-	 * correct funding transaction after a reasonable timeout.
+	 * correct funding transaction after a timeout of 2016 blocks.
 	 */
+	u32 max_funding_unconfirmed = IFDEV(ld->dev_max_funding_unconfirmed, 2016);
 
 	/* Only applies if we are fundee. */
 	if (channel->opener == LOCAL)
@@ -716,10 +718,13 @@ void channel_notify_new_block(struct lightningd *ld,
 	size_t i;
 
 	list_for_each (&ld->peers, peer, list) {
-		list_for_each (&peer->channels, channel, list)
+		list_for_each (&peer->channels, channel, list) {
+			if (channel_unsaved(channel))
+				continue;
 			if (is_fundee_should_forget(ld, channel, block_height)) {
 				tal_arr_expand(&to_forget, channel);
 			}
+		}
 	}
 
 	/* Need to forget in a separate loop, else the above

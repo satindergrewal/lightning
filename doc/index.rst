@@ -44,6 +44,7 @@ c-lightning Documentation
    lightning-delinvoice <lightning-delinvoice.7.md>
    lightning-delpay <lightning-delpay.7.md>
    lightning-dev-sendcustommsg <lightning-dev-sendcustommsg.7.md>
+   lightning-disableoffer <lightning-disableoffer.7.md>
    lightning-disconnect <lightning-disconnect.7.md>
    lightning-feerates <lightning-feerates.7.md>
    lightning-fetchinvoice <lightning-fetchinvoice.7.md>
@@ -66,6 +67,7 @@ c-lightning Documentation
    lightning-listfunds <lightning-listfunds.7.md>
    lightning-listinvoices <lightning-listinvoices.7.md>
    lightning-listnodes <lightning-listnodes.7.md>
+   lightning-listoffers <lightning-listoffers.7.md>
    lightning-listpays <lightning-listpays.7.md>
    lightning-listpeers <lightning-listpeers.7.md>
    lightning-listsendpays <lightning-listsendpays.7.md>
@@ -76,6 +78,8 @@ c-lightning Documentation
    lightning-notifications <lightning-notifications.7.md>
    lightning-offer <lightning-offer.7.md>
    lightning-offerout <lightning-offerout.7.md>
+   lightning-openchannel_abort <lightning-openchannel_abort.7.md>
+   lightning-openchannel_bump <lightning-openchannel_bump.7.md>
    lightning-openchannel_init <lightning-openchannel_init.7.md>
    lightning-openchannel_signed <lightning-openchannel_signed.7.md>
    lightning-openchannel_update <lightning-openchannel_update.7.md>

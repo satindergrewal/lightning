@@ -59,6 +59,7 @@ u8 *linearize_wtx(const tal_t *ctx, const struct wally_tx *wtx);
 
 /* Get weight of tx in Sipa. */
 size_t bitcoin_tx_weight(const struct bitcoin_tx *tx);
+size_t wally_tx_weight(const struct wally_tx *wtx);
 
 /* Allocate a tx: you just need to fill in inputs and outputs (they're
  * zeroed with inputs' sequence_number set to FFFFFFFF) */
@@ -201,6 +202,13 @@ void wally_tx_input_get_txid(const struct wally_tx_input *in,
 			     struct bitcoin_txid *txid);
 
 /**
+ * Overwrite the txhash and index in the wally_tx_input
+ */
+void bitcoin_tx_input_set_txid(struct bitcoin_tx *tx, int innum,
+			       const struct bitcoin_txid *txid,
+			       u32 index);
+
+/**
  * Check a transaction for consistency.
  *
  * Mainly for the transition from `bitcoin_tx` to the `wally_tx`. Checks that
@@ -253,6 +261,9 @@ void towire_bitcoin_txid(u8 **pptr, const struct bitcoin_txid *txid);
 void towire_bitcoin_tx(u8 **pptr, const struct bitcoin_tx *tx);
 void towire_bitcoin_tx_output(u8 **pptr, const struct bitcoin_tx_output *output);
 void towire_wally_tx(u8 **pptr, const struct wally_tx *wtx);
+void towire_bitcoin_outpoint(u8 **pptr, const struct bitcoin_outpoint *outp);
+void fromwire_bitcoin_outpoint(const u8 **cursor, size_t *max,
+			       struct bitcoin_outpoint *outp);
 
 /* Various weights of transaction parts. */
 size_t bitcoin_tx_core_weight(size_t num_inputs, size_t num_outputs);

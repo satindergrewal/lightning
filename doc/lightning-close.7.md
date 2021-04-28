@@ -4,7 +4,7 @@ lightning-close -- Command for closing channels with direct peers
 SYNOPSIS
 --------
 
-**close** *id* \[*unilateraltimeout*\] \[*destination*\] \[*fee_negotiation_step*\]
+**close** *id* \[*unilateraltimeout*\] \[*destination*\] \[*fee_negotiation_step*\] \[*wrong_funding\*]
 
 DESCRIPTION
 -----------
@@ -44,6 +44,15 @@ insist on our fee as much as possible.
 we quickly accept the peer's proposal.
 The default is "50%".
 
+*wrong_funding_txid* can only be specified if both sides have offered
+the "shutdown_wrong_funding" feature (enabled by the
+**experimental-shutdown-wrong-funding** option): it must be a
+transaction id followed by a colon then the output number.  Instead of
+negotiating a shutdown to spend the expected funding transaction, the
+shutdown transaction will spend this output instead.  This is only
+allowed if this peer opened the channel and the channel is unused: it
+can rescue openings which have been manually miscreated.
+
 The peer needs to be live and connected in order to negotiate a mutual
 close. The default of unilaterally closing after 48 hours is usually a
 reasonable indication that you can no longer contact the peer.
@@ -59,9 +68,8 @@ closed if the peer reconnected.
 
 NOTIFICATIONS
 -------------
-If `allow-deprecated-apis` is false, notifications may be returned
-indicating what is going on, especially if the peer is offline and we
-are waiting.  This will be enabled by default in future!
+Notifications may be returned indicating what is going on, especially
+if the peer is offline and we are waiting.
 
 RETURN VALUE
 ------------
@@ -87,7 +95,7 @@ ZmnSCPxj <<ZmnSCPxj@protonmail.com>> is mainly responsible.
 SEE ALSO
 --------
 
-lightning-disconnect(7), lightning-fundchannel(7)
+lightning-disconnect(7), lightning-fundchannel(7), lightningd-config(5).
 
 RESOURCES
 ---------

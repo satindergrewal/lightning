@@ -69,6 +69,14 @@ struct bitcoind {
 
 	/* Percent of CONSERVATIVE/2 feerate we'll use for commitment txs. */
 	u64 commit_fee_percent;
+
+	/* Whether we fake fees (regtest) */
+	bool fake_fees;
+
+#if DEVELOPER
+	/* Override in case we're developer mode for testing*/
+	bool no_fake_fees;
+#endif
 };
 
 static struct bitcoind *bitcoind;
@@ -431,6 +439,11 @@ estimatefees_parse_feerate(struct bitcoin_cli *bcli, u64 *feerate)
 		/* Paranoia: if it had a feerate, but was malformed: */
 		if (json_get_member(bcli->output, tokens, "feerate"))
 			return command_err_bcli_badjson(bcli, "cannot scan");
+		/* Regtest fee estimation is generally awful: Fake it at min. */
+		if (bitcoind->fake_fees) {
+			*feerate = 1000;
+			return NULL;
+		}
 		/* We return null if estimation failed, and bitcoin-cli will
 		 * exit with 0 but no feerate field on failure. */
 		// return estimatefees_null_response(bcli);
@@ -909,6 +922,11 @@ static const char *init(struct plugin *p, const char *buffer UNUSED,
 			const jsmntok_t *config UNUSED)
 {
 	wait_and_check_bitcoind(p);
+
+	/* Usually we fake up fees in regtest */
+	if (streq(chainparams->network_name, "regtest"))
+		bitcoind->fake_fees = IFDEV(!bitcoind->no_fake_fees, true);
+
 	plugin_log(p, LOG_INFORM,
 		   "bitcoin-cli initialized and connected to bitcoind.");
 
@@ -949,7 +967,7 @@ static const struct plugin_command commands[] = {
 	{
 		"getutxout",
 		"bitcoin",
-		"Get informations about an output, identified by a {txid} an a {vout}",
+		"Get information about an output, identified by a {txid} an a {vout}",
 		"",
 		getutxout
 	},
@@ -973,6 +991,9 @@ static struct bitcoind *new_bitcoind(const tal_t *ctx)
 	bitcoind->rpcport = NULL;
 	bitcoind->max_fee_multiplier = 10;
 	bitcoind->commit_fee_percent = 100;
+#if DEVELOPER
+	bitcoind->no_fake_fees = false;
+#endif
 
 	return bitcoind;
 }
@@ -1029,6 +1050,10 @@ int main(int argc, char *argv[])
 				  " closed more often due to fee fluctuations,"
 				  " large values may result in large fees.",
 				  u32_option, &bitcoind->max_fee_multiplier),
+		    plugin_option("dev-no-fake-fees",
+				  "bool",
+				  "Suppress fee faking for regtest",
+				  bool_option, &bitcoind->no_fake_fees),
 #endif /* DEVELOPER */
 		    NULL);
 }

@@ -22,11 +22,21 @@ enum peer_wire {
         WIRE_WARNING = 1,
         WIRE_PING = 18,
         WIRE_PONG = 19,
+        WIRE_TX_ADD_INPUT = 66,
+        WIRE_TX_ADD_OUTPUT = 67,
+        WIRE_TX_REMOVE_INPUT = 68,
+        WIRE_TX_REMOVE_OUTPUT = 69,
+        WIRE_TX_COMPLETE = 70,
+        WIRE_TX_SIGNATURES = 71,
         WIRE_OPEN_CHANNEL = 32,
         WIRE_ACCEPT_CHANNEL = 33,
         WIRE_FUNDING_CREATED = 34,
         WIRE_FUNDING_SIGNED = 35,
         WIRE_FUNDING_LOCKED = 36,
+        WIRE_OPEN_CHANNEL2 = 64,
+        WIRE_ACCEPT_CHANNEL2 = 65,
+        WIRE_INIT_RBF = 72,
+        WIRE_ACK_RBF = 73,
         WIRE_SHUTDOWN = 38,
         WIRE_CLOSING_SIGNED = 39,
         WIRE_UPDATE_ADD_HTLC = 128,
@@ -60,6 +70,9 @@ const char *peer_wire_name(int e);
  */
 bool peer_wire_is_defined(u16 type);
 
+struct witness_element {
+        u8 *witness;
+};
 struct channel_update_checksums {
         u32 checksum_node_id_1;
         u32 checksum_node_id_2;
@@ -68,10 +81,23 @@ struct channel_update_timestamps {
         u32 timestamp_node_id_1;
         u32 timestamp_node_id_2;
 };
+struct witness_stack {
+        struct witness_element **witness_element;
+};
 struct tlv_n1_tlv3 {
         struct pubkey node_id;
         struct amount_msat amount_msat_1;
         struct amount_msat amount_msat_2;
+};
+struct tlv_opening_tlvs_option_upfront_shutdown_script {
+        u8 *shutdown_scriptpubkey;
+};
+struct tlv_accept_tlvs_option_upfront_shutdown_script {
+        u8 *shutdown_scriptpubkey;
+};
+struct tlv_shutdown_tlvs_wrong_funding {
+        struct bitcoin_txid txid;
+        u32 outnum;
 };
 struct tlv_query_short_channel_ids_tlvs_query_flags {
         u8 encoding_type;
@@ -124,6 +150,30 @@ struct tlv_accept_channel_tlvs {
 	/* TODO The following explicit fields could just point into the
 	 * tlv_field entries above to save on memory. */
 	u8 *upfront_shutdown_script;
+};
+struct tlv_opening_tlvs {
+        /* Raw fields including unknown ones. */
+        struct tlv_field *fields;
+
+	/* TODO The following explicit fields could just point into the
+	 * tlv_field entries above to save on memory. */
+        struct tlv_opening_tlvs_option_upfront_shutdown_script *option_upfront_shutdown_script;
+};
+struct tlv_accept_tlvs {
+        /* Raw fields including unknown ones. */
+        struct tlv_field *fields;
+
+	/* TODO The following explicit fields could just point into the
+	 * tlv_field entries above to save on memory. */
+        struct tlv_accept_tlvs_option_upfront_shutdown_script *option_upfront_shutdown_script;
+};
+struct tlv_shutdown_tlvs {
+        /* Raw fields including unknown ones. */
+        struct tlv_field *fields;
+
+	/* TODO The following explicit fields could just point into the
+	 * tlv_field entries above to save on memory. */
+        struct tlv_shutdown_tlvs_wrong_funding *wrong_funding;
 };
 struct tlv_query_short_channel_ids_tlvs {
         /* Raw fields including unknown ones. */
@@ -368,6 +418,117 @@ void towire_accept_channel_tlvs(u8 **pptr, const struct tlv_accept_channel_tlvs 
 bool accept_channel_tlvs_is_valid(const struct tlv_accept_channel_tlvs *record,
 			  size_t *err_index);
 
+struct tlv_opening_tlvs *tlv_opening_tlvs_new(const tal_t *ctx);
+
+/**
+ * Deserialize a TLV stream for the opening_tlvs namespace.
+ *
+ * This function will parse any TLV stream, as long as the type, length and
+ * value fields are formatted correctly. Fields that are not known in the
+ * current namespace are stored in the `fields` member. Validity can be
+ * checked using opening_tlvs_is_valid.
+ */
+bool fromwire_opening_tlvs(const u8 **cursor, size_t *max,
+			  struct tlv_opening_tlvs * record);
+
+/**
+ * Serialize a TLV stream for the opening_tlvs namespace.
+ *
+ * This function only considers known fields from the opening_tlvs namespace,
+ * and will ignore any fields that may be stored in the `fields` member. This
+ * ensures that the resulting stream is valid according to
+ * `opening_tlvs_is_valid`.
+ */
+void towire_opening_tlvs(u8 **pptr, const struct tlv_opening_tlvs *record);
+
+/**
+ * Check that the TLV stream is valid.
+ *
+ * Enforces the followin validity rules:
+ * - Types must be in monotonic non-repeating order
+ * - We must understand all even types
+ *
+ * Returns false if an error was detected, otherwise returns true. If err_index
+ * is non-null and we detect an error it is set to the index of the first error
+ * detected.
+ */
+bool opening_tlvs_is_valid(const struct tlv_opening_tlvs *record,
+			  size_t *err_index);
+
+struct tlv_accept_tlvs *tlv_accept_tlvs_new(const tal_t *ctx);
+
+/**
+ * Deserialize a TLV stream for the accept_tlvs namespace.
+ *
+ * This function will parse any TLV stream, as long as the type, length and
+ * value fields are formatted correctly. Fields that are not known in the
+ * current namespace are stored in the `fields` member. Validity can be
+ * checked using accept_tlvs_is_valid.
+ */
+bool fromwire_accept_tlvs(const u8 **cursor, size_t *max,
+			  struct tlv_accept_tlvs * record);
+
+/**
+ * Serialize a TLV stream for the accept_tlvs namespace.
+ *
+ * This function only considers known fields from the accept_tlvs namespace,
+ * and will ignore any fields that may be stored in the `fields` member. This
+ * ensures that the resulting stream is valid according to
+ * `accept_tlvs_is_valid`.
+ */
+void towire_accept_tlvs(u8 **pptr, const struct tlv_accept_tlvs *record);
+
+/**
+ * Check that the TLV stream is valid.
+ *
+ * Enforces the followin validity rules:
+ * - Types must be in monotonic non-repeating order
+ * - We must understand all even types
+ *
+ * Returns false if an error was detected, otherwise returns true. If err_index
+ * is non-null and we detect an error it is set to the index of the first error
+ * detected.
+ */
+bool accept_tlvs_is_valid(const struct tlv_accept_tlvs *record,
+			  size_t *err_index);
+
+struct tlv_shutdown_tlvs *tlv_shutdown_tlvs_new(const tal_t *ctx);
+
+/**
+ * Deserialize a TLV stream for the shutdown_tlvs namespace.
+ *
+ * This function will parse any TLV stream, as long as the type, length and
+ * value fields are formatted correctly. Fields that are not known in the
+ * current namespace are stored in the `fields` member. Validity can be
+ * checked using shutdown_tlvs_is_valid.
+ */
+bool fromwire_shutdown_tlvs(const u8 **cursor, size_t *max,
+			  struct tlv_shutdown_tlvs * record);
+
+/**
+ * Serialize a TLV stream for the shutdown_tlvs namespace.
+ *
+ * This function only considers known fields from the shutdown_tlvs namespace,
+ * and will ignore any fields that may be stored in the `fields` member. This
+ * ensures that the resulting stream is valid according to
+ * `shutdown_tlvs_is_valid`.
+ */
+void towire_shutdown_tlvs(u8 **pptr, const struct tlv_shutdown_tlvs *record);
+
+/**
+ * Check that the TLV stream is valid.
+ *
+ * Enforces the followin validity rules:
+ * - Types must be in monotonic non-repeating order
+ * - We must understand all even types
+ *
+ * Returns false if an error was detected, otherwise returns true. If err_index
+ * is non-null and we detect an error it is set to the index of the first error
+ * detected.
+ */
+bool shutdown_tlvs_is_valid(const struct tlv_shutdown_tlvs *record,
+			  size_t *err_index);
+
 struct tlv_query_short_channel_ids_tlvs *tlv_query_short_channel_ids_tlvs_new(const tal_t *ctx);
 
 /**
@@ -516,6 +677,10 @@ void towire_onion_message_tlvs(u8 **pptr, const struct tlv_onion_message_tlvs *r
 bool onion_message_tlvs_is_valid(const struct tlv_onion_message_tlvs *record,
 			  size_t *err_index);
 
+/* SUBTYPE: WITNESS_ELEMENT */
+void towire_witness_element(u8 **p, const struct witness_element *witness_element);
+struct witness_element *fromwire_witness_element(const tal_t *ctx, const u8 **cursor, size_t *plen);
+
 /* SUBTYPE: CHANNEL_UPDATE_CHECKSUMS */
 void towire_channel_update_checksums(u8 **p, const struct channel_update_checksums *channel_update_checksums);
 void fromwire_channel_update_checksums(const u8 **cursor, size_t *plen, struct channel_update_checksums *channel_update_checksums);
@@ -523,6 +688,10 @@ void fromwire_channel_update_checksums(const u8 **cursor, size_t *plen, struct c
 /* SUBTYPE: CHANNEL_UPDATE_TIMESTAMPS */
 void towire_channel_update_timestamps(u8 **p, const struct channel_update_timestamps *channel_update_timestamps);
 void fromwire_channel_update_timestamps(const u8 **cursor, size_t *plen, struct channel_update_timestamps *channel_update_timestamps);
+
+/* SUBTYPE: WITNESS_STACK */
+void towire_witness_stack(u8 **p, const struct witness_stack *witness_stack);
+struct witness_stack *fromwire_witness_stack(const tal_t *ctx, const u8 **cursor, size_t *plen);
 
 /* WIRE: INIT */
 u8 *towire_init(const tal_t *ctx, const u8 *globalfeatures, const u8 *features, const struct tlv_init_tlvs *tlvs);
@@ -544,6 +713,30 @@ bool fromwire_ping(const tal_t *ctx, const void *p, u16 *num_pong_bytes, u8 **ig
 u8 *towire_pong(const tal_t *ctx, const u8 *ignored);
 bool fromwire_pong(const tal_t *ctx, const void *p, u8 **ignored);
 
+/* WIRE: TX_ADD_INPUT */
+u8 *towire_tx_add_input(const tal_t *ctx, const struct channel_id *channel_id, u64 serial_id, const u8 *prevtx, u32 prevtx_vout, u32 sequence, const u8 *script_sig);
+bool fromwire_tx_add_input(const tal_t *ctx, const void *p, struct channel_id *channel_id, u64 *serial_id, u8 **prevtx, u32 *prevtx_vout, u32 *sequence, u8 **script_sig);
+
+/* WIRE: TX_ADD_OUTPUT */
+u8 *towire_tx_add_output(const tal_t *ctx, const struct channel_id *channel_id, u64 serial_id, u64 sats, const u8 *script);
+bool fromwire_tx_add_output(const tal_t *ctx, const void *p, struct channel_id *channel_id, u64 *serial_id, u64 *sats, u8 **script);
+
+/* WIRE: TX_REMOVE_INPUT */
+u8 *towire_tx_remove_input(const tal_t *ctx, const struct channel_id *channel_id, u64 serial_id);
+bool fromwire_tx_remove_input(const void *p, struct channel_id *channel_id, u64 *serial_id);
+
+/* WIRE: TX_REMOVE_OUTPUT */
+u8 *towire_tx_remove_output(const tal_t *ctx, const struct channel_id *channel_id, u64 serial_id);
+bool fromwire_tx_remove_output(const void *p, struct channel_id *channel_id, u64 *serial_id);
+
+/* WIRE: TX_COMPLETE */
+u8 *towire_tx_complete(const tal_t *ctx, const struct channel_id *channel_id);
+bool fromwire_tx_complete(const void *p, struct channel_id *channel_id);
+
+/* WIRE: TX_SIGNATURES */
+u8 *towire_tx_signatures(const tal_t *ctx, const struct channel_id *channel_id, const struct bitcoin_txid *txid, const struct witness_stack **witness_stack);
+bool fromwire_tx_signatures(const tal_t *ctx, const void *p, struct channel_id *channel_id, struct bitcoin_txid *txid, struct witness_stack ***witness_stack);
+
 /* WIRE: OPEN_CHANNEL */
 u8 *towire_open_channel(const tal_t *ctx, const struct bitcoin_blkid *chain_hash, const struct channel_id *temporary_channel_id, struct amount_sat funding_satoshis, struct amount_msat push_msat, struct amount_sat dust_limit_satoshis, struct amount_msat max_htlc_value_in_flight_msat, struct amount_sat channel_reserve_satoshis, struct amount_msat htlc_minimum_msat, u32 feerate_per_kw, u16 to_self_delay, u16 max_accepted_htlcs, const struct pubkey *funding_pubkey, const struct pubkey *revocation_basepoint, const struct pubkey *payment_basepoint, const struct pubkey *delayed_payment_basepoint, const struct pubkey *htlc_basepoint, const struct pubkey *first_per_commitment_point, u8 channel_flags, const struct tlv_open_channel_tlvs *tlvs);
 bool fromwire_open_channel(const void *p, struct bitcoin_blkid *chain_hash, struct channel_id *temporary_channel_id, struct amount_sat *funding_satoshis, struct amount_msat *push_msat, struct amount_sat *dust_limit_satoshis, struct amount_msat *max_htlc_value_in_flight_msat, struct amount_sat *channel_reserve_satoshis, struct amount_msat *htlc_minimum_msat, u32 *feerate_per_kw, u16 *to_self_delay, u16 *max_accepted_htlcs, struct pubkey *funding_pubkey, struct pubkey *revocation_basepoint, struct pubkey *payment_basepoint, struct pubkey *delayed_payment_basepoint, struct pubkey *htlc_basepoint, struct pubkey *first_per_commitment_point, u8 *channel_flags, struct tlv_open_channel_tlvs *tlvs);
@@ -564,9 +757,25 @@ bool fromwire_funding_signed(const void *p, struct channel_id *channel_id, secp2
 u8 *towire_funding_locked(const tal_t *ctx, const struct channel_id *channel_id, const struct pubkey *next_per_commitment_point);
 bool fromwire_funding_locked(const void *p, struct channel_id *channel_id, struct pubkey *next_per_commitment_point);
 
+/* WIRE: OPEN_CHANNEL2 */
+u8 *towire_open_channel2(const tal_t *ctx, const struct bitcoin_blkid *chain_hash, const struct channel_id *channel_id, u32 funding_feerate_perkw, u32 commitment_feerate_perkw, struct amount_sat funding_satoshis, struct amount_sat dust_limit_satoshis, struct amount_msat max_htlc_value_in_flight_msat, struct amount_msat htlc_minimum_msat, u16 to_self_delay, u16 max_accepted_htlcs, u32 locktime, const struct pubkey *funding_pubkey, const struct pubkey *revocation_basepoint, const struct pubkey *payment_basepoint, const struct pubkey *delayed_payment_basepoint, const struct pubkey *htlc_basepoint, const struct pubkey *first_per_commitment_point, u8 channel_flags, const struct tlv_opening_tlvs *tlvs);
+bool fromwire_open_channel2(const void *p, struct bitcoin_blkid *chain_hash, struct channel_id *channel_id, u32 *funding_feerate_perkw, u32 *commitment_feerate_perkw, struct amount_sat *funding_satoshis, struct amount_sat *dust_limit_satoshis, struct amount_msat *max_htlc_value_in_flight_msat, struct amount_msat *htlc_minimum_msat, u16 *to_self_delay, u16 *max_accepted_htlcs, u32 *locktime, struct pubkey *funding_pubkey, struct pubkey *revocation_basepoint, struct pubkey *payment_basepoint, struct pubkey *delayed_payment_basepoint, struct pubkey *htlc_basepoint, struct pubkey *first_per_commitment_point, u8 *channel_flags, struct tlv_opening_tlvs *tlvs);
+
+/* WIRE: ACCEPT_CHANNEL2 */
+u8 *towire_accept_channel2(const tal_t *ctx, const struct channel_id *channel_id, struct amount_sat funding_satoshis, struct amount_sat dust_limit_satoshis, struct amount_msat max_htlc_value_in_flight_msat, struct amount_msat htlc_minimum_msat, u32 minimum_depth, u16 to_self_delay, u16 max_accepted_htlcs, const struct pubkey *funding_pubkey, const struct pubkey *revocation_basepoint, const struct pubkey *payment_basepoint, const struct pubkey *delayed_payment_basepoint, const struct pubkey *htlc_basepoint, const struct pubkey *first_per_commitment_point, const struct tlv_accept_tlvs *tlvs);
+bool fromwire_accept_channel2(const void *p, struct channel_id *channel_id, struct amount_sat *funding_satoshis, struct amount_sat *dust_limit_satoshis, struct amount_msat *max_htlc_value_in_flight_msat, struct amount_msat *htlc_minimum_msat, u32 *minimum_depth, u16 *to_self_delay, u16 *max_accepted_htlcs, struct pubkey *funding_pubkey, struct pubkey *revocation_basepoint, struct pubkey *payment_basepoint, struct pubkey *delayed_payment_basepoint, struct pubkey *htlc_basepoint, struct pubkey *first_per_commitment_point, struct tlv_accept_tlvs *tlvs);
+
+/* WIRE: INIT_RBF */
+u8 *towire_init_rbf(const tal_t *ctx, const struct channel_id *channel_id, struct amount_sat funding_satoshis, u32 locktime, u8 fee_step);
+bool fromwire_init_rbf(const void *p, struct channel_id *channel_id, struct amount_sat *funding_satoshis, u32 *locktime, u8 *fee_step);
+
+/* WIRE: ACK_RBF */
+u8 *towire_ack_rbf(const tal_t *ctx, const struct channel_id *channel_id, struct amount_sat funding_satoshis);
+bool fromwire_ack_rbf(const void *p, struct channel_id *channel_id, struct amount_sat *funding_satoshis);
+
 /* WIRE: SHUTDOWN */
-u8 *towire_shutdown(const tal_t *ctx, const struct channel_id *channel_id, const u8 *scriptpubkey);
-bool fromwire_shutdown(const tal_t *ctx, const void *p, struct channel_id *channel_id, u8 **scriptpubkey);
+u8 *towire_shutdown(const tal_t *ctx, const struct channel_id *channel_id, const u8 *scriptpubkey, const struct tlv_shutdown_tlvs *tlvs);
+bool fromwire_shutdown(const tal_t *ctx, const void *p, struct channel_id *channel_id, u8 **scriptpubkey, struct tlv_shutdown_tlvs *tlvs);
 
 /* WIRE: CLOSING_SIGNED */
 u8 *towire_closing_signed(const tal_t *ctx, const struct channel_id *channel_id, struct amount_sat fee_satoshis, const secp256k1_ecdsa_signature *signature);
@@ -633,8 +842,8 @@ u8 *towire_query_channel_range(const tal_t *ctx, const struct bitcoin_blkid *cha
 bool fromwire_query_channel_range(const void *p, struct bitcoin_blkid *chain_hash, u32 *first_blocknum, u32 *number_of_blocks, struct tlv_query_channel_range_tlvs *tlvs);
 
 /* WIRE: REPLY_CHANNEL_RANGE */
-u8 *towire_reply_channel_range(const tal_t *ctx, const struct bitcoin_blkid *chain_hash, u32 first_blocknum, u32 number_of_blocks, u8 full_information, const u8 *encoded_short_ids, const struct tlv_reply_channel_range_tlvs *tlvs);
-bool fromwire_reply_channel_range(const tal_t *ctx, const void *p, struct bitcoin_blkid *chain_hash, u32 *first_blocknum, u32 *number_of_blocks, u8 *full_information, u8 **encoded_short_ids, struct tlv_reply_channel_range_tlvs *tlvs);
+u8 *towire_reply_channel_range(const tal_t *ctx, const struct bitcoin_blkid *chain_hash, u32 first_blocknum, u32 number_of_blocks, u8 sync_complete, const u8 *encoded_short_ids, const struct tlv_reply_channel_range_tlvs *tlvs);
+bool fromwire_reply_channel_range(const tal_t *ctx, const void *p, struct bitcoin_blkid *chain_hash, u32 *first_blocknum, u32 *number_of_blocks, u8 *sync_complete, u8 **encoded_short_ids, struct tlv_reply_channel_range_tlvs *tlvs);
 
 /* WIRE: GOSSIP_TIMESTAMP_FILTER */
 u8 *towire_gossip_timestamp_filter(const tal_t *ctx, const struct bitcoin_blkid *chain_hash, u32 first_timestamp, u32 timestamp_range);
@@ -650,4 +859,4 @@ bool fromwire_channel_update_option_channel_htlc_max(const void *p, secp256k1_ec
 
 
 #endif /* LIGHTNING_WIRE_PEER_WIREGEN_H */
-// SHA256STAMP:d0f5b313c478153542610f14d7c6b39c1121b6a6b08fb72f3d427a103243b990
+// SHA256STAMP:aecb66d3600732f50b4279272e4c057d1ea410bddf41cbb01b6326320f5b9de8

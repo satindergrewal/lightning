@@ -1,10 +1,12 @@
 from fixtures import *  # noqa: F401,F403
 from flaky import flaky
-from pyln.client import RpcError
+from pyln.client import RpcError, Millisatoshi
 from shutil import copyfile
+from pyln.testing.utils import SLOW_MACHINE
 from utils import (
     only_one, sync_blockheight, wait_for, DEVELOPER, TIMEOUT,
     account_balance, first_channel_id, basic_fee, TEST_NETWORK,
+    EXPERIMENTAL_FEATURES, EXPERIMENTAL_DUAL_FUND, scriptpubkey_addr
 )
 
 import os
@@ -370,7 +372,7 @@ def test_closing_specified_destination(node_factory, bitcoind, chainparams):
         output_num2 = [o for o in outputs if o['txid'] == closetx][0]['output']
         output_num1 = 0 if output_num2 == 1 else 1
         # Check the another address is addr
-        assert addr == bitcoind.rpc.gettxout(closetx, output_num1)['scriptPubKey']['addresses'][0]
+        assert addr == scriptpubkey_addr(bitcoind.rpc.gettxout(closetx, output_num1)['scriptPubKey'])
         assert 1 == bitcoind.rpc.gettxout(closetx, output_num1)['confirmations']
 
 
@@ -972,7 +974,7 @@ def test_penalty_htlc_tx_timeout(node_factory, bitcoind, chainparams):
     l2.daemon.wait_for_log('coins payment_hash: {}'.format(sticky_inv_2['payment_hash']))
 
     # l2 moves on for closed l3
-    bitcoind.generate_block(1)
+    bitcoind.generate_block(1, wait_for_mempool=1)
     l2.daemon.wait_for_log('to ONCHAIN')
     l2.daemon.wait_for_logs(['Propose handling OUR_UNILATERAL/OUR_HTLC by OUR_HTLC_TIMEOUT_TX .* after 16 blocks',
                              'Propose handling OUR_UNILATERAL/DELAYED_OUTPUT_TO_US by OUR_DELAYED_RETURN_TO_WALLET .* after 5 blocks',
@@ -981,7 +983,7 @@ def test_penalty_htlc_tx_timeout(node_factory, bitcoind, chainparams):
     l2.wait_for_onchaind_broadcast('OUR_HTLC_SUCCESS_TX',
                                    'OUR_UNILATERAL/THEIR_HTLC')
 
-    bitcoind.generate_block(1)
+    bitcoind.generate_block(1, wait_for_mempool=1)
     l2.daemon.wait_for_log('Propose handling OUR_HTLC_SUCCESS_TX/DELAYED_OUTPUT_TO_US by OUR_DELAYED_RETURN_TO_WALLET .* after 5 blocks')
 
     # after 5 blocks, l2 reclaims both their DELAYED_OUTPUT_TO_US and their delayed output
@@ -994,7 +996,7 @@ def test_penalty_htlc_tx_timeout(node_factory, bitcoind, chainparams):
     l2.wait_for_onchaind_broadcast('OUR_HTLC_TIMEOUT_TX',
                                    'OUR_UNILATERAL/OUR_HTLC')
 
-    bitcoind.generate_block(1)
+    bitcoind.generate_block(1, wait_for_mempool=1)
     l2.daemon.wait_for_log('Propose handling OUR_HTLC_TIMEOUT_TX/DELAYED_OUTPUT_TO_US by OUR_DELAYED_RETURN_TO_WALLET .* after 5 blocks')
 
     # l3 comes back up, sees cheat, penalizes l2 (revokes the htlc they've offered;
@@ -1014,7 +1016,16 @@ def test_penalty_htlc_tx_timeout(node_factory, bitcoind, chainparams):
                              'by THEIR_DELAYED_CHEAT',
                              'Resolved THEIR_REVOKED_UNILATERAL/THEIR_HTLC by THEIR_HTLC_TIMEOUT_TO_THEM',
                              'Propose handling THEIR_HTLC_TIMEOUT_TO_THEM/DELAYED_CHEAT_OUTPUT_TO_THEM by OUR_PENALTY_TX'])
-    bitcoind.generate_block(1, wait_for_mempool=2)  # OUR_PENALTY_TX + OUR_HTLC_TIMEOUT_TO_US
+
+    # Make sure we've broadcast the tx we expect (other channels shutting down can create
+    # unrelated txs!)
+
+    # In theory this could have occurred before all the previous loglines appeared.
+    l3.daemon.logsearch_start = 0
+    line = l3.daemon.wait_for_log(r'Broadcasting OUR_PENALTY_TX \([0-9a-f]*\) to resolve THEIR_HTLC_TIMEOUT_TO_THEM/DELAYED_CHEAT_OUTPUT_TO_THEM')
+    tx = re.search(r'\(([0-9a-f]*)\)', line).group(1)
+    txid = bitcoind.rpc.decoderawtransaction(tx)['txid']
+    bitcoind.generate_block(1, wait_for_mempool=[txid])
     l3.daemon.wait_for_log('Resolved THEIR_HTLC_TIMEOUT_TO_THEM/DELAYED_CHEAT_OUTPUT_TO_THEM '
                            'by our proposal OUR_PENALTY_TX')
     l2.daemon.wait_for_log('Unknown spend of OUR_HTLC_TIMEOUT_TX/DELAYED_OUTPUT_TO_US')
@@ -1817,9 +1828,15 @@ def test_onchain_feechange(node_factory, bitcoind, executor):
     # We need 2 to drop to chain, because then 1's HTLC timeout tx
     # is generated on-the-fly, and is thus feerate sensitive.
     disconnects = ['-WIRE_UPDATE_FAIL_HTLC', 'permfail']
-    l1, l2 = node_factory.line_graph(2, opts=[{'may_reconnect': True},
-                                              {'may_reconnect': True,
-                                               'disconnect': disconnects}])
+    l1, l2 = node_factory.line_graph(2, opts=[
+        {
+            'may_reconnect': True,
+            'allow_warning': True,
+        }, {
+            'may_reconnect': True,
+            'disconnect': disconnects,
+        }
+    ])
 
     rhash = l2.rpc.invoice(10**8, 'onchain_timeout', 'desc')['payment_hash']
     # We underpay, so it fails.
@@ -2505,7 +2522,7 @@ def test_permfail(node_factory, bitcoind):
     # Check that the all the addresses match what we generated ourselves:
     for o in l1.rpc.listfunds()['outputs']:
         txout = bitcoind.rpc.gettxout(o['txid'], o['output'])
-        addr = txout['scriptPubKey']['addresses'][0]
+        addr = scriptpubkey_addr(txout['scriptPubKey'])
         assert(addr == o['address'])
 
     addr = l1.bitcoin.getnewaddress()
@@ -2588,3 +2605,149 @@ def test_option_upfront_shutdown_script(node_factory, bitcoind, executor):
     l1.rpc.fundchannel(l2.info['id'], 1000000)
     l1.rpc.close(l2.info['id'])
     wait_for(lambda: sorted([c['state'] for c in only_one(l1.rpc.listpeers()['peers'])['channels']]) == ['CLOSINGD_COMPLETE', 'ONCHAIN', 'ONCHAIN'])
+
+
+@unittest.skipIf(not DEVELOPER, "needs to set upfront_shutdown_script")
+def test_invalid_upfront_shutdown_script(node_factory, bitcoind, executor):
+    l1, l2 = node_factory.line_graph(2, fundchannel=False)
+
+    l1 = node_factory.get_node(start=False, allow_warning=True)
+    # Insist on upfront script we're not going to match.
+    l1.daemon.env["DEV_OPENINGD_UPFRONT_SHUTDOWN_SCRIPT"] = "76a91404b61f7dc1ea0dc99424464cc4064dc564d91e8988ac00"
+    l1.start()
+
+    l2 = node_factory.get_node()
+    l1.rpc.connect(l2.info['id'], 'localhost', l2.port)
+    with pytest.raises(RpcError, match=r'Unacceptable upfront_shutdown_script'):
+        l1.fundchannel(l2, 1000000, False)
+
+
+@unittest.skipIf(not DEVELOPER, "needs to set upfront_shutdown_script")
+@pytest.mark.slow_test
+def test_segwit_shutdown_script(node_factory, bitcoind, executor):
+    """
+Try a range of future segwit versions as shutdown scripts.  We create many nodes, so this is quite slow under valgrind
+"""
+    l1 = node_factory.get_node(allow_warning=True)
+
+    # BOLT-4e329271a358ee52bf43ddbd96776943c5d74508 #2:
+    # 5. if (and only if) `option_shutdown_anysegwit` is negotiated:
+    #    * `OP_1` through `OP_16` inclusive, followed by a single push of 2 to 40 bytes
+    #    (witness program versions 1 through 16)
+    edge_valid = ['51020000', '5128' + '00' * 0x28,
+                  '60020000', '6028' + '00' * 0x28]
+    other_valid = ['52020000', '5228' + '00' * 0x28,
+                   '53020000', '5328' + '00' * 0x28,
+                   '54020000', '5428' + '00' * 0x28,
+                   '55020000', '5528' + '00' * 0x28,
+                   '56020000', '5628' + '00' * 0x28,
+                   '57020000', '5728' + '00' * 0x28,
+                   '58020000', '5828' + '00' * 0x28,
+                   '59020000', '5928' + '00' * 0x28,
+                   '5A020000', '5A28' + '00' * 0x28,
+                   '5B020000', '5B28' + '00' * 0x28,
+                   '5C020000', '5C28' + '00' * 0x28,
+                   '5D020000', '5D28' + '00' * 0x28,
+                   '5E020000', '5E28' + '00' * 0x28,
+                   '5F020000', '5F28' + '00' * 0x28]
+
+    invalid = ['50020000',  # Not OP_1-OP_16
+               '61020000',  # Not OP_1-OP_16
+               '5102000000',  # Extra bytes
+               '510100',  # Too short
+               '5129' + '00' * 0x29]  # Too long
+
+    # Don't stress CI; just test edge cases
+    if SLOW_MACHINE:
+        valid = edge_valid
+    else:
+        valid = edge_valid + other_valid
+
+    if EXPERIMENTAL_FEATURES:
+        xsuccess = valid
+        xfail = invalid
+    else:
+        xsuccess = []
+        xfail = valid + invalid
+
+    # More efficient to create them all up-front.
+    nodes = node_factory.get_nodes(len(xfail) + len(xsuccess))
+
+    # Give it one UTXO to spend for each node.
+    addresses = {}
+    for n in nodes:
+        addresses[l1.rpc.newaddr()['bech32']] = (10**6 + 100000) / 10**8
+    bitcoind.rpc.sendmany("", addresses)
+    bitcoind.generate_block(1)
+    wait_for(lambda: len(l1.rpc.listfunds()['outputs']) == len(addresses))
+
+    # FIXME: Since we don't support other non-v0 encodings, we need a protocol
+    # test for this (we're actually testing our upfront check, not the real
+    # shutdown one!),
+    for script in xsuccess:
+        # Insist on upfront script we're not going to match.
+        l1.stop()
+        l1.daemon.env["DEV_OPENINGD_UPFRONT_SHUTDOWN_SCRIPT"] = script
+        l1.start()
+
+        l2 = nodes.pop()
+        l1.rpc.connect(l2.info['id'], 'localhost', l2.port)
+        l1.rpc.fundchannel(l2.info['id'], 10**6)
+
+    for script in xfail:
+        # Insist on upfront script we're not going to match.
+        l1.stop()
+        l1.daemon.env["DEV_OPENINGD_UPFRONT_SHUTDOWN_SCRIPT"] = script
+        l1.start()
+
+        l2 = nodes.pop()
+        l1.rpc.connect(l2.info['id'], 'localhost', l2.port)
+        with pytest.raises(RpcError, match=r'Unacceptable upfront_shutdown_script'):
+            l1.rpc.fundchannel(l2.info['id'], 10**6)
+
+
+@unittest.skipIf(EXPERIMENTAL_DUAL_FUND, "Uses fundchannel_start")
+def test_shutdown_alternate_txid(node_factory, bitcoind):
+    l1, l2 = node_factory.line_graph(2, fundchannel=False,
+                                     opts={'experimental-shutdown-wrong-funding': None,
+                                           'allow-deprecated-apis': True})
+
+    amount = 1000000
+    amount_msat = Millisatoshi(amount * 1000)
+
+    # Let's make a classic fundchannel mistake (wrong txid!)
+    addr = l1.rpc.fundchannel_start(l2.info['id'], amount_msat)['funding_address']
+    txid = bitcoind.rpc.sendtoaddress(addr, amount / 10**8)
+
+    # Gotta figure out which output manually :(
+    tx = bitcoind.rpc.getrawtransaction(txid, 1)
+    for n, out in enumerate(tx['vout']):
+        if scriptpubkey_addr(out['scriptPubKey']) == addr:
+            txout = n
+
+    bitcoind.generate_block(1, wait_for_mempool=1)
+
+    # Wrong txid, wrong txout!
+    wrong_txid = txid[16:] + txid[:16]
+    wrong_txout = txout ^ 1
+    l1.rpc.fundchannel_complete(l2.info['id'], wrong_txid, wrong_txout)
+
+    wait_for(lambda: only_one(l2.rpc.listpeers()['peers'])['channels'] != [])
+    wait_for(lambda: only_one(l2.rpc.listpeers()['peers'])['channels'][0]['state'] == 'CHANNELD_AWAITING_LOCKIN')
+
+    closeaddr = l1.rpc.newaddr()['bech32']
+
+    # Oops, try rescuing it!
+    l1.rpc.call('close', {'id': l2.info['id'], 'destination': closeaddr, 'wrong_funding': txid + ':' + str(txout)})
+
+    # Just make sure node has no funds.
+    assert l1.rpc.listfunds()['outputs'] == []
+
+    bitcoind.generate_block(100, wait_for_mempool=1)
+    sync_blockheight(bitcoind, [l1, l2])
+
+    # We will see our funds return.
+    assert len(l1.rpc.listfunds()['outputs']) == 1
+
+    wait_for(lambda: l2.rpc.listpeers()['peers'] == [])
+    wait_for(lambda: l1.rpc.listpeers()['peers'] == [])

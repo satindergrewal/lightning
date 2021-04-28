@@ -38,6 +38,8 @@ enum multifundchannel_state {
 	MULTIFUNDCHANNEL_SECURED,
 	/* We've recieved the peer sigs for this destination */
 	MULTIFUNDCHANNEL_SIGNED,
+	/* We've gotten their sigs, but still waiting for their commit sigs */
+	MULTIFUNDCHANNEL_SIGNED_NOT_SECURED,
 
 	/* The transaction might now be broadcasted.  */
 	MULTIFUNDCHANNEL_DONE,
@@ -53,9 +55,10 @@ struct multifundchannel_removed {
 	connect, fundchannel_start, fundchannel_complete.
 	*/
 	const char *method;
-	/* The error that caused this destination to be removed, in JSON.  */
-	const char *error;
-	errcode_t code;
+	const char *error_message;
+	errcode_t error_code;
+	/* Optional JSON object containing extra data */
+	const char *error_data;
 };
 
 /* the object for a single destination.  */
@@ -124,9 +127,10 @@ struct multifundchannel_destination {
 	/* the actual channel_id.  */
 	struct channel_id channel_id;
 
-	/* any error messages.  */
-	const char *error;
-	errcode_t code;
+	const char *error_message;
+	errcode_t error_code;
+	/* Optional JSON object containing extra data */
+	const char *error_data;
 
 	/* what channel protocol this destination is using */
 	enum channel_protocol protocol;
@@ -240,14 +244,21 @@ mfc_forward_error(struct command *cmd,
 		  const char *buf, const jsmntok_t *error,
 		  struct multifundchannel_command *);
 
-/* When a destination fails, we record the furthest state
- * reached, and the error message for the failure */
-void fail_destination(struct multifundchannel_destination *dest,
-		      char *error TAKES);
+/* When a destination fails, record the furthest state reached, and the
+ * error message for the failure */
+void fail_destination_tok(struct multifundchannel_destination *dest,
+			  const char *buf,
+			  const jsmntok_t *error);
+void fail_destination_msg(struct multifundchannel_destination *dest,
+			  int error_code,
+			  const char *err_str TAKES);
 
 /* dest_count - Returns count of destinations using given protocol version */
 size_t dest_count(const struct multifundchannel_command *mfc,
 		  enum channel_protocol);
+
+/* Is this destination using the v2/OPEN_CHANNEL protocol? */
+bool is_v2(const struct multifundchannel_destination *dest);
 
 /* Use this instead of command_finished.  */
 struct command_result *
@@ -267,5 +278,6 @@ multifundchannel_finished(struct multifundchannel_command *mfc);
 
 struct command_result *
 redo_multifundchannel(struct multifundchannel_command *mfc,
-		      const char *failing_method);
+		      const char *failing_method,
+		      const char *why);
 #endif /* LIGHTNING_PLUGINS_SPENDER_MULTIFUNDCHANNEL_H */

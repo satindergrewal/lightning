@@ -1,3 +1,4 @@
+#include <ccan/array_size/array_size.h>
 #include <ccan/err/err.h>
 #include <ccan/io/fdpass/fdpass.h>
 #include <ccan/io/io.h>
@@ -12,6 +13,7 @@
 #include <common/peer_status_wiregen.h>
 #include <common/per_peer_state.h>
 #include <common/status_wiregen.h>
+#include <common/version.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <lightningd/lightningd.h>
@@ -402,6 +404,29 @@ static bool handle_set_billboard(struct subd *sd, const u8 *msg)
 	return true;
 }
 
+static bool handle_version(struct subd *sd, const u8 *msg)
+{
+	char *ver;
+
+	if (!fromwire_status_version(msg, msg, &ver))
+		return false;
+
+	if (!streq(ver, version())) {
+		log_broken(sd->log, "version '%s' not '%s': restarting",
+			   ver, version());
+		sd->ld->try_reexec = true;
+		/* Return us to toplevel lightningd.c */
+		io_break(sd->ld);
+		return false;
+	}
+
+	sd->rcvd_version = true;
+	/* In case there are outgoing msgs, we can send now. */
+	msg_wake(sd->outq);
+
+	return true;
+}
+
 static struct io_plan *sd_msg_read(struct io_conn *conn, struct subd *sd)
 {
 	int type = fromwire_peektype(sd->msg_in);
@@ -454,6 +479,10 @@ static struct io_plan *sd_msg_read(struct io_conn *conn, struct subd *sd)
 			goto malformed;
 		if (!handle_set_billboard(sd, sd->msg_in))
 			goto malformed;
+		goto next;
+	case WIRE_STATUS_VERSION:
+		if (!handle_version(sd, sd->msg_in))
+			goto close;
 		goto next;
 	}
 
@@ -581,10 +610,15 @@ static void destroy_subd(struct subd *sd)
 
 static struct io_plan *msg_send_next(struct io_conn *conn, struct subd *sd)
 {
-	const u8 *msg = msg_dequeue(sd->outq);
+	const u8 *msg;
 	int fd;
 
+	/* Don't send if we haven't read version! */
+	if (!sd->rcvd_version)
+		return msg_queue_wait(conn, sd->outq, msg_send_next, sd);
+
 	/* Nothing to do?  Wait for msg_enqueue. */
+	msg = msg_dequeue(sd->outq);
 	if (!msg)
 		return msg_queue_wait(conn, sd->outq, msg_send_next, sd);
 
@@ -606,7 +640,6 @@ static struct io_plan *msg_setup(struct io_conn *conn, struct subd *sd)
 static struct subd *new_subd(struct lightningd *ld,
 			     const char *name,
 			     void *channel,
-			     enum channel_type ctype,
 			     const struct node_id *node_id,
 			     struct log *base_log,
 			     bool talks_to_peer,
@@ -679,7 +712,7 @@ static struct subd *new_subd(struct lightningd *ld,
 	tal_add_destructor(sd, destroy_subd);
 	list_head_init(&sd->reqs);
 	sd->channel = channel;
-	sd->ctype = ctype;
+	sd->rcvd_version = false;
 	if (node_id)
 		sd->node_id = tal_dup(sd, struct node_id, node_id);
 	else
@@ -708,7 +741,7 @@ struct subd *new_global_subd(struct lightningd *ld,
 	struct subd *sd;
 
 	va_start(ap, msgcb);
-	sd = new_subd(ld, name, NULL, NONE, NULL, NULL, false,
+	sd = new_subd(ld, name, NULL, NULL, NULL, false,
 		      msgname, msgcb, NULL, NULL, &ap);
 	va_end(ap);
 
@@ -719,7 +752,6 @@ struct subd *new_global_subd(struct lightningd *ld,
 struct subd *new_channel_subd_(struct lightningd *ld,
 			       const char *name,
 			       void *channel,
-			       enum channel_type ctype,
 			       const struct node_id *node_id,
 			       struct log *base_log,
 			       bool talks_to_peer,
@@ -740,7 +772,7 @@ struct subd *new_channel_subd_(struct lightningd *ld,
 	struct subd *sd;
 
 	va_start(ap, billboardcb);
-	sd = new_subd(ld, name, channel, ctype, node_id, base_log,
+	sd = new_subd(ld, name, channel, node_id, base_log,
 		      talks_to_peer, msgname, msgcb, errcb, billboardcb, &ap);
 	va_end(ap);
 	return sd;
@@ -824,23 +856,6 @@ void subd_release_channel(struct subd *owner, void *channel)
 		owner->channel = NULL;
 		tal_free(owner);
 	}
-}
-
-void subd_swap_channel_(struct subd *daemon, void *channel,
-			enum channel_type ctype,
-			void (*errcb)(void *channel,
-				      struct per_peer_state *pps,
-				      const struct channel_id *channel_id,
-				      const char *desc,
-				      bool warning,
-				      const u8 *err_for_them),
-			void (*billboardcb)(void *channel, bool perm,
-					    const char *happenings))
-{
-	daemon->channel = channel;
-	daemon->ctype = ctype;
-	daemon->errcb = errcb;
-	daemon->billboardcb = billboardcb;
 }
 
 #if DEVELOPER

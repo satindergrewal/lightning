@@ -757,7 +757,6 @@ static struct io_plan *peer_msg_in(struct io_conn *conn,
 	case WIRE_CHANNEL_REESTABLISH:
 	case WIRE_ANNOUNCEMENT_SIGNATURES:
 	case WIRE_GOSSIP_TIMESTAMP_FILTER:
-#if EXPERIMENTAL_FEATURES
 	case WIRE_TX_ADD_INPUT:
 	case WIRE_TX_REMOVE_INPUT:
 	case WIRE_TX_ADD_OUTPUT:
@@ -767,8 +766,7 @@ static struct io_plan *peer_msg_in(struct io_conn *conn,
 	case WIRE_OPEN_CHANNEL2:
 	case WIRE_ACCEPT_CHANNEL2:
 	case WIRE_INIT_RBF:
-	case WIRE_BLACKLIST_PODLE:
-#endif
+	case WIRE_ACK_RBF:
 		status_broken("peer %s: relayed unexpected msg of type %s",
 			      type_to_string(tmpctx, struct node_id, &peer->id),
 			      peer_wire_name(fromwire_peektype(msg)));
@@ -1156,6 +1154,10 @@ static struct io_plan *gossip_init(struct io_conn *conn,
 
 	/* Fire up the seeker! */
 	daemon->seeker = new_seeker(daemon);
+
+	/* connectd is already started, and uses this fd to ask us things. */
+	daemon->connectd = daemon_conn_new(daemon, CONNECTD_FD,
+					   connectd_req, NULL, daemon);
 
 	return daemon_conn_read_next(conn, daemon->master);
 }
@@ -1953,10 +1955,6 @@ int main(int argc, char *argv[])
 	tal_add_destructor(daemon->master, master_gone);
 
 	status_setup_async(daemon->master);
-
-	/* connectd is already started, and uses this fd to ask us things. */
-	daemon->connectd = daemon_conn_new(daemon, CONNECTD_FD,
-					   connectd_req, NULL, daemon);
 
 	/* This loop never exits.  io_loop() only returns if a timer has
 	 * expired, or io_break() is called, or all fds are closed.  We don't

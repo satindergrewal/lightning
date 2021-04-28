@@ -10,7 +10,7 @@ from pyln.testing.utils import (
     wait_for, TailableProc, env
 )
 from utils import (
-    check_coin_moves, account_balance
+    check_coin_moves, account_balance, scriptpubkey_addr,
 )
 from ephemeral_port_reserve import reserve
 from utils import EXPERIMENTAL_FEATURES
@@ -483,7 +483,7 @@ def test_bech32_funding(node_factory, chainparams):
 
     def is_p2wpkh(output):
         return output['type'] == 'witness_v0_keyhash' and \
-            address == only_one(output['addresses'])
+            address == scriptpubkey_addr(output)
 
     assert any(is_p2wpkh(output['scriptPubKey']) for output in wallettx['vout'])
     assert only_one(fundingtx['vin'])['txid'] == res['wallettxid']
@@ -784,7 +784,8 @@ def test_address(node_factory):
     l1.start()
 
     l2 = node_factory.get_node()
-    l2.rpc.connect(l1.info['id'], l1.daemon.opts['bind-addr'])
+    ret = l2.rpc.connect(l1.info['id'], l1.daemon.opts['bind-addr'])
+    assert ret['address'] == {'type': 'local socket', 'socket': l1.daemon.opts['bind-addr']}
 
     # 'addr' with local socket works too.
     l1.stop()
@@ -1438,7 +1439,8 @@ def test_ipv4_and_ipv6(node_factory):
     "FEERATE_FLOOR on testnets, and we test the new API."
 )
 def test_feerates(node_factory):
-    l1 = node_factory.get_node(options={'log-level': 'io'}, start=False)
+    l1 = node_factory.get_node(options={'log-level': 'io',
+                                        'dev-no-fake-fees': True}, start=False)
     l1.daemon.rpcproxy.mock_rpc('estimatesmartfee', {
         'error': {"errors": ["Insufficient data or no feerate found"], "blocks": 0}
     })
@@ -1769,14 +1771,6 @@ def test_newaddr(node_factory, chainparams):
     assert both['bech32'].startswith(chainparams['bip173_prefix'])
 
 
-def test_newaddr_deprecated(node_factory, chainparams):
-    l1 = node_factory.get_node(options={'allow-deprecated-apis': True})
-    p2sh = l1.rpc.newaddr('p2sh-segwit')
-    assert p2sh['address'].startswith(chainparams['p2sh_prefix'])
-    bech32 = l1.rpc.newaddr('bech32')
-    assert bech32['address'].startswith(chainparams['bip173_prefix'])
-
-
 def test_bitcoind_fail_first(node_factory, bitcoind, executor):
     """Make sure we handle spurious bitcoin-cli failures during startup
 
@@ -1894,7 +1888,8 @@ def test_list_features_only(node_factory):
                 ]
     if EXPERIMENTAL_FEATURES:
         expected += ['option_anchor_outputs/odd']
-        expected += ['option_unknown_102/odd']
+        expected += ['option_shutdown_anysegwit/odd']
+        expected += ['option_onion_messages/odd']
     assert features == expected
 
 
@@ -2248,8 +2243,7 @@ def test_sendcustommsg(node_factory):
     node_factory.join_nodes([l1, l2, l3])
     l2.connect(l4)
     l3.stop()
-    msg = r'ff' * 32
-    serialized = r'04070020' + msg
+    msg = 'aa' + ('ff' * 30) + 'bb'
 
     # This address doesn't exist so we should get an error when we try sending
     # a message to it.
@@ -2277,31 +2271,31 @@ def test_sendcustommsg(node_factory):
     # This should work since the peer is currently owned by `channeld`
     l2.rpc.dev_sendcustommsg(l1.info['id'], msg)
     l2.daemon.wait_for_log(
-        r'{peer_id}-{owner}-chan#[0-9]: \[OUT\] {serialized}'.format(
-            owner='channeld', serialized=serialized, peer_id=l1.info['id']
+        r'{peer_id}-{owner}-chan#[0-9]: \[OUT\] {msg}'.format(
+            owner='channeld', msg=msg, peer_id=l1.info['id']
         )
     )
-    l1.daemon.wait_for_log(r'\[IN\] {}'.format(serialized))
+    l1.daemon.wait_for_log(r'\[IN\] {}'.format(msg))
     l1.daemon.wait_for_logs([
-        r'Got custommessage_a {serialized} from peer {peer_id}'.format(
-            serialized=serialized, peer_id=l2.info['id']),
-        r'Got custommessage_b {serialized} from peer {peer_id}'.format(
-            serialized=serialized, peer_id=l2.info['id'])
+        r'Got custommessage_a {msg} from peer {peer_id}'.format(
+            msg=msg, peer_id=l2.info['id']),
+        r'Got custommessage_b {msg} from peer {peer_id}'.format(
+            msg=msg, peer_id=l2.info['id'])
     ])
 
     # This should work since the peer is currently owned by `openingd`
     l2.rpc.dev_sendcustommsg(l4.info['id'], msg)
     l2.daemon.wait_for_log(
-        r'{peer_id}-{owner}-chan#[0-9]: \[OUT\] {serialized}'.format(
-            owner='openingd', serialized=serialized, peer_id=l4.info['id']
+        r'{peer_id}-{owner}-chan#[0-9]: \[OUT\] {msg}'.format(
+            owner='openingd', msg=msg, peer_id=l4.info['id']
         )
     )
-    l4.daemon.wait_for_log(r'\[IN\] {}'.format(serialized))
+    l4.daemon.wait_for_log(r'\[IN\] {}'.format(msg))
     l4.daemon.wait_for_logs([
-        r'Got custommessage_a {serialized} from peer {peer_id}'.format(
-            serialized=serialized, peer_id=l2.info['id']),
-        r'Got custommessage_b {serialized} from peer {peer_id}'.format(
-            serialized=serialized, peer_id=l2.info['id']),
+        r'Got custommessage_a {msg} from peer {peer_id}'.format(
+            msg=msg, peer_id=l2.info['id']),
+        r'Got custommessage_b {msg} from peer {peer_id}'.format(
+            msg=msg, peer_id=l2.info['id']),
     ])
 
 
@@ -2446,3 +2440,92 @@ def test_listfunds(node_factory):
     # 1 spent output (channel opening) and 1 unspent output
     assert len(all_outputs) == 2
     assert open_txid in txids
+
+
+def test_listforwards(node_factory, bitcoind):
+    """Test listfunds command."""
+    l1, l2, l3, l4 = node_factory.get_nodes(4, opts=[{}, {}, {}, {}])
+
+    l1.rpc.connect(l2.info['id'], 'localhost', l2.port)
+    l2.rpc.connect(l3.info['id'], 'localhost', l3.port)
+    l2.rpc.connect(l4.info['id'], 'localhost', l4.port)
+
+    c12, _ = l1.fundchannel(l2, 10**5)
+    c23, _ = l2.fundchannel(l3, 10**5)
+    c24, _ = l2.fundchannel(l4, 10**5)
+
+    # Wait until channels are active
+    bitcoind.generate_block(5)
+    l1.wait_channel_active(c23)
+
+    # successful payments
+    i31 = l3.rpc.invoice(1000, 'i31', 'desc')
+    l1.rpc.pay(i31['bolt11'])
+
+    i41 = l4.rpc.invoice(2000, 'i41', 'desc')
+    l1.rpc.pay(i41['bolt11'])
+
+    # failed payment
+    failed_payment_hash = l3.rpc.invoice(4000, 'failed', 'desc')['payment_hash']
+    failed_route = l1.rpc.getroute(l3.info['id'], 4000, 1)['route']
+
+    l2.rpc.close(c23, 1)
+
+    with pytest.raises(RpcError):
+        l1.rpc.sendpay(failed_route, failed_payment_hash)
+        l1.rpc.waitsendpay(failed_payment_hash)
+
+    all_forwards = l2.rpc.listforwards()['forwards']
+    print(json.dumps(all_forwards, indent=True))
+
+    assert len(all_forwards) == 3
+    assert i31['payment_hash'] in map(lambda x: x['payment_hash'], all_forwards)
+    assert i41['payment_hash'] in map(lambda x: x['payment_hash'], all_forwards)
+    assert failed_payment_hash in map(lambda x: x['payment_hash'], all_forwards)
+
+    # status=settled
+    settled_forwards = l2.rpc.listforwards(status='settled')['forwards']
+    assert len(settled_forwards) == 2
+    assert sum(x['out_msatoshi'] for x in settled_forwards) == 3000
+
+    # status=local_failed
+    failed_forwards = l2.rpc.listforwards(status='local_failed')['forwards']
+    assert len(failed_forwards) == 1
+
+    # in_channel=c23
+    c23_forwards = l2.rpc.listforwards(in_channel=c23, status='settled')['forwards']
+    assert len(c23_forwards) == 0
+
+    # out_channel=c24
+    c24_forwards = l2.rpc.listforwards(out_channel=c24)['forwards']
+    assert len(c24_forwards) == 1
+
+
+def test_version_reexec(node_factory, bitcoind):
+    badopeningd = os.path.join(os.path.dirname(__file__), "plugins", "badopeningd.sh")
+    version = subprocess.check_output(['lightningd/lightningd',
+                                       '--version']).decode('utf-8').splitlines()[0]
+
+    l1, l2 = node_factory.get_nodes(2, opts=[{'subdaemon': 'openingd:' + badopeningd,
+                                              'start': False,
+                                              'allow_broken_log': True},
+                                             {}])
+    # We use a file to tell our openingd wrapper where the real one is
+    with open(os.path.join(l1.daemon.lightning_dir, TEST_NETWORK, "openingd-real"), 'w') as f:
+        f.write(os.path.abspath('lightningd/lightning_openingd'))
+
+    l1.start()
+    # This is a "version" message
+    verfile = os.path.join(l1.daemon.lightning_dir, TEST_NETWORK, "openingd-version")
+    with open(verfile, 'wb') as f:
+        f.write(bytes.fromhex('0000000d'        # len
+                              'fff6'))          # type
+        f.write(bytes('badversion\0', encoding='utf8'))
+
+    l1.rpc.connect(l2.info['id'], 'localhost', l2.port)
+
+    l1.daemon.wait_for_log("openingd.*version 'badversion' not '{}': restarting".format(version))
+
+    # Now "fix" it, it should restart.
+    os.unlink(verfile)
+    l1.daemon.wait_for_log("Server started with public key")

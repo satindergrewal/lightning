@@ -5,7 +5,6 @@
 #include <wally_psbt.h>
 #include <wire/peer_wire.h>
 
-#if EXPERIMENTAL_FEATURES
 static void
 psbt_input_set_final_witness_stack(const tal_t *ctx,
 				   struct wally_psbt_input *in,
@@ -67,8 +66,8 @@ psbt_to_witness_stacks(const tal_t *ctx,
 			/* FIXME: throw an error ? */
 			return NULL;
 
-		/* BOLT-78de9a79b491ae9fb84b1fdb4546bacf642dce87 #2:
-		 * - if is the `initiator`:
+		/* BOLT-f53ca2301232db780843e894f55d95d512f297f9 #2:
+		 * - if is the *initiator*:
 		 *   - MUST send even `serial_id`s
 		 */
 		if (serial_id % 2 == side_to_stack) {
@@ -103,5 +102,3 @@ psbt_to_witness_stacks(const tal_t *ctx,
 	tal_resize(&stacks, stack_index);
 	return stacks;
 }
-
-#endif /* EXPERIMENTAL_FEATURES */

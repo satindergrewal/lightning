@@ -32,6 +32,30 @@ void printpeer_wire_message(const u8 *msg)
 			printf("WIRE_PONG:\n");
 			printwire_pong("pong", msg);
 			return;
+		case WIRE_TX_ADD_INPUT:
+			printf("WIRE_TX_ADD_INPUT:\n");
+			printwire_tx_add_input("tx_add_input", msg);
+			return;
+		case WIRE_TX_ADD_OUTPUT:
+			printf("WIRE_TX_ADD_OUTPUT:\n");
+			printwire_tx_add_output("tx_add_output", msg);
+			return;
+		case WIRE_TX_REMOVE_INPUT:
+			printf("WIRE_TX_REMOVE_INPUT:\n");
+			printwire_tx_remove_input("tx_remove_input", msg);
+			return;
+		case WIRE_TX_REMOVE_OUTPUT:
+			printf("WIRE_TX_REMOVE_OUTPUT:\n");
+			printwire_tx_remove_output("tx_remove_output", msg);
+			return;
+		case WIRE_TX_COMPLETE:
+			printf("WIRE_TX_COMPLETE:\n");
+			printwire_tx_complete("tx_complete", msg);
+			return;
+		case WIRE_TX_SIGNATURES:
+			printf("WIRE_TX_SIGNATURES:\n");
+			printwire_tx_signatures("tx_signatures", msg);
+			return;
 		case WIRE_OPEN_CHANNEL:
 			printf("WIRE_OPEN_CHANNEL:\n");
 			printwire_open_channel("open_channel", msg);
@@ -51,6 +75,22 @@ void printpeer_wire_message(const u8 *msg)
 		case WIRE_FUNDING_LOCKED:
 			printf("WIRE_FUNDING_LOCKED:\n");
 			printwire_funding_locked("funding_locked", msg);
+			return;
+		case WIRE_OPEN_CHANNEL2:
+			printf("WIRE_OPEN_CHANNEL2:\n");
+			printwire_open_channel2("open_channel2", msg);
+			return;
+		case WIRE_ACCEPT_CHANNEL2:
+			printf("WIRE_ACCEPT_CHANNEL2:\n");
+			printwire_accept_channel2("accept_channel2", msg);
+			return;
+		case WIRE_INIT_RBF:
+			printf("WIRE_INIT_RBF:\n");
+			printwire_init_rbf("init_rbf", msg);
+			return;
+		case WIRE_ACK_RBF:
+			printf("WIRE_ACK_RBF:\n");
+			printwire_ack_rbf("ack_rbf", msg);
 			return;
 		case WIRE_SHUTDOWN:
 			printf("WIRE_SHUTDOWN:\n");
@@ -138,6 +178,24 @@ void printpeer_wire_message(const u8 *msg)
 }
 
 
+void printwire_witness_element(const char *fieldname, const u8 **cursor, size_t *plen)
+{
+
+	u16 len = fromwire_u16(cursor, plen);
+	if (!*cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("witness=");
+	printwire_u8_array(tal_fmt(NULL, "%s.witness", fieldname), cursor, plen, len);
+
+	if (!*cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+
+}
+
 void printwire_channel_update_checksums(const char *fieldname, const u8 **cursor, size_t *plen)
 {
 
@@ -175,6 +233,30 @@ void printwire_channel_update_timestamps(const char *fieldname, const u8 **curso
 	u32 timestamp_node_id_2 = fromwire_u32(cursor, plen);
 
 	printwire_u32(tal_fmt(NULL, "%s.timestamp_node_id_2", fieldname), &timestamp_node_id_2);
+	if (!*cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+
+}
+
+void printwire_witness_stack(const char *fieldname, const u8 **cursor, size_t *plen)
+{
+
+	u16 num_input_witness = fromwire_u16(cursor, plen);
+	if (!*cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("witness_element=");
+	printf("[");
+	for (size_t i = 0; i < num_input_witness; i++) {
+		printf("{\n");
+		printwire_witness_element(tal_fmt(NULL, "%s.witness_element", fieldname), cursor, plen);
+		printf("}\n");
+	}
+	printf("]");
+
 	if (!*cursor) {
 		printf("**TRUNCATED**\n");
 		return;
@@ -360,6 +442,80 @@ static void printwire_tlv_accept_channel_tlvs_upfront_shutdown_script(const char
 
 static const struct tlv_print_record_type print_tlvs_accept_channel_tlvs[] = {
 	{ 0, printwire_tlv_accept_channel_tlvs_upfront_shutdown_script },
+};
+
+static void printwire_tlv_opening_tlvs_option_upfront_shutdown_script(const char *fieldname, const u8 **cursor, size_t *plen)
+{
+	printf("(msg_name=%s)\n", "option_upfront_shutdown_script");
+
+	u16 shutdown_len = fromwire_u16(cursor, plen);
+	if (!*cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("shutdown_scriptpubkey=");
+	printwire_u8_array(tal_fmt(NULL, "%s.shutdown_scriptpubkey", fieldname), cursor, plen, shutdown_len);
+
+	if (!*cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+
+}
+
+static const struct tlv_print_record_type print_tlvs_opening_tlvs[] = {
+	{ 1, printwire_tlv_opening_tlvs_option_upfront_shutdown_script },
+};
+
+static void printwire_tlv_accept_tlvs_option_upfront_shutdown_script(const char *fieldname, const u8 **cursor, size_t *plen)
+{
+	printf("(msg_name=%s)\n", "option_upfront_shutdown_script");
+
+	u16 shutdown_len = fromwire_u16(cursor, plen);
+	if (!*cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("shutdown_scriptpubkey=");
+	printwire_u8_array(tal_fmt(NULL, "%s.shutdown_scriptpubkey", fieldname), cursor, plen, shutdown_len);
+
+	if (!*cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+
+}
+
+static const struct tlv_print_record_type print_tlvs_accept_tlvs[] = {
+	{ 1, printwire_tlv_accept_tlvs_option_upfront_shutdown_script },
+};
+
+static void printwire_tlv_shutdown_tlvs_wrong_funding(const char *fieldname, const u8 **cursor, size_t *plen)
+{
+	printf("(msg_name=%s)\n", "wrong_funding");
+
+	printf("txid=");
+	struct bitcoin_txid txid;
+	fromwire_bitcoin_txid(cursor, plen, &txid);
+
+	printwire_bitcoin_txid(tal_fmt(NULL, "%s.txid", fieldname), &txid);
+	if (!*cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("outnum=");
+	u32 outnum = fromwire_u32(cursor, plen);
+
+	printwire_u32(tal_fmt(NULL, "%s.outnum", fieldname), &outnum);
+	if (!*cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+
+}
+
+static const struct tlv_print_record_type print_tlvs_shutdown_tlvs[] = {
+	{ 100, printwire_tlv_shutdown_tlvs_wrong_funding },
 };
 
 static void printwire_tlv_query_short_channel_ids_tlvs_query_flags(const char *fieldname, const u8 **cursor, size_t *plen)
@@ -632,6 +788,263 @@ void printwire_pong(const char *fieldname, const u8 *cursor)
 	}
  	printf("ignored=");
 	printwire_u8_array(tal_fmt(NULL, "%s.ignored", fieldname), &cursor, &plen, byteslen);
+
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+
+
+	if (plen != 0)
+		printf("EXTRA: %s\n", tal_hexstr(NULL, cursor, plen));
+}
+void printwire_tx_add_input(const char *fieldname, const u8 *cursor)
+{
+
+	size_t plen = tal_count(cursor);
+	if (fromwire_u16(&cursor, &plen) != WIRE_TX_ADD_INPUT) {
+		printf("WRONG TYPE?!\n");
+		return;
+	}
+
+	printf("channel_id=");
+	struct channel_id channel_id;
+	fromwire_channel_id(&cursor, &plen, &channel_id);
+
+	printwire_channel_id(tal_fmt(NULL, "%s.channel_id", fieldname), &channel_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("serial_id=");
+	u64 serial_id = fromwire_u64(&cursor, &plen);
+
+	printwire_u64(tal_fmt(NULL, "%s.serial_id", fieldname), &serial_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	u16 prevtx_len = fromwire_u16(&cursor, &plen);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("prevtx=");
+	printwire_u8_array(tal_fmt(NULL, "%s.prevtx", fieldname), &cursor, &plen, prevtx_len);
+
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("prevtx_vout=");
+	u32 prevtx_vout = fromwire_u32(&cursor, &plen);
+
+	printwire_u32(tal_fmt(NULL, "%s.prevtx_vout", fieldname), &prevtx_vout);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("sequence=");
+	u32 sequence = fromwire_u32(&cursor, &plen);
+
+	printwire_u32(tal_fmt(NULL, "%s.sequence", fieldname), &sequence);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	u16 script_sig_len = fromwire_u16(&cursor, &plen);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("script_sig=");
+	printwire_u8_array(tal_fmt(NULL, "%s.script_sig", fieldname), &cursor, &plen, script_sig_len);
+
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+
+
+	if (plen != 0)
+		printf("EXTRA: %s\n", tal_hexstr(NULL, cursor, plen));
+}
+void printwire_tx_add_output(const char *fieldname, const u8 *cursor)
+{
+
+	size_t plen = tal_count(cursor);
+	if (fromwire_u16(&cursor, &plen) != WIRE_TX_ADD_OUTPUT) {
+		printf("WRONG TYPE?!\n");
+		return;
+	}
+
+	printf("channel_id=");
+	struct channel_id channel_id;
+	fromwire_channel_id(&cursor, &plen, &channel_id);
+
+	printwire_channel_id(tal_fmt(NULL, "%s.channel_id", fieldname), &channel_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("serial_id=");
+	u64 serial_id = fromwire_u64(&cursor, &plen);
+
+	printwire_u64(tal_fmt(NULL, "%s.serial_id", fieldname), &serial_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("sats=");
+	u64 sats = fromwire_u64(&cursor, &plen);
+
+	printwire_u64(tal_fmt(NULL, "%s.sats", fieldname), &sats);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	u16 scriptlen = fromwire_u16(&cursor, &plen);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("script=");
+	printwire_u8_array(tal_fmt(NULL, "%s.script", fieldname), &cursor, &plen, scriptlen);
+
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+
+
+	if (plen != 0)
+		printf("EXTRA: %s\n", tal_hexstr(NULL, cursor, plen));
+}
+void printwire_tx_remove_input(const char *fieldname, const u8 *cursor)
+{
+
+	size_t plen = tal_count(cursor);
+	if (fromwire_u16(&cursor, &plen) != WIRE_TX_REMOVE_INPUT) {
+		printf("WRONG TYPE?!\n");
+		return;
+	}
+
+	printf("channel_id=");
+	struct channel_id channel_id;
+	fromwire_channel_id(&cursor, &plen, &channel_id);
+
+	printwire_channel_id(tal_fmt(NULL, "%s.channel_id", fieldname), &channel_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("serial_id=");
+	u64 serial_id = fromwire_u64(&cursor, &plen);
+
+	printwire_u64(tal_fmt(NULL, "%s.serial_id", fieldname), &serial_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+
+
+	if (plen != 0)
+		printf("EXTRA: %s\n", tal_hexstr(NULL, cursor, plen));
+}
+void printwire_tx_remove_output(const char *fieldname, const u8 *cursor)
+{
+
+	size_t plen = tal_count(cursor);
+	if (fromwire_u16(&cursor, &plen) != WIRE_TX_REMOVE_OUTPUT) {
+		printf("WRONG TYPE?!\n");
+		return;
+	}
+
+	printf("channel_id=");
+	struct channel_id channel_id;
+	fromwire_channel_id(&cursor, &plen, &channel_id);
+
+	printwire_channel_id(tal_fmt(NULL, "%s.channel_id", fieldname), &channel_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("serial_id=");
+	u64 serial_id = fromwire_u64(&cursor, &plen);
+
+	printwire_u64(tal_fmt(NULL, "%s.serial_id", fieldname), &serial_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+
+
+	if (plen != 0)
+		printf("EXTRA: %s\n", tal_hexstr(NULL, cursor, plen));
+}
+void printwire_tx_complete(const char *fieldname, const u8 *cursor)
+{
+
+	size_t plen = tal_count(cursor);
+	if (fromwire_u16(&cursor, &plen) != WIRE_TX_COMPLETE) {
+		printf("WRONG TYPE?!\n");
+		return;
+	}
+
+	printf("channel_id=");
+	struct channel_id channel_id;
+	fromwire_channel_id(&cursor, &plen, &channel_id);
+
+	printwire_channel_id(tal_fmt(NULL, "%s.channel_id", fieldname), &channel_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+
+
+	if (plen != 0)
+		printf("EXTRA: %s\n", tal_hexstr(NULL, cursor, plen));
+}
+void printwire_tx_signatures(const char *fieldname, const u8 *cursor)
+{
+
+	size_t plen = tal_count(cursor);
+	if (fromwire_u16(&cursor, &plen) != WIRE_TX_SIGNATURES) {
+		printf("WRONG TYPE?!\n");
+		return;
+	}
+
+	printf("channel_id=");
+	struct channel_id channel_id;
+	fromwire_channel_id(&cursor, &plen, &channel_id);
+
+	printwire_channel_id(tal_fmt(NULL, "%s.channel_id", fieldname), &channel_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("txid=");
+	struct bitcoin_txid txid;
+	fromwire_bitcoin_txid(&cursor, &plen, &txid);
+
+	printwire_bitcoin_txid(tal_fmt(NULL, "%s.txid", fieldname), &txid);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	u16 num_witnesses = fromwire_u16(&cursor, &plen);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("witness_stack=");
+	printf("[");
+	for (size_t i = 0; i < num_witnesses; i++) {
+		printf("{\n");
+		printwire_witness_stack(tal_fmt(NULL, "%s.witness_stack", fieldname), &cursor, &plen);
+		printf("}\n");
+	}
+	printf("]");
 
 	if (!cursor) {
 		printf("**TRUNCATED**\n");
@@ -1058,6 +1471,387 @@ void printwire_funding_locked(const char *fieldname, const u8 *cursor)
 	if (plen != 0)
 		printf("EXTRA: %s\n", tal_hexstr(NULL, cursor, plen));
 }
+void printwire_open_channel2(const char *fieldname, const u8 *cursor)
+{
+
+	size_t plen = tal_count(cursor);
+	if (fromwire_u16(&cursor, &plen) != WIRE_OPEN_CHANNEL2) {
+		printf("WRONG TYPE?!\n");
+		return;
+	}
+
+	printf("chain_hash=");
+	struct bitcoin_blkid chain_hash;
+	fromwire_bitcoin_blkid(&cursor, &plen, &chain_hash);
+
+	printwire_bitcoin_blkid(tal_fmt(NULL, "%s.chain_hash", fieldname), &chain_hash);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("channel_id=");
+	struct channel_id channel_id;
+	fromwire_channel_id(&cursor, &plen, &channel_id);
+
+	printwire_channel_id(tal_fmt(NULL, "%s.channel_id", fieldname), &channel_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("funding_feerate_perkw=");
+	u32 funding_feerate_perkw = fromwire_u32(&cursor, &plen);
+
+	printwire_u32(tal_fmt(NULL, "%s.funding_feerate_perkw", fieldname), &funding_feerate_perkw);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("commitment_feerate_perkw=");
+	u32 commitment_feerate_perkw = fromwire_u32(&cursor, &plen);
+
+	printwire_u32(tal_fmt(NULL, "%s.commitment_feerate_perkw", fieldname), &commitment_feerate_perkw);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("funding_satoshis=");
+	struct amount_sat funding_satoshis = fromwire_amount_sat(&cursor, &plen);
+
+	printwire_amount_sat(tal_fmt(NULL, "%s.funding_satoshis", fieldname), &funding_satoshis);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("dust_limit_satoshis=");
+	struct amount_sat dust_limit_satoshis = fromwire_amount_sat(&cursor, &plen);
+
+	printwire_amount_sat(tal_fmt(NULL, "%s.dust_limit_satoshis", fieldname), &dust_limit_satoshis);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("max_htlc_value_in_flight_msat=");
+	struct amount_msat max_htlc_value_in_flight_msat = fromwire_amount_msat(&cursor, &plen);
+
+	printwire_amount_msat(tal_fmt(NULL, "%s.max_htlc_value_in_flight_msat", fieldname), &max_htlc_value_in_flight_msat);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("htlc_minimum_msat=");
+	struct amount_msat htlc_minimum_msat = fromwire_amount_msat(&cursor, &plen);
+
+	printwire_amount_msat(tal_fmt(NULL, "%s.htlc_minimum_msat", fieldname), &htlc_minimum_msat);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("to_self_delay=");
+	u16 to_self_delay = fromwire_u16(&cursor, &plen);
+
+	printwire_u16(tal_fmt(NULL, "%s.to_self_delay", fieldname), &to_self_delay);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("max_accepted_htlcs=");
+	u16 max_accepted_htlcs = fromwire_u16(&cursor, &plen);
+
+	printwire_u16(tal_fmt(NULL, "%s.max_accepted_htlcs", fieldname), &max_accepted_htlcs);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("locktime=");
+	u32 locktime = fromwire_u32(&cursor, &plen);
+
+	printwire_u32(tal_fmt(NULL, "%s.locktime", fieldname), &locktime);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("funding_pubkey=");
+	struct pubkey funding_pubkey;
+	fromwire_pubkey(&cursor, &plen, &funding_pubkey);
+
+	printwire_pubkey(tal_fmt(NULL, "%s.funding_pubkey", fieldname), &funding_pubkey);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("revocation_basepoint=");
+	struct pubkey revocation_basepoint;
+	fromwire_pubkey(&cursor, &plen, &revocation_basepoint);
+
+	printwire_pubkey(tal_fmt(NULL, "%s.revocation_basepoint", fieldname), &revocation_basepoint);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("payment_basepoint=");
+	struct pubkey payment_basepoint;
+	fromwire_pubkey(&cursor, &plen, &payment_basepoint);
+
+	printwire_pubkey(tal_fmt(NULL, "%s.payment_basepoint", fieldname), &payment_basepoint);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("delayed_payment_basepoint=");
+	struct pubkey delayed_payment_basepoint;
+	fromwire_pubkey(&cursor, &plen, &delayed_payment_basepoint);
+
+	printwire_pubkey(tal_fmt(NULL, "%s.delayed_payment_basepoint", fieldname), &delayed_payment_basepoint);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("htlc_basepoint=");
+	struct pubkey htlc_basepoint;
+	fromwire_pubkey(&cursor, &plen, &htlc_basepoint);
+
+	printwire_pubkey(tal_fmt(NULL, "%s.htlc_basepoint", fieldname), &htlc_basepoint);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("first_per_commitment_point=");
+	struct pubkey first_per_commitment_point;
+	fromwire_pubkey(&cursor, &plen, &first_per_commitment_point);
+
+	printwire_pubkey(tal_fmt(NULL, "%s.first_per_commitment_point", fieldname), &first_per_commitment_point);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("channel_flags=");
+	u8 channel_flags = fromwire_u8(&cursor, &plen);
+
+	printwire_u8(tal_fmt(NULL, "%s.channel_flags", fieldname), &channel_flags);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("tlvs=");
+	printwire_tlvs(tal_fmt(NULL, "%s.tlvs", fieldname), &cursor, &plen, print_tlvs_opening_tlvs, ARRAY_SIZE(print_tlvs_opening_tlvs));
+
+
+	if (plen != 0)
+		printf("EXTRA: %s\n", tal_hexstr(NULL, cursor, plen));
+}
+void printwire_accept_channel2(const char *fieldname, const u8 *cursor)
+{
+
+	size_t plen = tal_count(cursor);
+	if (fromwire_u16(&cursor, &plen) != WIRE_ACCEPT_CHANNEL2) {
+		printf("WRONG TYPE?!\n");
+		return;
+	}
+
+	printf("channel_id=");
+	struct channel_id channel_id;
+	fromwire_channel_id(&cursor, &plen, &channel_id);
+
+	printwire_channel_id(tal_fmt(NULL, "%s.channel_id", fieldname), &channel_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("funding_satoshis=");
+	struct amount_sat funding_satoshis = fromwire_amount_sat(&cursor, &plen);
+
+	printwire_amount_sat(tal_fmt(NULL, "%s.funding_satoshis", fieldname), &funding_satoshis);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("dust_limit_satoshis=");
+	struct amount_sat dust_limit_satoshis = fromwire_amount_sat(&cursor, &plen);
+
+	printwire_amount_sat(tal_fmt(NULL, "%s.dust_limit_satoshis", fieldname), &dust_limit_satoshis);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("max_htlc_value_in_flight_msat=");
+	struct amount_msat max_htlc_value_in_flight_msat = fromwire_amount_msat(&cursor, &plen);
+
+	printwire_amount_msat(tal_fmt(NULL, "%s.max_htlc_value_in_flight_msat", fieldname), &max_htlc_value_in_flight_msat);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("htlc_minimum_msat=");
+	struct amount_msat htlc_minimum_msat = fromwire_amount_msat(&cursor, &plen);
+
+	printwire_amount_msat(tal_fmt(NULL, "%s.htlc_minimum_msat", fieldname), &htlc_minimum_msat);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("minimum_depth=");
+	u32 minimum_depth = fromwire_u32(&cursor, &plen);
+
+	printwire_u32(tal_fmt(NULL, "%s.minimum_depth", fieldname), &minimum_depth);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("to_self_delay=");
+	u16 to_self_delay = fromwire_u16(&cursor, &plen);
+
+	printwire_u16(tal_fmt(NULL, "%s.to_self_delay", fieldname), &to_self_delay);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("max_accepted_htlcs=");
+	u16 max_accepted_htlcs = fromwire_u16(&cursor, &plen);
+
+	printwire_u16(tal_fmt(NULL, "%s.max_accepted_htlcs", fieldname), &max_accepted_htlcs);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("funding_pubkey=");
+	struct pubkey funding_pubkey;
+	fromwire_pubkey(&cursor, &plen, &funding_pubkey);
+
+	printwire_pubkey(tal_fmt(NULL, "%s.funding_pubkey", fieldname), &funding_pubkey);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("revocation_basepoint=");
+	struct pubkey revocation_basepoint;
+	fromwire_pubkey(&cursor, &plen, &revocation_basepoint);
+
+	printwire_pubkey(tal_fmt(NULL, "%s.revocation_basepoint", fieldname), &revocation_basepoint);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("payment_basepoint=");
+	struct pubkey payment_basepoint;
+	fromwire_pubkey(&cursor, &plen, &payment_basepoint);
+
+	printwire_pubkey(tal_fmt(NULL, "%s.payment_basepoint", fieldname), &payment_basepoint);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("delayed_payment_basepoint=");
+	struct pubkey delayed_payment_basepoint;
+	fromwire_pubkey(&cursor, &plen, &delayed_payment_basepoint);
+
+	printwire_pubkey(tal_fmt(NULL, "%s.delayed_payment_basepoint", fieldname), &delayed_payment_basepoint);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("htlc_basepoint=");
+	struct pubkey htlc_basepoint;
+	fromwire_pubkey(&cursor, &plen, &htlc_basepoint);
+
+	printwire_pubkey(tal_fmt(NULL, "%s.htlc_basepoint", fieldname), &htlc_basepoint);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("first_per_commitment_point=");
+	struct pubkey first_per_commitment_point;
+	fromwire_pubkey(&cursor, &plen, &first_per_commitment_point);
+
+	printwire_pubkey(tal_fmt(NULL, "%s.first_per_commitment_point", fieldname), &first_per_commitment_point);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("tlvs=");
+	printwire_tlvs(tal_fmt(NULL, "%s.tlvs", fieldname), &cursor, &plen, print_tlvs_accept_tlvs, ARRAY_SIZE(print_tlvs_accept_tlvs));
+
+
+	if (plen != 0)
+		printf("EXTRA: %s\n", tal_hexstr(NULL, cursor, plen));
+}
+void printwire_init_rbf(const char *fieldname, const u8 *cursor)
+{
+
+	size_t plen = tal_count(cursor);
+	if (fromwire_u16(&cursor, &plen) != WIRE_INIT_RBF) {
+		printf("WRONG TYPE?!\n");
+		return;
+	}
+
+	printf("channel_id=");
+	struct channel_id channel_id;
+	fromwire_channel_id(&cursor, &plen, &channel_id);
+
+	printwire_channel_id(tal_fmt(NULL, "%s.channel_id", fieldname), &channel_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("funding_satoshis=");
+	struct amount_sat funding_satoshis = fromwire_amount_sat(&cursor, &plen);
+
+	printwire_amount_sat(tal_fmt(NULL, "%s.funding_satoshis", fieldname), &funding_satoshis);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("locktime=");
+	u32 locktime = fromwire_u32(&cursor, &plen);
+
+	printwire_u32(tal_fmt(NULL, "%s.locktime", fieldname), &locktime);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("fee_step=");
+	u8 fee_step = fromwire_u8(&cursor, &plen);
+
+	printwire_u8(tal_fmt(NULL, "%s.fee_step", fieldname), &fee_step);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+
+
+	if (plen != 0)
+		printf("EXTRA: %s\n", tal_hexstr(NULL, cursor, plen));
+}
+void printwire_ack_rbf(const char *fieldname, const u8 *cursor)
+{
+
+	size_t plen = tal_count(cursor);
+	if (fromwire_u16(&cursor, &plen) != WIRE_ACK_RBF) {
+		printf("WRONG TYPE?!\n");
+		return;
+	}
+
+	printf("channel_id=");
+	struct channel_id channel_id;
+	fromwire_channel_id(&cursor, &plen, &channel_id);
+
+	printwire_channel_id(tal_fmt(NULL, "%s.channel_id", fieldname), &channel_id);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+ 	printf("funding_satoshis=");
+	struct amount_sat funding_satoshis = fromwire_amount_sat(&cursor, &plen);
+
+	printwire_amount_sat(tal_fmt(NULL, "%s.funding_satoshis", fieldname), &funding_satoshis);
+	if (!cursor) {
+		printf("**TRUNCATED**\n");
+		return;
+	}
+
+
+	if (plen != 0)
+		printf("EXTRA: %s\n", tal_hexstr(NULL, cursor, plen));
+}
 void printwire_shutdown(const char *fieldname, const u8 *cursor)
 {
 
@@ -1088,6 +1882,8 @@ void printwire_shutdown(const char *fieldname, const u8 *cursor)
 		printf("**TRUNCATED**\n");
 		return;
 	}
+ 	printf("tlvs=");
+	printwire_tlvs(tal_fmt(NULL, "%s.tlvs", fieldname), &cursor, &plen, print_tlvs_shutdown_tlvs, ARRAY_SIZE(print_tlvs_shutdown_tlvs));
 
 
 	if (plen != 0)
@@ -2005,10 +2801,10 @@ void printwire_reply_channel_range(const char *fieldname, const u8 *cursor)
 		printf("**TRUNCATED**\n");
 		return;
 	}
- 	printf("full_information=");
-	u8 full_information = fromwire_u8(&cursor, &plen);
+ 	printf("sync_complete=");
+	u8 sync_complete = fromwire_u8(&cursor, &plen);
 
-	printwire_u8(tal_fmt(NULL, "%s.full_information", fieldname), &full_information);
+	printwire_u8(tal_fmt(NULL, "%s.sync_complete", fieldname), &sync_complete);
 	if (!cursor) {
 		printf("**TRUNCATED**\n");
 		return;
@@ -2117,6 +2913,15 @@ void printpeer_wire_tlv_message(const char *tlv_name, const u8 *msg) {
 	if (strcmp(tlv_name, "accept_channel_tlvs") == 0) {
 		printwire_tlvs(tlv_name, &msg, &plen, print_tlvs_accept_channel_tlvs, ARRAY_SIZE(print_tlvs_accept_channel_tlvs));
 	}
+	if (strcmp(tlv_name, "opening_tlvs") == 0) {
+		printwire_tlvs(tlv_name, &msg, &plen, print_tlvs_opening_tlvs, ARRAY_SIZE(print_tlvs_opening_tlvs));
+	}
+	if (strcmp(tlv_name, "accept_tlvs") == 0) {
+		printwire_tlvs(tlv_name, &msg, &plen, print_tlvs_accept_tlvs, ARRAY_SIZE(print_tlvs_accept_tlvs));
+	}
+	if (strcmp(tlv_name, "shutdown_tlvs") == 0) {
+		printwire_tlvs(tlv_name, &msg, &plen, print_tlvs_shutdown_tlvs, ARRAY_SIZE(print_tlvs_shutdown_tlvs));
+	}
 	if (strcmp(tlv_name, "query_short_channel_ids_tlvs") == 0) {
 		printwire_tlvs(tlv_name, &msg, &plen, print_tlvs_query_short_channel_ids_tlvs, ARRAY_SIZE(print_tlvs_query_short_channel_ids_tlvs));
 	}
@@ -2130,4 +2935,4 @@ void printpeer_wire_tlv_message(const char *tlv_name, const u8 *msg) {
 		printwire_tlvs(tlv_name, &msg, &plen, print_tlvs_onion_message_tlvs, ARRAY_SIZE(print_tlvs_onion_message_tlvs));
 	}
 }
-// SHA256STAMP:d0f5b313c478153542610f14d7c6b39c1121b6a6b08fb72f3d427a103243b990
+// SHA256STAMP:aecb66d3600732f50b4279272e4c057d1ea410bddf41cbb01b6326320f5b9de8
