@@ -454,6 +454,8 @@ static struct command_result *estimatefees_final_step(struct bitcoin_cli *bcli)
 	if (err)
 		return err;
 
+	printf("chainparams->network_name: %s\n", chainparams->network_name);
+
 	response = jsonrpc_stream_success(bcli->cmd);
 	// json_add_u64(response, "opening", stash->normal);
 	// json_add_u64(response, "mutual_close", stash->slow);
