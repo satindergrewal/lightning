@@ -151,9 +151,6 @@ static struct command_result *json_newaddr(struct command *cmd,
 	}
 
 	response = json_stream_success(cmd);
-	if (deprecated_apis && *addrtype != ADDR_ALL)
-		json_add_string(response, "address",
-				*addrtype & ADDR_P2SH_SEGWIT ? p2sh : bech32);
 	if (*addrtype & ADDR_BECH32)
 		json_add_string(response, "bech32", bech32);
 	if (*addrtype & ADDR_P2SH_SEGWIT)
@@ -169,35 +166,6 @@ static const struct json_command newaddr_command = {
 	"Generates a new address (or both) that belongs to the internal wallet. Funds sent to these addresses will be managed by lightningd. Use `withdraw` to withdraw funds to an external wallet."
 };
 AUTODATA(json_command, &newaddr_command);
-
-static struct command_result *json_dev_blockheight(struct command *cmd,
-					       const char *buffer,
-					       const jsmntok_t *obj UNNEEDED,
-					       const jsmntok_t *params)
-{
-	struct json_escape *label;
-	struct json_stream *response;
-	struct chain_topology *topo = cmd->ld->topology;
-
-	if (!param(cmd, buffer, params,
-		   p_opt("label", param_label, &label),
-		   NULL))
-		return command_param_failed();
-
-	response = json_stream_success(cmd);
-	// json_object_start(response, NULL);
-	json_add_num(response, "blockheight", get_block_height(topo));
-	// json_object_end(response);
-	return command_success(cmd, response);
-}
-
-static const struct json_command dev_blockheight = {
-	"dev-blockheight",
-	"developer",
-	json_dev_blockheight,
-	"Gives the count of the invoices"
-};
-AUTODATA(json_command, &dev_blockheight);
 
 static struct command_result *json_listaddrs(struct command *cmd,
 					     const char *buffer,
@@ -366,6 +334,9 @@ static struct command_result *json_listfunds(struct command *cmd,
 	list_for_each(&cmd->ld->peers, p, list) {
 		struct channel *c;
 		list_for_each(&p->channels, c, list) {
+			/* We don't print out uncommitted channels */
+			if (channel_unsaved(c))
+				continue;
 			json_object_start(response, NULL);
 			json_add_node_id(response, "peer_id", &p->id);
 			/* Mirrors logic in listpeers */
