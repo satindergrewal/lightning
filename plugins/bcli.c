@@ -433,7 +433,7 @@ estimatefees_parse_feerate(struct bitcoin_cli *bcli, u64 *feerate)
 			return command_err_bcli_badjson(bcli, "cannot scan");
 		/* We return null if estimation failed, and bitcoin-cli will
 		 * exit with 0 but no feerate field on failure. */
-		return estimatefees_null_response(bcli);
+		// return estimatefees_null_response(bcli);
 	}
 
 	return NULL;
