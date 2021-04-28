@@ -550,8 +550,8 @@ static struct command_result *estimatefees_second_step(struct bitcoin_cli *bcli)
 	const char **params = tal_arr(bcli->cmd, const char *, 2);
 
 	/* If we cannot estimate fees, no need to continue bothering bitcoind. */
-	if (*bcli->exitstatus != 0)
-		return estimatefees_null_response(bcli);
+	// if (*bcli->exitstatus != 0)
+	// 	return estimatefees_null_response(bcli);
 
 	err = estimatefees_parse_feerate(bcli, &stash->very_urgent);
 	if (err)
