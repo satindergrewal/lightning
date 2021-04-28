@@ -194,20 +194,20 @@ static void estimatefees_callback(const char *buf, const jsmntok_t *toks,
 				    "Unable to estimate %s fees",
 				    feerate_name(f));
 
-#if DEVELOPER
+// #if DEVELOPER
 			/* This is needed to test for failed feerate estimates
 			* in DEVELOPER mode */
 			feerates[f] = 0;
-#else
+// #else
 			/* If we are in testnet mode we want to allow payments
 			* with the minimal fee even if the estimate didn't
 			* work out. This is less disruptive than erring out
 			* all the time. */
-			if (chainparams->testnet)
-				feerates[f] = FEERATE_FLOOR;
-			else
-				feerates[f] = 0;
-#endif
+			// if (chainparams->testnet)
+			// 	feerates[f] = FEERATE_FLOOR;
+			// else
+			// 	feerates[f] = 0;
+// #endif
 		} else
 			/* Rate in satoshi per kw. */
 			feerates[f] = feerate_from_style(feerates[f],
