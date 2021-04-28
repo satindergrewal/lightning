@@ -446,7 +446,7 @@ static struct command_result *estimatefees_final_step(struct bitcoin_cli *bcli)
 	struct json_stream *response;
 	struct estimatefees_stash *stash = bcli->stash;
 
-	if (chainparams->network_name != "chips") {
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
 		/* bitcoind could theoretically fail to estimate for a higher target. */
 		if (*bcli->exitstatus != 0)
 			return estimatefees_null_response(bcli);
@@ -460,7 +460,9 @@ static struct command_result *estimatefees_final_step(struct bitcoin_cli *bcli)
 
 	response = jsonrpc_stream_success(bcli->cmd);
 	
-	if (chainparams->network_name != "chips") {
+	
+
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
 		json_add_u64(response, "opening", stash->normal);
 		json_add_u64(response, "mutual_close", stash->slow);
 		json_add_u64(response, "unilateral_close",
@@ -511,7 +513,7 @@ static struct command_result *estimatefees_fourth_step(struct bitcoin_cli *bcli)
 	struct estimatefees_stash *stash = bcli->stash;
 	const char **params = tal_arr(bcli->cmd, const char *, 2);
 
-	if (chainparams->network_name != "chips") {
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
 		/* bitcoind could theoretically fail to estimate for a higher target. */
 		if (*bcli->exitstatus != 0)
 			return estimatefees_null_response(bcli);
@@ -536,7 +538,7 @@ static struct command_result *estimatefees_third_step(struct bitcoin_cli *bcli)
 	struct estimatefees_stash *stash = bcli->stash;
 	const char **params = tal_arr(bcli->cmd, const char *, 2);
 
-	if (chainparams->network_name != "chips") {
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
 		/* If we cannot estimate fees, no need to continue bothering bitcoind. */
 		if (*bcli->exitstatus != 0)
 			return estimatefees_null_response(bcli);
@@ -561,7 +563,7 @@ static struct command_result *estimatefees_second_step(struct bitcoin_cli *bcli)
 	struct estimatefees_stash *stash = bcli->stash;
 	const char **params = tal_arr(bcli->cmd, const char *, 2);
 
-	if (chainparams->network_name != "chips") {
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
 		/* If we cannot estimate fees, no need to continue bothering bitcoind. */
 		if (*bcli->exitstatus != 0)
 			return estimatefees_null_response(bcli);
