@@ -2984,31 +2984,39 @@ static struct command_result *json_peer_test2(struct command *cmd,
 		db_bind_text(stmt, 0, my_node_id);
 		db_query_prepared(stmt);
 
-		while (db_step(stmt)) {
-			int i;
-			int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
-			
-			for (i = 0; i < num_cols; i++)
-			{
-				switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
-				{
-				case (SQLITE_INTEGER):
-					// json_object_start(response,NULL);
-					channel_state=sqlite3_column_int((sqlite3_stmt *)stmt, i);
-					// json_add_num(response, "channel-state", channel_state);
-					// json_object_end(response);
-					break;
-				default:
-					break;
-				}
-			}
+		printf("-----------\n");
+		printf("channel-state: %d\n", db_column_int_or_default(stmt, 0, 0));
+		printf("-----------\n");
 
-			// if (!db_column_is_null(stmt, 0)) {
-			// 	peer_exits=db_column_int_or_default(stmt, 0, 0);
-			// } else {
-			// 	peer_exits = 0;
-			// }
-		}
+		json_object_start(response,NULL);
+		json_add_num(response, "channel-state", db_column_int_or_default(stmt, 0, 0));
+		json_object_end(response);
+
+		// while (db_step(stmt)) {
+		// 	int i;
+		// 	int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
+			
+		// 	for (i = 0; i < num_cols; i++)
+		// 	{
+		// 		switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
+		// 		{
+		// 		case (SQLITE_INTEGER):
+		// 			// json_object_start(response,NULL);
+		// 			channel_state=sqlite3_column_int((sqlite3_stmt *)stmt, i);
+		// 			// json_add_num(response, "channel-state", channel_state);
+		// 			// json_object_end(response);
+		// 			break;
+		// 		default:
+		// 			break;
+		// 		}
+		// 	}
+
+		// 	// if (!db_column_is_null(stmt, 0)) {
+		// 	// 	peer_exits=db_column_int_or_default(stmt, 0, 0);
+		// 	// } else {
+		// 	// 	peer_exits = 0;
+		// 	// }
+		// }
 		tal_free(stmt);
 	}
 	printf("channel_state - %d\n", channel_state);
