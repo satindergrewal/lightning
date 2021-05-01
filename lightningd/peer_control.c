@@ -2955,6 +2955,10 @@ static struct command_result *json_peer_test2(struct command *cmd,
 	db_bind_text(stmt, 0, my_node_id);
 	// db_exec_prepared_v2(take(stmt));
 	db_query_prepared(stmt);
+	
+	printf("-----------\n");
+	printf("peer_exists_count: %d\n", db_column_int_or_default(stmt, 0, 0));
+	printf("-----------\n");
 
 	while (db_step(stmt)) {
 		if (!db_column_is_null(stmt, 0)) {
