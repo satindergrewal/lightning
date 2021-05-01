@@ -2978,18 +2978,24 @@ static struct command_result *json_peer_test2(struct command *cmd,
 		json_add_num(response, "channel-state", 0);
 		json_object_end(response);
 	} else {
-		stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT state FROM channels"
-							"  WHERE peer_id IN (SELECT id FROM peers"
-							"  WHERE lower(hex(node_id))=?);"));
+		stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT state FROM channels WHERE peer_id IN (SELECT id FROM peers WHERE lower(hex(node_id))=lower(hex(node_id)));"));
+		// stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT state FROM channels"
+		// 					"  WHERE peer_id IN (SELECT id FROM peers"
+		// 					"  WHERE lower(hex(node_id))=?);"));
 		db_bind_text(stmt, 0, my_node_id);
 		db_query_prepared(stmt);
+
+		while (db_step(stmt)) {
+			if (!db_column_is_null(stmt, 0)) {
+				channel_state=db_column_int_or_default(stmt, 0, 0);
+		}
 
 		printf("-----------\n");
 		printf("channel-state: %d\n", db_column_int_or_default(stmt, 0, 0));
 		printf("-----------\n");
 
 		json_object_start(response,NULL);
-		json_add_num(response, "channel-state", db_column_int_or_default(stmt, 0, 0));
+		json_add_num(response, "channel-state", channel_state);
 		json_object_end(response);
 
 		// while (db_step(stmt)) {
