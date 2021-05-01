@@ -2950,7 +2950,8 @@ static struct command_result *json_peer_test2(struct command *cmd,
 	printf("my_node_id %s\n", my_node_id);
 	printf("-----------\n");
 	
-	stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT state FROM channels WHERE peer_id IN (SELECT id FROM peers WHERE lower(hex(node_id))=?);"));
+	stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT count(*) FROM peers"
+					       "  WHERE lower(hex(node_id))=?;"));
 	db_bind_text(stmt, 0, my_node_id);
 	// db_exec_prepared_v2(take(stmt));
 	db_query_prepared(stmt);
