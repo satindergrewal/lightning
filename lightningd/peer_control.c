@@ -1919,11 +1919,11 @@ static struct command_result *json_getinfo(struct command *cmd,
             if (channel->state == CHANNELD_AWAITING_LOCKIN
 		|| channel->state == DUALOPEND_AWAITING_LOCKIN
 		|| channel->state == DUALOPEND_OPEN_INIT) {
-                pending_channels++;
+		pending_channels++;
             } else if (channel_active(channel)) {
-                active_channels++;
+		active_channels++;
             } else {
-                inactive_channels++;
+		inactive_channels++;
             }
         }
     }
@@ -2933,8 +2933,8 @@ static struct command_result *json_peer_test2(struct command *cmd,
 	const jsmntok_t *idtok;
 	char my_node_id[100];
 	struct db_stmt *stmt;
-	int channel_state=-1, peer_exits;
-	
+	int channel_state=-1, peer_exists;
+
 	if (!param(cmd, buffer, params,
 		p_req("id", param_tok, &idtok),
 		// p_opt("id", param_tok, &idtok),
@@ -2943,81 +2943,53 @@ static struct command_result *json_peer_test2(struct command *cmd,
 
 	response = json_stream_success(cmd);
 
+        struct node_id peerid;
+        json_to_node_id(buffer, idtok, &peerid);
+
 	memcpy(my_node_id,buffer + idtok->start,idtok->end - idtok->start);
-	my_node_id[idtok->end - idtok->start]='\0';
+	my_node_id[idtok->end - idtok->start] = '\0';
 
 	printf("-----------\n");
 	printf("my_node_id %s\n", my_node_id);
 	printf("-----------\n");
-	
-	stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT count(*) FROM peers"
-					       "  WHERE lower(hex(node_id))=?;"));
+
+	stmt = db_prepare_v2(cmd->ld->wallet->db, "SELECT count(*) FROM peers"
+					       "  WHERE lower(hex(node_id))=?;");
 	db_bind_text(stmt, 0, my_node_id);
-	// db_exec_prepared_v2(take(stmt));
 	db_query_prepared(stmt);
-	
-	printf("-----------\n");
-	printf("peer_exists_count: %d\n", db_column_int_or_default(stmt, 0, 0));
-	printf("-----------\n");
 
 	while (db_step(stmt)) {
 		if (!db_column_is_null(stmt, 0)) {
-			peer_exits=db_column_int_or_default(stmt, 0, 0);
+			peer_exists=db_column_int(stmt, 0);
 		} else {
-			peer_exits = 0;
+			peer_exists = 0;
 		}
 	}
-	printf("peer_exits: %d\n", peer_exits);
-	tal_free(stmt);
+
+	printf("-----------\n");
+	printf("peer_exists_count: %d\n", peer_exists);
+	printf("-----------\n");
+
+        tal_free(stmt);
 
 	// json_object_start(response, NULL);
 	json_array_start(response,"channel-states");
-	if (peer_exits == 0)
+	if (peer_exists == 0)
 	{
 		json_object_start(response,NULL);
 		json_add_num(response, "channel-state", 0);
 		json_object_end(response);
 	} else {
-		stmt = db_prepare_v2(cmd->ld->wallet->db, SQL("SELECT state FROM channels"
-							"  WHERE peer_id IN (SELECT id FROM peers"
-							"  WHERE lower(hex(node_id))=?);"));
-		db_bind_text(stmt, 0, my_node_id);
-		db_query_prepared(stmt);
-
-		printf("-----------\n");
-		printf("channel-state: %d\n", db_column_int_or_default(stmt, 0, 0));
-		printf("-----------\n");
-
+		struct peer *peer = peer_by_id(cmd->ld, &peerid);
+		struct channel *channel = peer_active_channel(peer);
+		if (channel) {
+			channel_state = channel->state;
+		} else {
+			printf("Couldn't find channel!");
+		}
 		json_object_start(response,NULL);
 		json_add_num(response, "channel-state", channel_state);
 		json_object_end(response);
-
-		// while (db_step(stmt)) {
-		// 	int i;
-		// 	int num_cols = sqlite3_column_count((sqlite3_stmt *)stmt);
-			
-		// 	for (i = 0; i < num_cols; i++)
-		// 	{
-		// 		switch (sqlite3_column_type((sqlite3_stmt *)stmt, i))
-		// 		{
-		// 		case (SQLITE_INTEGER):
-		// 			// json_object_start(response,NULL);
-		// 			channel_state=sqlite3_column_int((sqlite3_stmt *)stmt, i);
-		// 			// json_add_num(response, "channel-state", channel_state);
-		// 			// json_object_end(response);
-		// 			break;
-		// 		default:
-		// 			break;
-		// 		}
-		// 	}
-
-		// 	// if (!db_column_is_null(stmt, 0)) {
-		// 	// 	peer_exits=db_column_int_or_default(stmt, 0, 0);
-		// 	// } else {
-		// 	// 	peer_exits = 0;
-		// 	// }
-		// }
-		tal_free(stmt);
 	}
 	printf("channel_state - %d\n", channel_state);
 
