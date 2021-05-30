@@ -5,6 +5,7 @@ from pyln.client import Millisatoshi
 
 EXPERIMENTAL_FEATURES = env("EXPERIMENTAL_FEATURES", "0") == "1"
 COMPAT = env("COMPAT", "1") == "1"
+EXPERIMENTAL_DUAL_FUND = env("EXPERIMENTAL_DUAL_FUND", "0") == "1"
 
 
 def hex_bits(features):
@@ -25,6 +26,8 @@ def expected_peer_features(wumbo_channels=False, extra=[]):
         features += [103]
         # option_anchor_outputs
         features += [21]
+        # option_shutdown_anysegwit
+        features += [27]
     if wumbo_channels:
         features += [19]
     return hex_bits(features + extra)
@@ -40,6 +43,8 @@ def expected_node_features(wumbo_channels=False, extra=[]):
         features += [103]
         # option_anchor_outputs
         features += [21]
+        # option_shutdown_anysegwit
+        features += [27]
     if wumbo_channels:
         features += [19]
     return hex_bits(features + extra)
@@ -48,9 +53,6 @@ def expected_node_features(wumbo_channels=False, extra=[]):
 def expected_channel_features(wumbo_channels=False, extra=[]):
     """Return the expected channel features hexstring for this configuration"""
     features = []
-    if EXPERIMENTAL_FEATURES:
-        # OPT_ONION_MESSAGES
-        features += [103]
     return hex_bits(features + extra)
 
 
@@ -141,3 +143,12 @@ def basic_fee(feerate):
     else:
         weight = 724
     return (weight * feerate) // 1000
+
+
+def scriptpubkey_addr(scriptpubkey):
+    if 'addresses' in scriptpubkey:
+        return scriptpubkey['addresses'][0]
+    elif 'address' in scriptpubkey:
+        # Modern bitcoin (at least, git master)
+        return scriptpubkey['address']
+    return None

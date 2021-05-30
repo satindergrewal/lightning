@@ -6,13 +6,17 @@ from flaky import flaky  # noqa: F401
 from pyln.client import RpcError, Millisatoshi
 from utils import (
     only_one, wait_for, sync_blockheight, EXPERIMENTAL_FEATURES,
-    VALGRIND, check_coin_moves
+    VALGRIND, check_coin_moves, TailableProc, scriptpubkey_addr,
 )
 
 import os
 import pytest
 import subprocess
+import sys
 import unittest
+
+
+WAIT_TIMEOUT = 60  # Wait timeout for processes
 
 
 @unittest.skipIf(TEST_NETWORK != 'regtest', "Test relies on a number of example addresses valid only in regtest")
@@ -284,7 +288,7 @@ def test_txprepare(node_factory, bitcoind, chainparams):
     for i, o in enumerate(decode['vout']):
         if i == outnum:
             assert o['scriptPubKey']['type'] == 'witness_v0_keyhash'
-            assert o['scriptPubKey']['addresses'] == [addr]
+            assert scriptpubkey_addr(o['scriptPubKey']) == addr
         else:
             assert o['scriptPubKey']['type'] in ['witness_v0_keyhash', 'fee']
 
@@ -300,7 +304,7 @@ def test_txprepare(node_factory, bitcoind, chainparams):
     assert decode['vout'][0]['value'] < Decimal(amount * 6) / 10**8
     assert decode['vout'][0]['value'] > Decimal(amount * 6) / 10**8 - Decimal(0.0002)
     assert decode['vout'][0]['scriptPubKey']['type'] == 'witness_v0_keyhash'
-    assert decode['vout'][0]['scriptPubKey']['addresses'] == [addr]
+    assert scriptpubkey_addr(decode['vout'][0]['scriptPubKey']) == addr
 
     # If I cancel the first one, I can get those first 4 outputs.
     discard = l1.rpc.txdiscard(prep['txid'])
@@ -318,7 +322,7 @@ def test_txprepare(node_factory, bitcoind, chainparams):
     assert decode['vout'][0]['value'] < Decimal(amount * 4) / 10**8
     assert decode['vout'][0]['value'] > Decimal(amount * 4) / 10**8 - Decimal(0.0002)
     assert decode['vout'][0]['scriptPubKey']['type'] == 'witness_v0_keyhash'
-    assert decode['vout'][0]['scriptPubKey']['addresses'] == [addr]
+    assert scriptpubkey_addr(decode['vout'][0]['scriptPubKey']) == addr
 
     # Cannot discard twice.
     with pytest.raises(RpcError, match=r'not an unreleased txid'):
@@ -338,7 +342,7 @@ def test_txprepare(node_factory, bitcoind, chainparams):
     assert decode['vout'][0]['value'] < Decimal(amount * 10) / 10**8
     assert decode['vout'][0]['value'] > Decimal(amount * 10) / 10**8 - Decimal(0.0003)
     assert decode['vout'][0]['scriptPubKey']['type'] == 'witness_v0_keyhash'
-    assert decode['vout'][0]['scriptPubKey']['addresses'] == [addr]
+    assert scriptpubkey_addr(decode['vout'][0]['scriptPubKey']) == addr
     l1.rpc.txdiscard(prep4['txid'])
 
     # Try passing in a utxo set
@@ -369,12 +373,12 @@ def test_txprepare(node_factory, bitcoind, chainparams):
     for vout in decode['vout']:
         if vout['scriptPubKey']['type'] == 'fee':
             continue
-        if vout['scriptPubKey']['addresses'] == [addr]:
+        if scriptpubkey_addr(vout['scriptPubKey']) == addr:
             changeout = vout
 
     assert changeout['value'] == Decimal(amount * 3.5) / 10**8
     assert changeout['scriptPubKey']['type'] == 'witness_v0_keyhash'
-    assert changeout['scriptPubKey']['addresses'] == [addr]
+    assert scriptpubkey_addr(changeout['scriptPubKey']) == addr
 
     # Discard prep4 and get all funds again
     l1.rpc.txdiscard(prep5['txid'])
@@ -403,10 +407,10 @@ def test_txprepare(node_factory, bitcoind, chainparams):
             changenum = i - 1
 
     assert decode['vout'][outnum1]['scriptPubKey']['type'] == 'witness_v0_keyhash'
-    assert decode['vout'][outnum1]['scriptPubKey']['addresses'] == [addr]
+    assert scriptpubkey_addr(decode['vout'][outnum1]['scriptPubKey']) == addr
 
     assert decode['vout'][outnum2]['scriptPubKey']['type'] == 'witness_v0_keyhash'
-    assert decode['vout'][outnum2]['scriptPubKey']['addresses'] == [addr]
+    assert scriptpubkey_addr(decode['vout'][outnum2]['scriptPubKey']) == addr
 
     assert decode['vout'][changenum]['scriptPubKey']['type'] == 'witness_v0_keyhash'
 
@@ -511,6 +515,18 @@ def test_fundpsbt(node_factory, bitcoind, chainparams):
     with pytest.raises(RpcError, match=r"not afford"):
         l1.rpc.fundpsbt(amount // 2, feerate, 0, minconf=2)
 
+    funding3 = l1.rpc.fundpsbt(amount // 2, feerate, 0, reserve=False, excess_as_change=True)
+    assert funding3['excess_msat'] == Millisatoshi(0)
+    # Should have the excess msat as the output value (minus fee for change)
+    psbt = bitcoind.rpc.decodepsbt(funding3['psbt'])
+    change = Millisatoshi("{}btc".format(psbt['tx']['vout'][funding3['change_outnum']]['value']))
+    # The weight should be greater (now includes change output)
+    change_weight = funding3['estimated_final_weight'] - funding['estimated_final_weight']
+    assert change_weight > 0
+    # Check that the amount is ok (equal to excess minus change fee)
+    change_fee = Millisatoshi(7500 * change_weight)
+    assert funding['excess_msat'] == change + change_fee
+
     # Should get two inputs.
     psbt = bitcoind.rpc.decodepsbt(l1.rpc.fundpsbt(amount, feerate, 0, reserve=False)['psbt'])
     assert len(psbt['tx']['vin']) == 2
@@ -597,6 +613,29 @@ def test_utxopsbt(node_factory, bitcoind, chainparams):
         l1.rpc.utxopsbt(amount * 2, feerate, 0,
                         ['{}:{}'.format(outputs[0][0], outputs[0][1]),
                          '{}:{}'.format(outputs[1][0], outputs[1][1])])
+
+    funding3 = l1.rpc.utxopsbt(amount // 2, feerate, 0,
+                               ['{}:{}'.format(outputs[0][0], outputs[0][1])],
+                               reserve=False,
+                               excess_as_change=True)
+    assert funding3['excess_msat'] == Millisatoshi(0)
+    # Should have the excess msat as the output value (minus fee for change)
+    psbt = bitcoind.rpc.decodepsbt(funding3['psbt'])
+    change = Millisatoshi("{}btc".format(psbt['tx']['vout'][funding3['change_outnum']]['value']))
+    # The weight should be greater (now includes change output)
+    change_weight = funding3['estimated_final_weight'] - funding['estimated_final_weight']
+    assert change_weight > 0
+    # Check that the amount is ok (equal to excess minus change fee)
+    change_fee = Millisatoshi(fee_val * change_weight // 1000 * 1000)
+    assert funding['excess_msat'] == change + change_fee
+
+    # Do it again, but without enough for change!
+    funding4 = l1.rpc.utxopsbt(amount - 3500,
+                               feerate, 0,
+                               ['{}:{}'.format(outputs[0][0], outputs[0][1])],
+                               reserve=False,
+                               excess_as_change=True)
+    assert 'change_outnum' not in funding4
 
     # Should get two inputs (and reserve!)
     funding = l1.rpc.utxopsbt(amount, feerate, 0,
@@ -870,7 +909,7 @@ def test_txsend(node_factory, bitcoind, chainparams):
     wait_for(lambda: len(l1.rpc.listfunds()['outputs']) == 10 - len(decode['vin']) + 1)
 
     # Change address should appear in listfunds()
-    assert decode['vout'][changenum]['scriptPubKey']['addresses'][0] in [f['address'] for f in l1.rpc.listfunds()['outputs']]
+    assert scriptpubkey_addr(decode['vout'][changenum]['scriptPubKey']) in [f['address'] for f in l1.rpc.listfunds()['outputs']]
 
 
 @unittest.skipIf(TEST_NETWORK != 'regtest', "Fee outputs throw off our output matching logic")
@@ -946,6 +985,7 @@ def test_transaction_annotations(node_factory, bitcoind):
 
 
 @unittest.skipIf(VALGRIND, "It does not play well with prompt and key derivation.")
+@unittest.skipIf(not sys.stdout.isatty(), "Cannot")
 def test_hsm_secret_encryption(node_factory):
     l1 = node_factory.get_node(may_fail=True)  # May fail when started without key
     password = "reckful\n"
@@ -956,8 +996,9 @@ def test_hsm_secret_encryption(node_factory):
     l1.stop()
     l1.daemon.opts.update({"encrypted-hsm": None})
     l1.daemon.start(stdin=slave_fd, wait_for_initialized=False)
-    l1.daemon.wait_for_log(r'The hsm_secret is encrypted')
-
+    l1.daemon.wait_for_log(r'Enter hsm_secret password')
+    os.write(master_fd, password.encode("utf-8"))
+    l1.daemon.wait_for_log(r'Confirm hsm_secret password')
     os.write(master_fd, password.encode("utf-8"))
     l1.daemon.wait_for_log("Server started with public key")
     id = l1.rpc.getinfo()["id"]
@@ -972,17 +1013,29 @@ def test_hsm_secret_encryption(node_factory):
     l1.daemon.opts.update({"encrypted-hsm": None})
     l1.daemon.start(stdin=slave_fd, stderr=subprocess.STDOUT,
                     wait_for_initialized=False)
-    l1.daemon.wait_for_log(r'The hsm_secret is encrypted')
+    l1.daemon.wait_for_log(r'Enter hsm_secret password')
     os.write(master_fd, password[2:].encode("utf-8"))
-    assert(l1.daemon.proc.wait() == 1)
+    l1.daemon.wait_for_log(r'Confirm hsm_secret password')
+    os.write(master_fd, password[2:].encode("utf-8"))
+    assert(l1.daemon.proc.wait(WAIT_TIMEOUT) == 1)
     assert(l1.daemon.is_in_log("Wrong password for encrypted hsm_secret."))
 
     # Test we can restore the same wallet with the same password
     l1.daemon.start(stdin=slave_fd, wait_for_initialized=False)
     l1.daemon.wait_for_log(r'The hsm_secret is encrypted')
     os.write(master_fd, password.encode("utf-8"))
+    l1.daemon.wait_for_log(r'Confirm hsm_secret password')
+    os.write(master_fd, password.encode("utf-8"))
     l1.daemon.wait_for_log("Server started with public key")
     assert id == l1.rpc.getinfo()["id"]
+
+
+class HsmTool(TailableProc):
+    """Helper for testing the hsmtool as a subprocess"""
+    def __init__(self, *args):
+        TailableProc.__init__(self)
+        assert hasattr(self, "env")
+        self.cmd_line = ["tools/hsmtool", *args]
 
 
 @unittest.skipIf(VALGRIND, "It does not play well with prompt and key derivation.")
@@ -997,20 +1050,31 @@ def test_hsmtool_secret_decryption(node_factory):
     l1.stop()
     l1.daemon.opts.update({"encrypted-hsm": None})
     l1.daemon.start(stdin=slave_fd, wait_for_initialized=False)
-    l1.daemon.wait_for_log(r'The hsm_secret is encrypted')
+    l1.daemon.wait_for_log(r'Enter hsm_secret password')
+    os.write(master_fd, password.encode("utf-8"))
+    l1.daemon.wait_for_log(r'Confirm hsm_secret password')
     os.write(master_fd, password.encode("utf-8"))
     l1.daemon.wait_for_log("Server started with public key")
     node_id = l1.rpc.getinfo()["id"]
     l1.stop()
 
     # We can't use a wrong password !
-    cmd_line = ["tools/hsmtool", "decrypt", hsm_path, "A wrong pass"]
-    with pytest.raises(subprocess.CalledProcessError):
-        subprocess.check_call(cmd_line)
+    master_fd, slave_fd = os.openpty()
+    hsmtool = HsmTool("decrypt", hsm_path)
+    hsmtool.start(stdin=slave_fd,
+                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    hsmtool.wait_for_log(r"Enter hsm_secret password:")
+    os.write(master_fd, "A wrong pass\n\n".encode("utf-8"))
+    hsmtool.proc.wait(WAIT_TIMEOUT)
+    hsmtool.is_in_log(r"Wrong password")
 
     # Decrypt it with hsmtool
-    cmd_line[3] = password[:-1]
-    subprocess.check_call(cmd_line)
+    master_fd, slave_fd = os.openpty()
+    hsmtool.start(stdin=slave_fd,
+                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    hsmtool.wait_for_log(r"Enter hsm_secret password:")
+    os.write(master_fd, password.encode("utf-8"))
+    assert hsmtool.proc.wait(WAIT_TIMEOUT) == 0
     # Then test we can now start it without password
     l1.daemon.opts.pop("encrypted-hsm")
     l1.daemon.start(stdin=slave_fd, wait_for_initialized=True)
@@ -1018,11 +1082,17 @@ def test_hsmtool_secret_decryption(node_factory):
     l1.stop()
 
     # Test we can encrypt it offline
-    cmd_line[1] = "encrypt"
-    subprocess.check_call(cmd_line)
+    master_fd, slave_fd = os.openpty()
+    hsmtool = HsmTool("encrypt", hsm_path)
+    hsmtool.start(stdin=slave_fd,
+                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    hsmtool.wait_for_log(r"Enter hsm_secret password:")
+    os.write(master_fd, password.encode("utf-8"))
+    hsmtool.wait_for_log(r"Confirm hsm_secret password:")
+    os.write(master_fd, password.encode("utf-8"))
+    assert hsmtool.proc.wait(WAIT_TIMEOUT) == 0
     # Now we need to pass the encrypted-hsm startup option
     l1.stop()
-
     with pytest.raises(subprocess.CalledProcessError, match=r'returned non-zero exit status 1'):
         subprocess.check_call(l1.daemon.cmd_line)
 
@@ -1033,13 +1103,21 @@ def test_hsmtool_secret_decryption(node_factory):
 
     l1.daemon.wait_for_log(r'The hsm_secret is encrypted')
     os.write(master_fd, password.encode("utf-8"))
+    l1.daemon.wait_for_log(r'Confirm hsm_secret password')
+    os.write(master_fd, password.encode("utf-8"))
     l1.daemon.wait_for_log("Server started with public key")
+    print(node_id, l1.rpc.getinfo()["id"])
     assert node_id == l1.rpc.getinfo()["id"]
     l1.stop()
 
     # And finally test that we can also decrypt if encrypted with hsmtool
-    cmd_line[1] = "decrypt"
-    subprocess.check_call(cmd_line)
+    master_fd, slave_fd = os.openpty()
+    hsmtool = HsmTool("decrypt", hsm_path)
+    hsmtool.start(stdin=slave_fd,
+                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    hsmtool.wait_for_log(r"Enter hsm_secret password:")
+    os.write(master_fd, password.encode("utf-8"))
+    assert hsmtool.proc.wait(WAIT_TIMEOUT) == 0
     l1.daemon.opts.pop("encrypted-hsm")
     l1.daemon.start(stdin=slave_fd, wait_for_initialized=True)
     assert node_id == l1.rpc.getinfo()["id"]
@@ -1052,8 +1130,7 @@ def test_hsmtool_dump_descriptors(node_factory, bitcoind):
 
     # Get a tpub descriptor of lightningd's wallet
     hsm_path = os.path.join(l1.daemon.lightning_dir, TEST_NETWORK, "hsm_secret")
-    cmd_line = ["tools/hsmtool", "dumponchaindescriptors", hsm_path, "",
-                "testnet"]
+    cmd_line = ["tools/hsmtool", "dumponchaindescriptors", hsm_path, "testnet"]
     out = subprocess.check_output(cmd_line).decode("utf8").split("\n")
     descriptor = [l for l in out if l.startswith("wpkh(tpub")][0]
 
@@ -1073,6 +1150,40 @@ def test_hsmtool_dump_descriptors(node_factory, bitcoind):
     txid = l1.rpc.withdraw(addr, 10**3)["txid"]
     bitcoind.generate_block(1, txid)
     assert len(bitcoind.rpc.listunspent(1, 1, [addr])) == 1
+
+
+@unittest.skipIf(VALGRIND, "It does not play well with prompt and key derivation.")
+def test_hsmtool_generatehsm(node_factory):
+    l1 = node_factory.get_node()
+    l1.stop()
+    hsm_path = os.path.join(l1.daemon.lightning_dir, TEST_NETWORK,
+                            "hsm_secret")
+
+    hsmtool = HsmTool("generatehsm", hsm_path)
+
+    # You cannot re-generate an already existing hsm_secret
+    master_fd, slave_fd = os.openpty()
+    hsmtool.start(stdin=slave_fd, stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE)
+    assert hsmtool.proc.wait(WAIT_TIMEOUT) == 2
+    os.remove(hsm_path)
+
+    # We can generate a valid hsm_secret from a wordlist and a "passphrase"
+    master_fd, slave_fd = os.openpty()
+    hsmtool.start(stdin=slave_fd, stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE)
+    hsmtool.wait_for_log(r"Select your language:")
+    os.write(master_fd, "0\n".encode("utf-8"))
+    hsmtool.wait_for_log(r"Introduce your BIP39 word list")
+    os.write(master_fd, "ritual idle hat sunny universe pluck key alpha wing "
+                        "cake have wedding\n".encode("utf-8"))
+    hsmtool.wait_for_log(r"Enter your passphrase:")
+    os.write(master_fd, "This is actually not a passphrase\n".encode("utf-8"))
+    hsmtool.proc.wait(WAIT_TIMEOUT)
+    hsmtool.is_in_log(r"New hsm_secret file created")
+
+    # We can start the node with this hsm_secret
+    l1.start()
 
 
 # this test does a 'listtransactions' on a yet unconfirmed channel
@@ -1220,7 +1331,7 @@ def test_repro_4258(node_factory, bitcoind):
 
     assert(len(tx['vout']) == 1)
     o0 = tx['vout'][0]
-    assert(o0['scriptPubKey']['addresses'] == [addr])
+    assert(scriptpubkey_addr(o0['scriptPubKey']) == addr)
 
     assert(len(tx['vin']) == 1)
     i0 = tx['vin'][0]

@@ -1,12 +1,13 @@
-from decimal import Decimal
-from math import floor, log10
-from typing import Optional, Union
 import json
 import logging
 import os
 import socket
 import warnings
+from contextlib import contextmanager
+from decimal import Decimal
 from json import JSONEncoder
+from math import floor, log10
+from typing import Optional, Union
 
 
 def _patched_default(self, obj):
@@ -91,6 +92,13 @@ class Millisatoshi:
         Return a Decimal representing the number of satoshis.
         """
         return Decimal(self.millisatoshis) / 1000
+
+    def to_whole_satoshi(self) -> int:
+        """
+        Return an int respresenting the number of satoshis;
+        rounded up to the nearest satoshi
+        """
+        return (self.millisatoshis + 999) // 1000
 
     def to_btc(self) -> Decimal:
         """
@@ -276,8 +284,9 @@ class UnixDomainSocketRpc(object):
         self.decoder = decoder
         self.executor = executor
         self.logger = logger
+        self._notify = None
 
-        self.next_id = 0
+        self.next_id = 1
 
     def _writeobj(self, sock, obj):
         s = json.dumps(obj, ensure_ascii=False, cls=self.encoder_cls)
@@ -327,18 +336,44 @@ class UnixDomainSocketRpc(object):
         # FIXME: we open a new socket for every readobj call...
         sock = UnixSocket(self.socket_path)
         this_id = self.next_id
-        self._writeobj(sock, {
+        self.next_id += 0
+        buf = b''
+
+        if self._notify is not None:
+            # Opt into the notifications support
+            self._writeobj(sock, {
+                "jsonrpc": "2.0",
+                "method": "notifications",
+                "id": 0,
+                "params": {
+                    "enable": True
+                },
+            })
+            _, buf = self._readobj(sock, buf)
+
+        request = {
             "jsonrpc": "2.0",
             "method": method,
             "params": payload,
             "id": this_id,
-        })
-        self.next_id += 1
-        buf = b''
+        }
+
+        self._writeobj(sock, request)
         while True:
             resp, buf = self._readobj(sock, buf)
-            # FIXME: We should offer a callback for notifications.
-            if 'method' not in resp or 'id' in resp:
+            id = resp.get("id", None)
+            meth = resp.get("method", None)
+
+            if meth == 'message' and self._notify is not None:
+                n = resp['params']
+                self._notify(
+                    message=n.get('message', None),
+                    progress=n.get('progress', None),
+                    request=request
+                )
+                continue
+
+            if meth is None or id is None:
                 break
 
         self.logger.debug("Received response for %s call: %r", method, resp)
@@ -353,6 +388,31 @@ class UnixDomainSocketRpc(object):
         elif "result" not in resp:
             raise ValueError("Malformed response, \"result\" missing.")
         return resp["result"]
+
+    @contextmanager
+    def notify(self, fn):
+        """Register a notification callback to use for a set of RPC calls.
+
+        This is a context manager and should be used like this:
+
+        ```python
+        def fn(message, progress, request, **kwargs):
+            print(message)
+
+        with rpc.notify(fn):
+            rpc.somemethod()
+        ```
+
+        The `fn` function will be called once for each notification
+        the is sent by `somemethod`. This is a context manager,
+        meaning that multiple commands can share the same context, and
+        the same notification function.
+
+        """
+        old = self._notify
+        self._notify = fn
+        yield
+        self._notify = old
 
 
 class LightningRpc(UnixDomainSocketRpc):
@@ -424,6 +484,15 @@ class LightningRpc(UnixDomainSocketRpc):
         if patch_json:
             monkey_patch_json(patch=True)
 
+    def addgossip(self, message):
+        """
+        Inject this (hex-encoded) gossip message.
+        """
+        payload = {
+            "message": message,
+        }
+        return self.call("addgossip", payload)
+
     def autocleaninvoice(self, cycle_seconds=None, expired_by=None):
         """
         Sets up automatic cleaning of expired invoices. {cycle_seconds} sets
@@ -445,47 +514,19 @@ class LightningRpc(UnixDomainSocketRpc):
         payload.update({k: v for k, v in kwargs.items()})
         return self.call("check", payload)
 
-    def _deprecated_close(self, peer_id, force=None, timeout=None):
-        warnings.warn("close now takes unilateraltimeout arg: expect removal"
-                      " in early 2020",
-                      DeprecationWarning)
-        payload = {
-            "id": peer_id,
-            "force": force,
-            "timeout": timeout
-        }
-        return self.call("close", payload)
-
-    def close(self, peer_id, *args, **kwargs):
+    def close(self, peer_id, unilateraltimeout=None, destination=None, fee_negotiation_step=None):
         """
         Close the channel with peer {id}, forcing a unilateral
         close after {unilateraltimeout} seconds if non-zero, and
         the to-local output will be sent to {destination}.
-
-        Deprecated usage has {force} and {timeout} args.
         """
-
-        if 'force' in kwargs or 'timeout' in kwargs:
-            return self._deprecated_close(peer_id, *args, **kwargs)
-
-        # Single arg is ambigious.
-        if len(args) >= 1:
-            if isinstance(args[0], bool):
-                return self._deprecated_close(peer_id, *args, **kwargs)
-            if len(args) == 2:
-                if args[0] is None and isinstance(args[1], int):
-                    return self._deprecated_close(peer_id, *args, **kwargs)
-
-        def _close(peer_id, unilateraltimeout=None, destination=None, fee_negotiation_step=None):
-            payload = {
-                "id": peer_id,
-                "unilateraltimeout": unilateraltimeout,
-                "destination": destination,
-                "fee_negotiation_step": fee_negotiation_step
-            }
-            return self.call("close", payload)
-
-        return _close(peer_id, *args, **kwargs)
+        payload = {
+            "id": peer_id,
+            "unilateraltimeout": unilateraltimeout,
+            "destination": destination,
+            "fee_negotiation_step": fee_negotiation_step
+        }
+        return self.call("close", payload)
 
     def connect(self, peer_id, host=None, port=None):
         """
@@ -566,7 +607,7 @@ class LightningRpc(UnixDomainSocketRpc):
         return self.call("dev-memleak")
 
     def dev_pay(self, bolt11, msatoshi=None, label=None, riskfactor=None,
-                description=None, maxfeepercent=None, retry_for=None,
+                maxfeepercent=None, retry_for=None,
                 maxdelay=None, exemptfee=None, use_shadow=True):
         """
         A developer version of `pay`, with the possibility to deactivate
@@ -582,8 +623,6 @@ class LightningRpc(UnixDomainSocketRpc):
             "maxdelay": maxdelay,
             "exemptfee": exemptfee,
             "use_shadow": use_shadow,
-            # Deprecated.
-            "description": description,
         }
         return self.call("pay", payload)
 
@@ -653,22 +692,7 @@ class LightningRpc(UnixDomainSocketRpc):
         }
         return self.call("feerates", payload)
 
-    def _deprecated_fundchannel(self, node_id, satoshi, feerate=None, announce=True, minconf=None, utxos=None):
-        warnings.warn("fundchannel: the 'satoshi' field is renamed 'amount' : expect removal"
-                      " in Mid-2020",
-                      DeprecationWarning)
-
-        payload = {
-            "id": node_id,
-            "satoshi": satoshi,
-            "feerate": feerate,
-            "announce": announce,
-            "minconf": minconf,
-            "utxos": utxos
-        }
-        return self.call("fundchannel", payload)
-
-    def fundchannel(self, node_id, *args, **kwargs):
+    def fundchannel(self, node_id, amount, feerate=None, announce=True, minconf=None, utxos=None, push_msat=None, close_to=None):
         """
         Fund channel with {id} using {amount} satoshis with feerate
         of {feerate} (uses default feerate if unset).
@@ -678,39 +702,19 @@ class LightningRpc(UnixDomainSocketRpc):
         fund a channel from these specifics utxos.
         {close_to} is a valid Bitcoin address.
         """
-
-        if 'satoshi' in kwargs:
-            return self._deprecated_fundchannel(node_id, *args, **kwargs)
-
-        def _fundchannel(node_id, amount, feerate=None, announce=True, minconf=None, utxos=None, push_msat=None, close_to=None):
-            payload = {
-                "id": node_id,
-                "amount": amount,
-                "feerate": feerate,
-                "announce": announce,
-                "minconf": minconf,
-                "utxos": utxos,
-                "push_msat": push_msat,
-                "close_to": close_to,
-            }
-            return self.call("fundchannel", payload)
-
-        return _fundchannel(node_id, *args, **kwargs)
-
-    def _deprecated_fundchannel_start(self, node_id, satoshi, feerate=None, announce=True):
-        warnings.warn("fundchannel_start: the 'satoshi' field is renamed 'amount' : expect removal"
-                      " in Mid-2020",
-                      DeprecationWarning)
-
         payload = {
             "id": node_id,
-            "satoshi": satoshi,
+            "amount": amount,
             "feerate": feerate,
             "announce": announce,
+            "minconf": minconf,
+            "utxos": utxos,
+            "push_msat": push_msat,
+            "close_to": close_to,
         }
-        return self.call("fundchannel_start", payload)
+        return self.call("fundchannel", payload)
 
-    def fundchannel_start(self, node_id, *args, **kwargs):
+    def fundchannel_start(self, node_id, amount, feerate=None, announce=True, close_to=None):
         """
         Start channel funding with {id} for {amount} satoshis
         with feerate of {feerate} (uses default feerate if unset).
@@ -720,21 +724,14 @@ class LightningRpc(UnixDomainSocketRpc):
         'fundchannel_complete' to complete channel establishment
         with peer.
         """
-
-        if 'satoshi' in kwargs:
-            return self._deprecated_fundchannel_start(node_id, *args, **kwargs)
-
-        def _fundchannel_start(node_id, amount, feerate=None, announce=True, close_to=None):
-            payload = {
-                "id": node_id,
-                "amount": amount,
-                "feerate": feerate,
-                "announce": announce,
-                "close_to": close_to,
-            }
-            return self.call("fundchannel_start", payload)
-
-        return _fundchannel_start(node_id, *args, **kwargs)
+        payload = {
+            "id": node_id,
+            "amount": amount,
+            "feerate": feerate,
+            "announce": announce,
+            "close_to": close_to,
+        }
+        return self.call("fundchannel_start", payload)
 
     def fundchannel_cancel(self, node_id):
         """
@@ -745,16 +742,33 @@ class LightningRpc(UnixDomainSocketRpc):
         }
         return self.call("fundchannel_cancel", payload)
 
-    def fundchannel_complete(self, node_id, funding_txid, funding_txout):
-        """
-        Complete channel establishment with {id}, using {funding_txid} at {funding_txout}.
-        """
+    def _deprecated_fundchannel_complete(self, node_id, funding_txid, funding_txout):
+        warnings.warn("fundchannel_complete: funding_txid & funding_txout replaced by psbt: expect removal"
+                      " in Mid-2021",
+                      DeprecationWarning)
+
         payload = {
             "id": node_id,
             "txid": funding_txid,
             "txout": funding_txout,
         }
         return self.call("fundchannel_complete", payload)
+
+    def fundchannel_complete(self, node_id, *args, **kwargs):
+        """
+        Complete channel establishment with {id}, using {psbt}.
+        """
+        if 'txid' in kwargs or len(args) == 2:
+            return self._deprecated_fundchannel_complete(node_id, *args, **kwargs)
+
+        def _fundchannel_complete(node_id, psbt):
+            payload = {
+                "id": node_id,
+                "psbt": psbt,
+            }
+            return self.call("fundchannel_complete", payload)
+
+        return _fundchannel_complete(node_id, *args, **kwargs)
 
     def getinfo(self):
         """
@@ -812,7 +826,7 @@ class LightningRpc(UnixDomainSocketRpc):
         }
         return self.call("help", payload)
 
-    def invoice(self, msatoshi, label, description, expiry=None, fallbacks=None, preimage=None, exposeprivatechannels=None):
+    def invoice(self, msatoshi, label, description, expiry=None, fallbacks=None, preimage=None, exposeprivatechannels=None, cltv=None):
         """
         Create an invoice for {msatoshi} with {label} and {description} with
         optional {expiry} seconds (default 1 week).
@@ -824,7 +838,8 @@ class LightningRpc(UnixDomainSocketRpc):
             "expiry": expiry,
             "fallbacks": fallbacks,
             "preimage": preimage,
-            "exposeprivatechannels": exposeprivatechannels
+            "exposeprivatechannels": exposeprivatechannels,
+            "cltv": cltv,
         }
         return self.call("invoice", payload)
 
@@ -846,12 +861,18 @@ class LightningRpc(UnixDomainSocketRpc):
         }
         return self.call("listconfigs", payload)
 
-    def listforwards(self):
-        """List all forwarded payments and their information.
+    def listforwards(self, status=None, in_channel=None, out_channel=None):
+        """List all forwarded payments and their information matching
+        forward {status}, {in_channel} and {out_channel}.
         """
-        return self.call("listforwards")
+        payload = {
+            "status": status,
+            "in_channel": in_channel,
+            "out_channel": out_channel,
+        }
+        return self.call("listforwards", payload)
 
-    def listfunds(self, spent=False):
+    def listfunds(self, spent=None):
         """
         Show funds available for opening channels
         or both unspent and spent funds if {spent} is True.
@@ -868,12 +889,17 @@ class LightningRpc(UnixDomainSocketRpc):
         """
         return self.call("listtransactions")
 
-    def listinvoices(self, label=None):
-        """
-        Show invoice {label} (or all, if no {label)).
+    def listinvoices(self, label=None, payment_hash=None, invstring=None):
+        """Query invoices
+
+        Show invoice matching {label} {payment_hash} or {invstring} (or
+        all, if no filters are present).
+
         """
         payload = {
-            "label": label
+            "label": label,
+            "payment_hash": payment_hash,
+            "invstring": invstring,
         }
         return self.call("listinvoices", payload)
 
@@ -960,7 +986,7 @@ class LightningRpc(UnixDomainSocketRpc):
         return self.call("newaddr", {"addresstype": addresstype})
 
     def pay(self, bolt11, msatoshi=None, label=None, riskfactor=None,
-            description=None, maxfeepercent=None, retry_for=None,
+            maxfeepercent=None, retry_for=None,
             maxdelay=None, exemptfee=None):
         """
         Send payment specified by {bolt11} with {msatoshi}
@@ -976,8 +1002,6 @@ class LightningRpc(UnixDomainSocketRpc):
             "retry_for": retry_for,
             "maxdelay": maxdelay,
             "exemptfee": exemptfee,
-            # Deprecated.
-            "description": description,
         }
         return self.call("pay", payload)
 
@@ -1010,6 +1034,22 @@ class LightningRpc(UnixDomainSocketRpc):
             "psbt": psbt,
         }
         return self.call("openchannel_update", payload)
+
+    def openchannel_bump(self, channel_id, amount, initialpsbt):
+        """ Initiate an RBF for an in-progress open """
+        payload = {
+            "channel_id": channel_id,
+            "amount": amount,
+            "initialpsbt": initialpsbt,
+        }
+        return self.call("openchannel_bump", payload)
+
+    def openchannel_abort(self, channel_id):
+        """ Abort a channel open """
+        payload = {
+            "channel_id": channel_id,
+        }
+        return self.call("openchannel_abort", payload)
 
     def paystatus(self, bolt11=None):
         """Detail status of attempts to pay {bolt11} or any."""
@@ -1075,39 +1115,20 @@ class LightningRpc(UnixDomainSocketRpc):
         }
         return self.call("plugin", payload)
 
-    def _deprecated_sendpay(self, route, payment_hash, description, msatoshi=None):
-        warnings.warn("sendpay: the 'description' field is renamed 'label' : expect removal"
-                      " in early-2020",
-                      DeprecationWarning)
-        payload = {
-            "route": route,
-            "payment_hash": payment_hash,
-            "label": description,
-            "msatoshi": msatoshi,
-        }
-        return self.call("sendpay", payload)
-
-    def sendpay(self, route, payment_hash, *args, **kwargs):
+    def sendpay(self, route, payment_hash, label=None, msatoshi=None, bolt11=None, payment_secret=None, partid=None):
         """
         Send along {route} in return for preimage of {payment_hash}.
         """
-
-        if 'description' in kwargs:
-            return self._deprecated_sendpay(route, payment_hash, *args, **kwargs)
-
-        def _sendpay(route, payment_hash, label=None, msatoshi=None, bolt11=None, payment_secret=None, partid=None):
-            payload = {
-                "route": route,
-                "payment_hash": payment_hash,
-                "label": label,
-                "msatoshi": msatoshi,
-                "bolt11": bolt11,
-                "payment_secret": payment_secret,
-                "partid": partid,
-            }
-            return self.call("sendpay", payload)
-
-        return _sendpay(route, payment_hash, *args, **kwargs)
+        payload = {
+            "route": route,
+            "payment_hash": payment_hash,
+            "label": label,
+            "msatoshi": msatoshi,
+            "bolt11": bolt11,
+            "payment_secret": payment_secret,
+            "partid": partid,
+        }
+        return self.call("sendpay", payload)
 
     def setchannelfee(self, id, base=None, ppm=None):
         """
@@ -1244,7 +1265,7 @@ class LightningRpc(UnixDomainSocketRpc):
         }
         return self.call("unreserveinputs", payload)
 
-    def fundpsbt(self, satoshi, feerate, startweight, minconf=None, reserve=True, locktime=None):
+    def fundpsbt(self, satoshi, feerate, startweight, minconf=None, reserve=True, locktime=None, min_witness_weight=None, excess_as_change=False):
         """
         Create a PSBT with inputs sufficient to give an output of satoshi.
         """
@@ -1255,10 +1276,12 @@ class LightningRpc(UnixDomainSocketRpc):
             "minconf": minconf,
             "reserve": reserve,
             "locktime": locktime,
+            "min_witness_weight": min_witness_weight,
+            "excess_as_change": excess_as_change,
         }
         return self.call("fundpsbt", payload)
 
-    def utxopsbt(self, satoshi, feerate, startweight, utxos, reserve=True, reservedok=False, locktime=None):
+    def utxopsbt(self, satoshi, feerate, startweight, utxos, reserve=True, reservedok=False, locktime=None, min_witness_weight=None, excess_as_change=False):
         """
         Create a PSBT with given inputs, to give an output of satoshi.
         """
@@ -1270,6 +1293,8 @@ class LightningRpc(UnixDomainSocketRpc):
             "reserve": reserve,
             "reservedok": reservedok,
             "locktime": locktime,
+            "min_witness_weight": min_witness_weight,
+            "excess_as_change": excess_as_change,
         }
         return self.call("utxopsbt", payload)
 

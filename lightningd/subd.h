@@ -32,6 +32,9 @@ struct subd {
 	/* If we are associated with a single channel, this points to it. */
 	void *channel;
 
+	/* Have we received the version msg yet?  Don't send until we do. */
+	bool rcvd_version;
+
 	/* For logging */
 	struct log *log;
 	const struct node_id *node_id;
@@ -47,7 +50,7 @@ struct subd {
 		      struct per_peer_state *pps,
 		      const struct channel_id *channel_id,
 		      const char *desc,
-		      bool soft_error,
+		      bool warning,
 		      const u8 *err_for_them);
 
 	/* Callback to display information for listpeers RPC */
@@ -124,16 +127,17 @@ struct subd *new_channel_subd_(struct lightningd *ld,
 					     struct per_peer_state *pps,
 					     const struct channel_id *channel_id,
 					     const char *desc,
-					     bool soft_error,
+					     bool warning,
 					     const u8 *err_for_them),
 			       void (*billboardcb)(void *channel, bool perm,
 						   const char *happenings),
 			       ...);
 
-#define new_channel_subd(ld, name, channel, node_id, log, talks_to_peer, \
-			 msgname, msgcb, errcb, billboardcb, ...)	\
-	new_channel_subd_((ld), (name), (channel), (node_id), (log),	\
-			  (talks_to_peer),				\
+#define new_channel_subd(ld, name, channel, node_id, log, 		\
+			 talks_to_peer, msgname, msgcb, errcb, 		\
+			 billboardcb, ...)				\
+	new_channel_subd_((ld), (name), (channel), (node_id), 		\
+			  (log), (talks_to_peer),			\
 			  (msgname), (msgcb),				\
 			  typesafe_cb_postargs(void, void *, (errcb),	\
 					       (channel),		\

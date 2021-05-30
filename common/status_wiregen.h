@@ -17,6 +17,7 @@ enum status_wire {
         WIRE_STATUS_FAIL = 0xFFF2,
         WIRE_STATUS_PEER_CONNECTION_LOST = 0xFFF3,
         WIRE_STATUS_PEER_BILLBOARD = 0xFFF5,
+        WIRE_STATUS_VERSION = 0xFFF6,
 };
 
 const char *status_wire_name(int e);
@@ -51,6 +52,10 @@ bool fromwire_status_peer_connection_lost(const void *p);
 u8 *towire_status_peer_billboard(const tal_t *ctx, bool perm, const wirestring *happenings);
 bool fromwire_status_peer_billboard(const tal_t *ctx, const void *p, bool *perm, wirestring **happenings);
 
+/* WIRE: STATUS_VERSION */
+u8 *towire_status_version(const tal_t *ctx, const wirestring *version);
+bool fromwire_status_version(const tal_t *ctx, const void *p, wirestring **version);
+
 
 #endif /* LIGHTNING_COMMON_STATUS_WIREGEN_H */
-// SHA256STAMP:9d3b2dd6c7771732bc056bf348b3593534bbc3fc1dc0181867e60790cc087155
+// SHA256STAMP:8e1ba9cbc812c8aad76c5049fcecefea2d706a100423c93d3c3be0afcbee851e

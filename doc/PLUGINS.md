@@ -128,6 +128,10 @@ The `dynamic` indicates if the plugin can be managed after `lightningd`
 has been started. Critical plugins that should not be stopped should set it
 to false.
 
+If a `disable` member exists, the plugin will be disabled and the contents
+of this member is the reason why.  This allows plugins to disable themselves
+if they are not supported in this configuration.
+
 The `featurebits` object allows the plugin to register featurebits that should be
 announced in a number of places in [the protocol][bolt9]. They can be used to signal
 support for custom protocol extensions to direct peers, remote nodes and in
@@ -237,10 +241,11 @@ simple JSON object containing the options:
 }
 ```
 
-The plugin must respond to `init` calls, however the response can be
-arbitrary and will currently be discarded by `lightningd`. JSON-RPC
-commands were chosen over notifications in order not to force plugins
-to implement notifications which are not that well supported.
+The plugin must respond to `init` calls.  The response should be a
+valid JSON-RPC response to the `init`, but this is not currently
+enforced.  If the response is an object containing `result` which
+contains `disable` then the plugin will be disabled and the contents
+of this member is the reason why.
 
 The `startup` field allows a plugin to detect if it was started at
 `lightningd` startup (true), or at runtime (false).
@@ -318,10 +323,10 @@ corresponding payloads are listed below.
 
 ### `channel_opened`
 
-A notification for topic `channel_opened` is sent if a peer successfully funded a channel
-with us. It contains the peer id, the funding amount (in millisatoshis), the funding
-transaction id, and a boolean indicating if the funding transaction has been included
-into a block.
+A notification for topic `channel_opened` is sent if a peer successfully
+funded a channel with us. It contains the peer id, the funding amount
+(in millisatoshis), the funding transaction id, and a boolean indicating
+if the funding transaction has been included into a block.
 
 ```json
 {
@@ -330,6 +335,20 @@ into a block.
     "funding_satoshis": "100000000msat",
     "funding_txid": "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b",
     "funding_locked": false
+  }
+}
+```
+
+### `channel_open_failed`
+
+A notification to indicate that a channel open attempt has been unsuccessful.
+Useful for cleaning up state for a v2 channel open attempt. See
+`tests/plugins/df_accepter.py` for an example of how to use this.
+
+```json
+{
+  "channel_open_failed": {
+    "channel_id": "a2d0851832f0e30a0cf...",
   }
 }
 ```
@@ -379,12 +398,13 @@ remote peer, but we have been offline.
 ### `connect`
 
 A notification for topic `connect` is sent every time a new connection
-to a peer is established.
+to a peer is established. `direction` is either `"in"` or `"out"`.
 
 ```json
 {
   "id": "02f6725f9c1c40333b67faea92fd211c183050f28df32cac3f9d69685fe9665432",
-  "address": "1.2.3.4"
+  "direction": "in",
+  "address": "1.2.3.4:1234"
 }
 ```
 
@@ -698,11 +718,10 @@ here, with the peer's signatures attached.
 
 ```json
 {
-	"openchannel_peer_sigs": {
-		"channel_id": "<hex of a channel id (note, v2 format)>",
-		"signed_psbt": "<Base64 serialized PSBT of funding transaction,
-				with peer's sigs>"
-	}
+  "openchannel_peer_sigs": {
+    "channel_id": "252d1b0a1e5789...",
+    "signed_psbt": "cHNidP8BAKgCAAAAAQ+y+61AQAAAAD9////AzbkHAAAAAAAFgAUwsyrFxwqW+natS7EG4JYYwJMVGZQwwAAAAAAACIAIKYE2s4YZ+RON6BB5lYQESHR9cA7hDm6/maYtTzSLA0hUMMAAAAAAAAiACBbjNO5FM9nzdj6YnPJMDU902R2c0+9liECwt9TuQiAzWYAAAAAAQDfAgAAAAABARtaSZufCbC+P+/G23XVaQ8mDwZQFW1vlCsCYhLbmVrpAAAAAAD+////AvJs5ykBAAAAFgAUT6ORgb3CgFsbwSOzNLzF7jQS5s+AhB4AAAAAABepFNi369DMyAJmqX2agouvGHcDKsZkhwJHMEQCIHELIyqrqlwRjyzquEPvqiorzL2hrvdu9EBxsqppeIKiAiBykC6De/PDElnqWw49y2vTqauSJIVBgGtSc+vq5BQd+gEhAg0f8WITWvA8o4grxNKfgdrNDncqreMLeRFiteUlne+GZQAAAAEBIICEHgAAAAAAF6kU2Lfr0MzIAmapfZqCi68YdwMqxmSHAQcXFgAUAfrZCrzWZpfiWSFkci3kqV6+4WUBCGsCRzBEAiBF31wbNWECsJ0DrPel2inWla2hYpCgaxeVgPAvFEOT2AIgWiFWN0hvUaK6kEnXhED50wQ2fBqnobsRhoy1iDDKXE0BIQPXRURck2JmXyLg2W6edm8nPzJg3qOcina/oF3SaE3czwz8CWxpZ2h0bmluZwEIexhVcpJl8ugM/AlsaWdodG5pbmcCAgABAAz8CWxpZ2h0bmluZwEIR7FutlQgkSoADPwJbGlnaHRuaW5nAQhYT+HjxFBqeAAM/AlsaWdodG5pbmcBCOpQ5iiTTNQEAA=="
+  }
 }
 ```
 
@@ -772,30 +791,34 @@ no plugin is registered on the hook.
 ### `peer_connected`
 
 This hook is called whenever a peer has connected and successfully completed
-the cryptographic handshake. The parameters have the following structure if there is a channel with the peer:
+the cryptographic handshake. The parameters have the following structure:
 
 ```json
 {
   "peer": {
     "id": "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
+	"direction": "in",
     "addr": "34.239.230.56:9735",
     "features": ""
   }
 }
 ```
 
-The hook is sparse on purpose, since the plugin can use the JSON-RPC
-`listpeers` command to get additional details should they be required. The
-`addr` field shows the address that we are connected to ourselves, not the
-gossiped list of known addresses. In particular this means that the port for
-incoming connections is an ephemeral port, that may not be available for
-reconnections.
+The hook is sparse on information, since the plugin can use the JSON-RPC
+`listpeers` command to get additional details should they be required.
+`direction` is either `"in"` or `"out"`. The `addr` field shows the address
+that we are connected to ourselves, not the gossiped list of known
+addresses. In particular this means that the port for incoming connections is
+an ephemeral port, that may not be available for reconnections.
 
 The returned result must contain a `result` member which is either
 the string `disconnect` or `continue`.  If `disconnect` and
 there's a member `error_message`, that member is sent to the peer
 before disconnection.
 
+Note that `peer_connected` is a chained hook. The first plugin that decides to
+`disconnect` with or without an `error_message` will lead to the subsequent
+plugins not being called anymore.
 
 ### `commitment_revocation`
 
@@ -931,7 +954,7 @@ This hook is called whenever a valid payment for an unpaid invoice has arrived.
 }
 ```
 
-The hook is sparse on purpose, since the plugin can use the JSON-RPC
+The hook is deliberately sparse, since the plugin can use the JSON-RPC
 `listinvoices` command to get additional details about this invoice.
 It can return a `failure_message` field as defined for final
 nodes in [BOLT 4][bolt4-failure-messages], a `result` field with the string
@@ -941,8 +964,8 @@ nodes in [BOLT 4][bolt4-failure-messages], a `result` field with the string
 
 ### `openchannel`
 
-This hook is called whenever a remote peer tries to fund a channel to us,
-and it has passed basic sanity checks:
+This hook is called whenever a remote peer tries to fund a channel to us using
+the v1 protocol, and it has passed basic sanity checks:
 
 ```json
 {
@@ -982,7 +1005,186 @@ e.g.
 }
 ```
 
-Note that `close_to` must be a valid address for the current chain; an invalid address will cause the node to exit with an error.
+Note that `close_to` must be a valid address for the current chain,
+an invalid address will cause the node to exit with an error.
+
+Note that `openchannel` is a chained hook. Therefore `close_to` will only be
+evaluated for the first plugin that sets it. If more than one plugin tries to
+set a `close_to` address an error will be logged.
+
+### `openchannel2`
+
+This hook is called whenever a remote peer tries to fund a channel to us using
+the v2 protocol, and it has passed basic sanity checks:
+
+```json
+{
+  "openchannel2": {
+    "id": "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
+    "channel_id": "252d1b0a1e57895e84137f28cf19ab2c35847e284c112fefdecc7afeaa5c1de7",
+    "their_funding": "100000000msat",
+    "dust_limit_satoshis": "546000msat",
+    "max_htlc_value_in_flight_msat": "18446744073709551615msat",
+    "htlc_minimum_msat": "0msat",
+    "funding_feerate_per_kw": 7500,
+    "commitment_feerate_per_kw": 7500,
+    "feerate_our_max": 10000,
+    "feerate_our_min": 253,
+    "to_self_delay": 5,
+    "max_accepted_htlcs": 483,
+    "channel_flags": 1
+    "locktime": 2453,
+  }
+}
+```
+
+There may be additional fields, such as `shutdown_scriptpubkey`.  You can
+see the definitions of these fields in [BOLT 2's description of the open_channel message][bolt2-open-channel].
+
+The returned result must contain a `result` member which is either
+the string `reject` or `continue`.  If `reject` and
+there's a member `error_message`, that member is sent to the peer
+before disconnection.
+
+For a 'continue'd result, you can also include a `close_to` address,
+which will be used as the output address for a mutual close transaction; you
+can include a `psbt` and an `our_funding_msat` to contribute funds,
+inputs and outputs to this channel open.
+
+Note that, like `openchannel_init` RPC call, the `our_funding_msat` amount
+must NOT be accounted for in any supplied output. Change, however, should be
+included and should use the `funding_feerate_per_kw` to calculate.
+
+See `tests/plugins/df_accepter.py` for an example of how to use this hook
+to contribute funds to a channel open.
+
+e.g.
+
+```json
+{
+    "result": "continue",
+    "close_to": "bc1qlq8srqnz64wgklmqvurv7qnr4rvtq2u96hhfg2"
+    "psbt": "cHNidP8BADMCAAAAAQ+yBipSVZrrw28Oed52hTw3N7t0HbIyZhFdcZRH3+61AQAAAAD9////AGYAAAAAAQDfAgAAAAABARtaSZufCbC+P+/G23XVaQ8mDwZQFW1vlCsCYhLbmVrpAAAAAAD+////AvJs5ykBAAAAFgAUT6ORgb3CgFsbwSOzNLzF7jQS5s+AhB4AAAAAABepFNi369DMyAJmqX2agouvGHcDKsZkhwJHMEQCIHELIyqrqlwRjyzquEPvqiorzL2hrvdu9EBxsqppeIKiAiBykC6De/PDElnqWw49y2vTqauSJIVBgGtSc+vq5BQd+gEhAg0f8WITWvA8o4grxNKfgdrNDncqreMLeRFiteUlne+GZQAAAAEBIICEHgAAAAAAF6kU2Lfr0MzIAmapfZqCi68YdwMqxmSHAQQWABQB+tkKvNZml+JZIWRyLeSpXr7hZQz8CWxpZ2h0bmluZwEIexhVcpJl8ugM/AlsaWdodG5pbmcCAgABAA==",
+    "our_funding_msat": "39999000msat"
+}
+```
+
+Note that `close_to` must be a valid address for the current chain,
+an invalid address will cause the node to exit with an error.
+
+Note that `openchannel` is a chained hook. Therefore `close_to` will only be
+evaluated for the first plugin that sets it. If more than one plugin tries to
+set a `close_to` address an error will be logged.
+
+
+### `openchannel2_changed`
+
+This hook is called when we received updates to the funding transaction
+from the peer.
+
+```json
+{
+	"openchannel2_changed": {
+		"channel_id": "252d1b0a1e57895e841...",
+		"psbt": "cHNidP8BADMCAAAAAQ+yBipSVZr..."
+	}
+}
+```
+
+In return, we expect a `result` indicated to `continue` and an updated `psbt`.
+If we have no updates to contribute, return the passed in PSBT. Once no
+changes to the PSBT are made on either side, the transaction construction
+negotation will end and commitment transactions will be exchanged.
+
+#### Expected Return
+```json
+{
+	"result": "continue",
+	"psbt": "cHNidP8BADMCAAAAAQ+yBipSVZr..."
+}
+```
+
+See `tests/plugins/df_accepter.py` for an example of how to use this hook
+to continue a v2 channel open.
+
+
+### `openchannel2_sign`
+
+This hook is called after we've gotten the commitment transactions for a
+channel open. It expects psbt to be returned which contains signatures
+for our inputs to the funding transaction.
+
+```json
+{
+	"openchannel2_sign": {
+		"channel_id": "252d1b0a1e57895e841...",
+		"psbt": "cHNidP8BADMCAAAAAQ+yBipSVZr..."
+	}
+}
+```
+
+In return, we expect a `result` indicated to `continue` and an partially
+signed `psbt`.
+
+If we have no inputs to sign, return the passed in PSBT. Once we have also
+received the signatures from the peer, the funding transaction will be
+broadcast.
+
+#### Expected Return
+```json
+{
+	"result": "continue",
+	"psbt": "cHNidP8BADMCAAAAAQ+yBipSVZr..."
+}
+```
+
+See `tests/plugins/df_accepter.py` for an example of how to use this hook
+to sign a funding transaction.
+
+
+### `rbf_channel`
+
+Similar to `openchannel2`, the `rbf_channel` hook is called when a peer
+requests an RBF for a channel funding transaction.
+
+```json
+{
+  "rbf_channel": {
+    "id": "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
+    "channel_id": "252d1b0a1e57895e84137f28cf19ab2c35847e284c112fefdecc7afeaa5c1de7",
+    "their_funding": "100000000msat",
+    "funding_feerate_per_kw": 7500,
+    "feerate_our_max": 10000,
+    "feerate_our_min": 253,
+    "locktime": 2453,
+  }
+}
+```
+
+The returned result must contain a `result` member which is either
+the string `reject` or `continue`.  If `reject` and
+there's a member `error_message`, that member is sent to the peer
+before disconnection.
+
+For a 'continue'd result, you can include a `psbt` and an
+`our_funding_msat` to contribute funds, inputs and outputs to
+this channel open.
+
+Note that, like the `openchannel_init` RPC call, the `our_funding_msat`
+amount must NOT be accounted for in any supplied output. Change,
+however, should be included and should use the `funding_feerate_per_kw`
+to calculate.
+
+#### Return
+
+```json
+{
+    "result": "continue",
+    "psbt": "cHNidP8BADMCAAAAAQ+yBipSVZrrw28Oed52hTw3N7t0HbIyZhFdcZRH3+61AQAAAAD9////AGYAAAAAAQDfAgAAAAABARtaSZufCbC+P+/G23XVaQ8mDwZQFW1vlCsCYhLbmVrpAAAAAAD+////AvJs5ykBAAAAFgAUT6ORgb3CgFsbwSOzNLzF7jQS5s+AhB4AAAAAABepFNi369DMyAJmqX2agouvGHcDKsZkhwJHMEQCIHELIyqrqlwRjyzquEPvqiorzL2hrvdu9EBxsqppeIKiAiBykC6De/PDElnqWw49y2vTqauSJIVBgGtSc+vq5BQd+gEhAg0f8WITWvA8o4grxNKfgdrNDncqreMLeRFiteUlne+GZQAAAAEBIICEHgAAAAAAF6kU2Lfr0MzIAmapfZqCi68YdwMqxmSHAQQWABQB+tkKvNZml+JZIWRyLeSpXr7hZQz8CWxpZ2h0bmluZwEIexhVcpJl8ugM/AlsaWdodG5pbmcCAgABAA==",
+    "our_funding_msat": "39999000msat"
+}
+```
+
 
 
 ### `htlc_accepted`
@@ -1185,6 +1387,9 @@ Return a custom error to the request sender:
 }
 ```
 
+Note: The `rpc_command` hook is chainable. If two or more plugins try to
+replace/result/error the same `method`, only the first plugin in the chain
+will be respected. Others will be ignored and a warning will be logged.
 
 ### `custommsg`
 
@@ -1199,7 +1404,7 @@ The payload for a call follows this format:
 ```json
 {
 	"peer_id": "02df5ffe895c778e10f7742a6c5b8a0cefbe9465df58b92fadeb883752c8107c8f",
-	"message": "1337ffffffff"
+	"payload": "1337ffffffff"
 }
 ```
 
@@ -1213,12 +1418,46 @@ ignored by nodes (see ["it's ok to be odd" in the specification][oddok] for
 details). The plugin must implement the parsing of the message, including the
 type prefix, since c-lightning does not know how to parse the message.
 
-The result for this hook is currently being discarded. For future uses of the
-result we suggest just returning `{'result': 'continue'}`.
-This will ensure backward
-compatibility should the semantics be changed in future.
+Because this is a chained hook, the daemon expects the result to be
+`{'result': 'continue'}`. It will fail if something else is returned.
 
+### `onion_message` and `onion_message_blinded`
 
+**(WARNING: experimental-offers only)**
+
+These two hooks are almost identical, in that they are called when an
+onion message is received.  The former is only used for unblinded
+messages (where the source knows that it is sending to this node), and
+the latter for blinded messages (where the source doesn't know that
+this node is the destination).  The latter hook will have a
+"blinding_in" field, the former never will.
+
+These hooks are separate, because blinded messages must ensure the
+sender used the correct "blinding_in", otherwise it should ignore the
+message: this avoids the source trying to probe for responses without
+using the designated delivery path.
+
+The payload for a call follows this format:
+
+```json
+{
+    "onion_message": {
+        "blinding_in": "02df5ffe895c778e10f7742a6c5b8a0cefbe9465df58b92fadeb883752c8107c8f",
+		"reply_path": [ {"id": "02df5ffe895c778e10f7742a6c5b8a0cefbe9465df58b92fadeb883752c8107c8f",
+                         "enctlv": "0a020d0d",
+                         "blinding": "02df5ffe895c778e10f7742a6c5b8a0cefbe9465df58b92fadeb883752c8107c8f"} ],
+        "invoice_request": "0a020d0d",
+		"invoice": "0a020d0d",
+		"invoice_error": "0a020d0d",
+		"unknown_fields": [ {"number": 12345, "value": "0a020d0d"} ]
+	}
+}
+```
+
+All fields shown here are optional.
+
+We suggest just returning `{'result': 'continue'}`; any other result
+will cause the message not to be handed to any other hooks.
 
 ## Bitcoin backend
 

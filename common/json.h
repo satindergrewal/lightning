@@ -5,6 +5,7 @@
 #include <ccan/short_types/short_types.h>
 #include <ccan/tal/tal.h>
 #include <common/errcode.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -25,6 +26,10 @@ int json_tok_full_len(const jsmntok_t *t);
 
 /* Is this a string equal to str? */
 bool json_tok_streq(const char *buffer, const jsmntok_t *tok, const char *str);
+
+/* Is this a string equal to str of length len? */
+bool json_tok_strneq(const char *buffer, const jsmntok_t *tok,
+		     const char *str, size_t len);
 
 /* Does this string token start with prefix? */
 bool json_tok_startswith(const char *buffer, const jsmntok_t *tok,
@@ -90,6 +95,10 @@ const jsmntok_t *json_next(const jsmntok_t *tok);
 const jsmntok_t *json_get_member(const char *buffer, const jsmntok_t tok[],
 				 const char *label);
 
+/* Get top-level member, with explicit label length */
+const jsmntok_t *json_get_membern(const char *buffer, const jsmntok_t tok[],
+				  const char *label, size_t len);
+
 /* Get index'th array member. */
 const jsmntok_t *json_get_arr(const jsmntok_t tok[], size_t index);
 
@@ -143,10 +152,37 @@ jsmntok_t *json_tok_copy(const tal_t *ctx, const jsmntok_t *tok);
 void json_tok_remove(jsmntok_t **tokens,
 		     jsmntok_t *obj_or_array, const jsmntok_t *tok, size_t num);
 
-/* Guide is a string with . for members, [] around indexes. */
-const jsmntok_t *json_delve(const char *buffer,
-			    const jsmntok_t *tok,
-			    const char *guide);
+/* Guide is % for a token: each must be followed by JSON_SCAN().
+ * Returns NULL on error (asserts() on bad guide). */
+const char *json_scan(const tal_t *ctx,
+		      const char *buffer,
+		      const jsmntok_t *tok,
+		      const char *guide,
+		      ...);
+
+/* eg. JSON_SCAN(json_to_bool, &boolvar) */
+#define JSON_SCAN(fmt, var)						\
+	json_scan,							\
+	stringify(fmt),							\
+	((var) + 0*sizeof(fmt((const char *)NULL,			\
+			      (const jsmntok_t *)NULL, var) == true)),	\
+	(fmt)
+
+/* eg. JSON_SCAN_TAL(tmpctx, json_strdup, &charvar) */
+#define JSON_SCAN_TAL(ctx, fmt, var)					\
+	(ctx),								\
+	stringify(fmt),							\
+	((var) + 0*sizeof((*var) = fmt((ctx),				\
+				       (const char *)NULL,		\
+				       (const jsmntok_t *)NULL))),	\
+	(fmt)
+
+/* Already-have-varargs version */
+const char *json_scanv(const tal_t *ctx,
+		       const char *buffer,
+		       const jsmntok_t *tok,
+		       const char *guide,
+		       va_list ap);
 
 /* Iterator macro for array: i is counter, t is token ptr, arr is JSMN_ARRAY */
 #define json_for_each_arr(i, t, arr) \

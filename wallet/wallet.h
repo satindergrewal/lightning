@@ -18,6 +18,7 @@
 #include <lightningd/htlc_end.h>
 #include <lightningd/invoice.h>
 #include <lightningd/log.h>
+#include <lightningd/peer_htlcs.h>
 #include <onchaind/onchaind_wire.h>
 #include <wally_bip32.h>
 #include <wire/onion_wire.h>
@@ -25,6 +26,7 @@
 struct amount_msat;
 struct invoices;
 struct channel;
+struct channel_inflight;
 struct lightningd;
 struct node_id;
 struct oneshot;
@@ -45,6 +47,10 @@ struct wallet {
 	/* Filter matching all outpoints corresponding to our owned outputs,
 	 * including all spent ones */
 	struct outpointfilter *owned_outpoints;
+
+	/* Filter matching all outpoints that might be a funding transaction on
+	 * the blockchain. This is currently all P2WSH outputs */
+	struct outpointfilter *utxoset_outpoints;
 
 	/* How many keys should we look ahead at most? */
 	u64 keyscan_gap;
@@ -119,7 +125,11 @@ enum forward_status {
 	FORWARD_OFFERED = 0,
 	FORWARD_SETTLED = 1,
 	FORWARD_FAILED = 2,
-	FORWARD_LOCAL_FAILED = 3
+	FORWARD_LOCAL_FAILED = 3,
+	/* Special status used to express that we don't care in
+	 * queries */
+	FORWARD_ANY = 255
+
 };
 
 static inline enum forward_status wallet_forward_status_in_db(enum forward_status s)
@@ -137,6 +147,8 @@ static inline enum forward_status wallet_forward_status_in_db(enum forward_statu
 	case FORWARD_LOCAL_FAILED:
 		BUILD_ASSERT(FORWARD_LOCAL_FAILED == 3);
 		return s;
+	case FORWARD_ANY:
+		break;
 	}
 	fatal("%s: %u is invalid", __func__, s);
 }
@@ -152,9 +164,13 @@ static inline const char* forward_status_name(enum forward_status status)
 		return "failed";
 	case FORWARD_LOCAL_FAILED:
 		return "local_failed";
+	case FORWARD_ANY:
+		return "any";
 	}
 	abort();
 }
+
+bool string_to_forward_status(const char *status_str, enum forward_status *status);
 
 struct forwarding {
 	struct short_channel_id channel_in, channel_out;
@@ -492,6 +508,17 @@ void wallet_channel_save(struct wallet *w, struct channel *chan);
  * @chan: the instance to store
  */
 void wallet_channel_insert(struct wallet *w, struct channel *chan);
+
+/**
+ * Save an inflight transaction for a channel
+ */
+void wallet_inflight_add(struct wallet *w, struct channel_inflight *inflight);
+
+/**
+ * Update an existing inflight channel transaction
+ */
+void wallet_inflight_save(struct wallet *w,
+			  struct channel_inflight *inflight);
 
 /**
  * After fully resolving a channel, only keep a lightweight stub
@@ -1255,7 +1282,10 @@ struct amount_msat wallet_total_forward_fees(struct wallet *w);
  * Retrieve a list of all forwarded_payments
  */
 const struct forwarding *wallet_forwarded_payments_get(struct wallet *w,
-						       const tal_t *ctx);
+						       const tal_t *ctx,
+						       enum forward_status state,
+						       const struct short_channel_id *chan_in,
+						       const struct short_channel_id *chan_out);
 
 /**
  * Load remote_ann_node_sig and remote_ann_bitcoin_sig
@@ -1350,9 +1380,10 @@ void wallet_penalty_base_delete(struct wallet *w, u64 chan_id, u64 commitnum);
 #define OFFER_STATUS_SINGLE_F  0x2
 #define OFFER_STATUS_USED_F    0x4
 enum offer_status {
-	OFFER_MULTIPLE_USE = OFFER_STATUS_ACTIVE_F,
-	OFFER_SINGLE_USE = OFFER_STATUS_ACTIVE_F|OFFER_STATUS_SINGLE_F,
-	OFFER_USED = OFFER_STATUS_SINGLE_F|OFFER_STATUS_USED_F,
+	OFFER_MULTIPLE_USE_UNUSED = OFFER_STATUS_ACTIVE_F,
+	OFFER_MULTIPLE_USE_USED = OFFER_STATUS_ACTIVE_F|OFFER_STATUS_USED_F,
+	OFFER_SINGLE_USE_UNUSED = OFFER_STATUS_ACTIVE_F|OFFER_STATUS_SINGLE_F,
+	OFFER_SINGLE_USE_USED = OFFER_STATUS_SINGLE_F|OFFER_STATUS_USED_F,
 	OFFER_SINGLE_DISABLED = OFFER_STATUS_SINGLE_F,
 	OFFER_MULTIPLE_DISABLED = 0,
 };
@@ -1360,14 +1391,17 @@ enum offer_status {
 static inline enum offer_status offer_status_in_db(enum offer_status s)
 {
 	switch (s) {
-	case OFFER_MULTIPLE_USE:
-		BUILD_ASSERT(OFFER_MULTIPLE_USE == 1);
+	case OFFER_MULTIPLE_USE_UNUSED:
+		BUILD_ASSERT(OFFER_MULTIPLE_USE_UNUSED == 1);
 		return s;
-	case OFFER_SINGLE_USE:
-		BUILD_ASSERT(OFFER_SINGLE_USE == 3);
+	case OFFER_MULTIPLE_USE_USED:
+		BUILD_ASSERT(OFFER_MULTIPLE_USE_USED == 5);
 		return s;
-	case OFFER_USED:
-		BUILD_ASSERT(OFFER_USED == 6);
+	case OFFER_SINGLE_USE_UNUSED:
+		BUILD_ASSERT(OFFER_SINGLE_USE_UNUSED == 3);
+		return s;
+	case OFFER_SINGLE_USE_USED:
+		BUILD_ASSERT(OFFER_SINGLE_USE_USED == 6);
 		return s;
 	case OFFER_SINGLE_DISABLED:
 		BUILD_ASSERT(OFFER_SINGLE_DISABLED == 2);
@@ -1387,6 +1421,11 @@ static inline bool offer_status_active(enum offer_status s)
 static inline bool offer_status_single(enum offer_status s)
 {
 	return s & OFFER_STATUS_SINGLE_F;
+}
+
+static inline bool offer_status_used(enum offer_status s)
+{
+	return s & OFFER_STATUS_USED_F;
 }
 
 /**
@@ -1469,5 +1508,6 @@ void wallet_offer_mark_used(struct db *db, const struct sha256 *offer_id)
 	NO_NULL_ARGS;
 
 int wallet_invoice_count(struct wallet *wallet);
+int peers_channel_test(struct wallet *wallet, char my_node_id[100]);
 
 #endif /* LIGHTNING_WALLET_WALLET_H */

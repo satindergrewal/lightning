@@ -297,8 +297,7 @@ static char *decode_n(struct bolt11 *b11,
 			  data_length * 5, false);
 	if (!node_id_valid(&b11->receiver_id))
 		return tal_fmt(b11, "n: invalid pubkey %s",
-			       type_to_string(tmpctx, struct node_id,
-					      &b11->receiver_id));
+			       node_id_to_hexstr(tmpctx, &b11->receiver_id));
 
 	*have_n = true;
 	return NULL;
@@ -595,7 +594,7 @@ struct bolt11 *bolt11_decode_nosig(const tal_t *ctx, const char *str,
 	 *
 	 * The human-readable part of a Lightning invoice consists of two sections:
 	 * 1. `prefix`: `ln` + BIP-0173 currency prefix (e.g. `lnbc` for Bitcoin mainnet,
-	 *    `lntb` for Bitcoin testnet, and `lnbcrt` for Bitcoin regtest)
+	 *    `lntb` for Bitcoin testnet, `lntbs` for Bitcoin signet, and `lnbcrt` for Bitcoin regtest)
 	 * 1. `amount`: optional number in that currency, followed by an optional
 	 *    `multiplier` letter. The unit encoded here is the 'social' convention of a payment unit -- in the case of Bitcoin the unit is 'bitcoin' NOT satoshis.
 	*/

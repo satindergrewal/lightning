@@ -13,6 +13,7 @@
 #include <common/channel_id.h>
 #include <common/derive_basepoints.h>
 #include <common/features.h>
+#include <common/hsm_encryption.h>
 #include <common/json_command.h>
 #include <common/jsonrpc_errors.h>
 #include <common/memleak.h>
@@ -388,16 +389,7 @@ static char *opt_important_plugin(const char *arg, struct lightningd *ld)
 static char *opt_set_hsm_password(struct lightningd *ld)
 {
 	struct termios current_term, temp_term;
-	char *passwd = NULL;
-	size_t passwd_size = 0;
-	u8 salt[16] = "c-lightning\0\0\0\0\0";
-	ld->encrypted_hsm = true;
-
-	ld->config.keypass = tal(NULL, struct secret);
-	/* Don't swap the encryption key ! */
-	if (sodium_mlock(ld->config.keypass->data,
-	                 sizeof(ld->config.keypass->data)) != 0)
-		return "Could not lock hsm_secret encryption key memory.";
+	char *passwd, *passwd_confirmation, *err;
 
 	/* Get the password from stdin, but don't echo it. */
 	if (tcgetattr(fileno(stdin), &current_term) != 0)
@@ -408,32 +400,28 @@ static char *opt_set_hsm_password(struct lightningd *ld)
 		return "Could not disable password echoing.";
 	printf("The hsm_secret is encrypted with a password. In order to "
 	       "decrypt it and start the node you must provide the password.\n");
-	printf("Enter hsm_secret password: ");
+	printf("Enter hsm_secret password:\n");
 	/* If we don't flush we might end up being buffered and we might seem
 	 * to hang while we wait for the password. */
 	fflush(stdout);
-	if (getline(&passwd, &passwd_size, stdin) < 0)
-		return "Could not read password from stdin.";
-	if (passwd[strlen(passwd) - 1] == '\n')
-		passwd[strlen(passwd) - 1] = '\0';
-	if (tcsetattr(fileno(stdin), TCSAFLUSH, &current_term) != 0)
-		return "Could not restore terminal options.";
+	passwd = read_stdin_pass(&err);
+	if (!passwd)
+		return err;
+	printf("Confirm hsm_secret password:\n");
+	fflush(stdout);
+	passwd_confirmation = read_stdin_pass(&err);
+	if (!passwd_confirmation)
+		return err;
 	printf("\n");
 
-	/* Derive the key from the password. */
-	if (strlen(passwd) < crypto_pwhash_argon2id_PASSWD_MIN)
-		return "Password too short to be able to derive a key from it.";
-	if (strlen(passwd) > crypto_pwhash_argon2id_PASSWD_MAX)
-		return "Password too long to be able to derive a key from it.";
-	if (crypto_pwhash(ld->config.keypass->data, sizeof(ld->config.keypass->data),
-	                  passwd, strlen(passwd), salt,
-	                  /* INTERACTIVE needs 64 MiB of RAM, MODERATE needs 256,
-	                   * and SENSITIVE needs 1024. */
-	                  crypto_pwhash_argon2id_OPSLIMIT_MODERATE,
-	                  crypto_pwhash_argon2id_MEMLIMIT_MODERATE,
-	                  crypto_pwhash_ALG_ARGON2ID13) != 0)
-		return "Could not derive a key from the password.";
+	ld->config.keypass = tal(NULL, struct secret);
+	err = hsm_secret_encryption_key(passwd, ld->config.keypass);
+	if (err)
+		return err;
+	ld->encrypted_hsm = true;
 	free(passwd);
+	free(passwd_confirmation);
+
 	return NULL;
 }
 
@@ -593,7 +581,7 @@ static void dev_register_opts(struct lightningd *ld)
 			 "Force HSM to use these for all per-channel secrets");
 	opt_register_arg("--dev-max-funding-unconfirmed-blocks",
 			 opt_set_u32, opt_show_u32,
-			 &ld->max_funding_unconfirmed,
+			 &ld->dev_max_funding_unconfirmed,
 			 "Maximum number of blocks we wait for a channel "
 			 "funding transaction to confirm, if we are the "
 			 "fundee.");
@@ -661,6 +649,8 @@ static const struct config testnet_config = {
 
 	/* 1 minute should be enough for anyone! */
 	.connection_timeout_secs = 60,
+
+	.exp_offers = IFEXPERIMENTAL(true, false),
 };
 
 /* aka. "Dude, where's my coins?" */
@@ -716,6 +706,8 @@ static const struct config mainnet_config = {
 
 	/* 1 minute should be enough for anyone! */
 	.connection_timeout_secs = 60,
+
+	.exp_offers = IFEXPERIMENTAL(true, false),
 };
 
 static void check_config(struct lightningd *ld)
@@ -734,6 +726,9 @@ static void check_config(struct lightningd *ld)
 
 	if (ld->use_proxy_always && !ld->proxyaddr)
 		fatal("--always-use-proxy needs --proxy");
+
+	if (ld->daemon_parent_fd != -1 && !ld->logfile)
+		fatal("--daemon needs --log-file");
 }
 
 static char *test_subdaemons_and_exit(struct lightningd *ld)
@@ -803,6 +798,40 @@ static char *opt_set_wumbo(struct lightningd *ld)
 	return NULL;
 }
 
+static char *opt_set_dual_fund(struct lightningd *ld)
+{
+	/* Dual funding implies anchor outputs */
+	feature_set_or(ld->our_features,
+		       take(feature_set_for_feature(NULL,
+						    OPTIONAL_FEATURE(OPT_ANCHOR_OUTPUTS))));
+	feature_set_or(ld->our_features,
+		       take(feature_set_for_feature(NULL,
+						    OPTIONAL_FEATURE(OPT_DUAL_FUND))));
+	return NULL;
+}
+
+static char *opt_set_onion_messages(struct lightningd *ld)
+{
+	feature_set_or(ld->our_features,
+		       take(feature_set_for_feature(NULL,
+						    OPTIONAL_FEATURE(OPT_ONION_MESSAGES))));
+	return NULL;
+}
+
+static char *opt_set_shutdown_wrong_funding(struct lightningd *ld)
+{
+	feature_set_or(ld->our_features,
+		       take(feature_set_for_feature(NULL,
+						    OPTIONAL_FEATURE(OPT_SHUTDOWN_WRONG_FUNDING))));
+	return NULL;
+}
+
+static char *opt_set_offers(struct lightningd *ld)
+{
+	ld->config.exp_offers = true;
+	return opt_set_onion_messages(ld);
+}
+
 static void register_opts(struct lightningd *ld)
 {
 	/* This happens before plugins started */
@@ -843,6 +872,25 @@ static void register_opts(struct lightningd *ld)
 	opt_register_early_noarg("--large-channels|--wumbo",
 				 opt_set_wumbo, ld,
 				 "Allow channels larger than 0.16777215 BTC");
+
+	opt_register_early_noarg("--experimental-dual-fund",
+				 opt_set_dual_fund, ld,
+				 "experimental: Advertise dual-funding"
+				 " and allow peers to establish channels"
+				 " via v2 channel open protocol.");
+
+	/* This affects our features, so set early. */
+	opt_register_early_noarg("--experimental-onion-messages",
+				 opt_set_onion_messages, ld,
+				 "EXPERIMENTAL: enable send, receive and relay"
+				 " of onion messages");
+	opt_register_early_noarg("--experimental-offers",
+				 opt_set_offers, ld,
+				 "EXPERIMENTAL: enable send and receive of offers"
+				 " (also sets experimental-onion-messages)");
+	opt_register_early_noarg("--experimental-shutdown-wrong-funding",
+				 opt_set_shutdown_wrong_funding, ld,
+				 "EXPERIMENTAL: allow shutdown with alternate txids");
 
 	opt_register_noarg("--help|-h", opt_lightningd_usage, ld,
 				 "Print this message.");
@@ -1254,6 +1302,23 @@ static void add_config(struct lightningd *ld,
 				      feature_offered(ld->our_features
 						      ->bits[INIT_FEATURE],
 						      OPT_LARGE_CHANNELS));
+		} else if (opt->cb == (void *)opt_set_dual_fund) {
+			json_add_bool(response, name0,
+				      feature_offered(ld->our_features
+						      ->bits[INIT_FEATURE],
+						      OPT_DUAL_FUND));
+		} else if (opt->cb == (void *)opt_set_onion_messages) {
+			json_add_bool(response, name0,
+				      feature_offered(ld->our_features
+						      ->bits[INIT_FEATURE],
+						      OPT_ONION_MESSAGES));
+		} else if (opt->cb == (void *)opt_set_offers) {
+			json_add_bool(response, name0, ld->config.exp_offers);
+		} else if (opt->cb == (void *)opt_set_shutdown_wrong_funding) {
+			json_add_bool(response, name0,
+				      feature_offered(ld->our_features
+						      ->bits[INIT_FEATURE],
+						      OPT_SHUTDOWN_WRONG_FUNDING));
 		} else if (opt->cb == (void *)plugin_opt_flag_set) {
 			/* Noop, they will get added below along with the
 			 * OPT_HASARG options. */

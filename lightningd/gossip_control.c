@@ -29,6 +29,7 @@
 #include <lightningd/json.h>
 #include <lightningd/jsonrpc.h>
 #include <lightningd/log.h>
+#include <lightningd/onion_message.h>
 #include <lightningd/options.h>
 #include <lightningd/ping.h>
 #include <sodium/randombytes.h>
@@ -140,7 +141,6 @@ static unsigned gossip_msg(struct subd *gossip, const u8 *msg, const int *fds)
 	case WIRE_GOSSIPD_GET_STRIPPED_CUPDATE:
 	case WIRE_GOSSIPD_GET_TXOUT_REPLY:
 	case WIRE_GOSSIPD_OUTPOINT_SPENT:
-	case WIRE_GOSSIPD_PAYMENT_FAILURE:
 	case WIRE_GOSSIPD_GET_INCOMING_CHANNELS:
 	case WIRE_GOSSIPD_DEV_SET_MAX_SCIDS_ENCODE_SIZE:
 	case WIRE_GOSSIPD_DEV_SUPPRESS:
@@ -149,6 +149,8 @@ static unsigned gossip_msg(struct subd *gossip, const u8 *msg, const int *fds)
 	case WIRE_GOSSIPD_DEV_COMPACT_STORE:
 	case WIRE_GOSSIPD_DEV_SET_TIME:
 	case WIRE_GOSSIPD_NEW_BLOCKHEIGHT:
+	case WIRE_GOSSIPD_SEND_ONIONMSG:
+	case WIRE_GOSSIPD_ADDGOSSIP:
 	/* This is a reply, so never gets through to here. */
 	case WIRE_GOSSIPD_GETNODES_REPLY:
 	case WIRE_GOSSIPD_GETROUTE_REPLY:
@@ -157,8 +159,15 @@ static unsigned gossip_msg(struct subd *gossip, const u8 *msg, const int *fds)
 	case WIRE_GOSSIPD_DEV_MEMLEAK_REPLY:
 	case WIRE_GOSSIPD_DEV_COMPACT_STORE_REPLY:
 	case WIRE_GOSSIPD_GET_STRIPPED_CUPDATE_REPLY:
+	case WIRE_GOSSIPD_ADDGOSSIP_REPLY:
 		break;
 
+	case WIRE_GOSSIPD_GOT_ONIONMSG_TO_US:
+		handle_onionmsg_to_us(gossip->ld, msg);
+		break;
+	case WIRE_GOSSIPD_GOT_ONIONMSG_FORWARD:
+		handle_onionmsg_forward(gossip->ld, msg);
+		break;
 	case WIRE_GOSSIPD_PING_REPLY:
 		ping_reply(gossip, msg);
 		break;
@@ -193,7 +202,7 @@ void gossip_init(struct lightningd *ld, int connectd_fd)
 	u8 *msg;
 	int hsmfd;
 
-	hsmfd = hsm_get_global_fd(ld, HSM_CAP_SIGN_GOSSIP);
+	hsmfd = hsm_get_global_fd(ld, HSM_CAP_ECDH|HSM_CAP_SIGN_GOSSIP);
 
 	ld->gossip = new_global_subd(ld, "lightning_gossipd",
 				     gossipd_wire_name, gossip_msg,
@@ -567,6 +576,55 @@ static const struct json_command listchannels_command = {
 	"Show channel {short_channel_id} or {source} (or all known channels, if not specified)"
 };
 AUTODATA(json_command, &listchannels_command);
+
+/* Called upon receiving a addgossip_reply from `gossipd` */
+static void json_addgossip_reply(struct subd *gossip UNUSED, const u8 *reply,
+				 const int *fds UNUSED,
+				 struct command *cmd)
+{
+	char *err;
+
+	if (!fromwire_gossipd_addgossip_reply(reply, reply, &err)) {
+		/* Shouldn't happen: just end json stream. */
+		log_broken(cmd->ld->log,
+			   "Invalid addgossip_reply from gossipd: %s",
+			   tal_hex(tmpctx, reply));
+		was_pending(command_fail(cmd, LIGHTNINGD,
+					 "Invalid reply from gossipd"));
+		return;
+	}
+
+	if (strlen(err))
+		was_pending(command_fail(cmd, LIGHTNINGD, "%s", err));
+	else
+		was_pending(command_success(cmd, json_stream_success(cmd)));
+}
+
+static struct command_result *json_addgossip(struct command *cmd,
+					     const char *buffer,
+					     const jsmntok_t *obj UNNEEDED,
+					     const jsmntok_t *params)
+{
+	u8 *req, *gossip_msg;
+	if (!param(cmd, buffer, params,
+		   p_req("message", param_bin_from_hex, &gossip_msg),
+		   NULL))
+		return command_param_failed();
+
+	req = towire_gossipd_addgossip(cmd, gossip_msg);
+	subd_req(cmd->ld->gossip, cmd->ld->gossip,
+		 req, -1, 0, json_addgossip_reply, cmd);
+
+	return command_still_pending(cmd);
+}
+
+static const struct json_command addgossip_command = {
+	"addgossip",
+	"utility",
+	json_addgossip,
+	"Inject gossip {message} into gossipd"
+};
+AUTODATA(json_command, &addgossip_command);
 
 #if DEVELOPER
 static struct command_result *

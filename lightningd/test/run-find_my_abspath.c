@@ -50,6 +50,9 @@ s64 db_get_intvar(struct db *db UNNEEDED, char *varname UNNEEDED, s64 defval UNN
 /* Generated stub for db_in_transaction */
 bool db_in_transaction(struct db *db UNNEEDED)
 { fprintf(stderr, "db_in_transaction called!\n"); abort(); }
+/* Generated stub for discard_key */
+void discard_key(struct secret *key TAKES UNNEEDED)
+{ fprintf(stderr, "discard_key called!\n"); abort(); }
 /* Generated stub for ecdh_hsmd_setup */
 void ecdh_hsmd_setup(int hsm_fd UNNEEDED,
 		     void (*failed)(enum status_failreason UNNEEDED,
@@ -85,8 +88,11 @@ bool fromwire_status_fail(const tal_t *ctx UNNEEDED, const void *p UNNEEDED, enu
 bool fromwire_status_peer_billboard(const tal_t *ctx UNNEEDED, const void *p UNNEEDED, bool *perm UNNEEDED, wirestring **happenings UNNEEDED)
 { fprintf(stderr, "fromwire_status_peer_billboard called!\n"); abort(); }
 /* Generated stub for fromwire_status_peer_error */
-bool fromwire_status_peer_error(const tal_t *ctx UNNEEDED, const void *p UNNEEDED, struct channel_id *channel UNNEEDED, wirestring **desc UNNEEDED, bool *soft_error UNNEEDED, struct per_peer_state **pps UNNEEDED, u8 **error_for_them UNNEEDED)
+bool fromwire_status_peer_error(const tal_t *ctx UNNEEDED, const void *p UNNEEDED, struct channel_id *channel UNNEEDED, wirestring **desc UNNEEDED, bool *warning UNNEEDED, struct per_peer_state **pps UNNEEDED, u8 **error_for_them UNNEEDED)
 { fprintf(stderr, "fromwire_status_peer_error called!\n"); abort(); }
+/* Generated stub for fromwire_status_version */
+bool fromwire_status_version(const tal_t *ctx UNNEEDED, const void *p UNNEEDED, wirestring **version UNNEEDED)
+{ fprintf(stderr, "fromwire_status_version called!\n"); abort(); }
 /* Generated stub for gossip_init */
 void gossip_init(struct lightningd *ld UNNEEDED, int connectd_fd UNNEEDED)
 { fprintf(stderr, "gossip_init called!\n"); abort(); }

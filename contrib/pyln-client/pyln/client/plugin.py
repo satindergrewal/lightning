@@ -141,6 +141,47 @@ class Request(dict):
     def _write_result(self, result: dict) -> None:
         self.plugin._write_locked(result)
 
+    def _notify(self, method: str, params: JSONType) -> None:
+        """Send a notification to the caller.
+
+        Can contain a variety of things, but is usually used to report
+        progress or command status.
+
+        """
+        self._write_result({
+            'jsonrpc': '2.0',
+            'params': params,
+            "method": method,
+        })
+
+    def notify(self, message: str, level: str = 'info') -> None:
+        """Send a message notification to the caller.
+        """
+        self._notify(
+            "message",
+            params={
+                'id': self.id,
+                'level': level,
+                'message': message,
+            }
+        )
+
+    def progress(self,
+                 progress: int,
+                 total: int,
+                 stage: Optional[int] = None,
+                 stage_total: Optional[int] = None
+                 ) -> None:
+        d: Dict[str, JSONType] = {
+            "id": self.id,
+            "num": progress,
+            "total": total,
+        }
+        if stage is not None and stage_total is not None:
+            d['stage'] = {"num": stage, "total": stage_total}
+
+        self._notify("progress", d)
+
 
 # If a hook call fails we need to coerce it into something the main daemon can
 # handle. Returning an error is not an option since we explicitly do not allow
@@ -639,22 +680,14 @@ class Plugin(object):
     def notify_message(self, request: Request, message: str,
                        level: str = 'info') -> None:
         """Send a notification message to sender of this request"""
-        self.notify("message", {"id": request.id,
-                                "level": level,
-                                "message": message})
+        request.notify(message=message)
 
     def notify_progress(self, request: Request,
                         progress: int, progress_total: int,
                         stage: Optional[int] = None,
                         stage_total: Optional[int] = None) -> None:
-        """Send a progerss message to sender of this request: if more than one stage, set stage and stage_total"""
-        d: Dict[str, Any] = {"id": request.id,
-                             "num": progress,
-                             "total": progress_total}
-        if stage_total is not None:
-            d['stage'] = {"num": stage, "total": stage_total}
-
-        self.notify("progress", d)
+        """Send a progress message to sender of this request: if more than one stage, set stage and stage_total"""
+        request.progress(progress, progress_total, stage, stage_total)
 
     def _parse_request(self, jsrequest: Dict[str, JSONType]) -> Request:
         i = jsrequest.get('id', None)
@@ -691,7 +724,101 @@ class Plugin(object):
 
         return msgs[-1]
 
+    def print_usage(self):
+        import textwrap
+
+        executable = os.path.abspath(sys.argv[0])
+        overview = textwrap.dedent("""
+        Hi, it looks like you're trying to run a plugin from the
+        command line. Plugins are usually started and controlled by
+        lightningd, which allows you to simply specify which plugins
+        you'd like to run using the --plugin command line option when
+        starting lightningd. The following is an example of how that'd
+        look:
+
+          $ lightningd --plugin={executable}
+
+        Since we're here however let me tell you about this plugin.
+        """).format(executable=executable)
+
+        methods_header = textwrap.dedent("""
+
+        RPC methods
+        ===========
+
+        Plugins may provide additional RPC methods that you can simply
+        call as if they were built-in methods from lightningd
+        itself. To call them just use lightning-cli or any other
+        frontend. The following methods are defined by this plugin:
+        """)
+
+        parts = [overview]
+
+        method_tpl = textwrap.dedent("""
+          {name}
+        {doc}
+        """)
+
+        for method in self.methods.values():
+            if method.name in ['init', 'getmanifest']:
+                # Skip internal methods provided by all plugins
+                continue
+
+            if method.mtype != MethodType.RPCMETHOD:
+                # Don't include non-rpc-methods in the rpc-method
+                # section
+                continue
+
+            if methods_header is not None:
+                # Listen carefully, I shall say this only once :-)
+                parts.append(methods_header)
+                methods_header = None
+
+            doc = method.long_desc if method.long_desc is not None else "No documentation found"
+            parts.append(method_tpl.format(
+                name=method.name,
+                doc=textwrap.indent(doc, prefix="    ")
+            ))
+
+        options_header = textwrap.dedent("""
+        Command line options
+        ====================
+
+        This plugin exposes the following command line options. They
+        can be specified just like any other you might gice lightning
+        at startup. The following options are exposed by this plugin:
+        """)
+
+        option_tpl = textwrap.dedent("""
+          --{name}={typ}  (default: {default}
+        {doc}
+        """)
+        for opt in self.options.values():
+            if options_header is not None:
+                parts.append(options_header)
+                options_header = None
+
+            doc = textwrap.indent(opt['description'], prefix="    ")
+
+            if opt['multi']:
+                doc += "\n\n    This option can be specified multiple times"
+
+            parts.append(option_tpl.format(
+                name=opt['name'],
+                doc=doc,
+                default=opt['default'],
+                typ=opt['type'],
+            ))
+
+        sys.stdout.write("".join(parts))
+        sys.stdout.write("\n")
+
     def run(self) -> None:
+        # If we are not running inside lightningd we'll print usage
+        # and some information about the plugin.
+        if os.environ.get('LIGHTNINGD_PLUGIN', None) != '1':
+            return self.print_usage()
+
         partial = b""
         for l in self.stdin.buffer:
             partial += l

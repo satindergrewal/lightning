@@ -1,7 +1,7 @@
 #ifndef LIGHTNING_COMMON_BOLT12_MERKLE_H
 #define LIGHTNING_COMMON_BOLT12_MERKLE_H
 #include "config.h"
-#include <wire/bolt12_exp_wiregen.h>
+#include <common/bolt12.h>
 
 /**
  * merkle_tlv - bolt12-style merkle hash of this tlv minus signature fields
@@ -21,4 +21,12 @@ void sighash_from_merkle(const char *messagename,
 			 const char *fieldname,
 			 const struct sha256 *merkle,
 			 struct sha256 *sighash);
+
+/**
+ * payer_key_tweak - get the actual tweak to use for a payer_key
+ */
+void payer_key_tweak(const struct pubkey32 *bolt12,
+		     const u8 *publictweak, size_t publictweaklen,
+		     struct sha256 *tweak);
+
 #endif /* LIGHTNING_COMMON_BOLT12_MERKLE_H */

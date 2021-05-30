@@ -59,6 +59,7 @@
 #include <common/daemon.h>
 #include <common/ecdh_hsmd.h>
 #include <common/features.h>
+#include <common/hsm_encryption.h>
 #include <common/memleak.h>
 #include <common/timeout.h>
 #include <common/utils.h>
@@ -139,6 +140,7 @@ static struct lightningd *new_lightningd(const tal_t *ctx)
 	ld->dev_force_tmp_channel_id = NULL;
 	ld->dev_no_htlc_timeout = false;
 	ld->dev_no_version_checks = false;
+	ld->dev_max_funding_unconfirmed = 2016;
 #endif
 
 	/*~ These are CCAN lists: an embedded double-linked list.  It's not
@@ -195,7 +197,6 @@ static struct lightningd *new_lightningd(const tal_t *ctx)
 	list_head_init(&ld->waitsendpay_commands);
 	list_head_init(&ld->sendpay_commands);
 	list_head_init(&ld->close_commands);
-	list_head_init(&ld->open_commands);
 	list_head_init(&ld->ping_commands);
 	list_head_init(&ld->waitblockheight_commands);
 
@@ -210,6 +211,7 @@ static struct lightningd *new_lightningd(const tal_t *ctx)
 	ld->listen = true;
 	ld->autolisten = true;
 	ld->reconnect = true;
+	ld->try_reexec = false;
 
 	/*~ This is from ccan/timer: it is efficient for the case where timers
 	 * are deleted before expiry (as is common with timeouts) using an
@@ -226,7 +228,6 @@ static struct lightningd *new_lightningd(const tal_t *ctx)
 	ld->use_proxy_always = false;
 	ld->pure_tor_setup = false;
 	ld->tor_service_password = NULL;
-	ld->max_funding_unconfirmed = 2016;
 
 	/*~ This is initialized later, but the plugin loop examines this,
 	 * so set it to NULL explicitly now. */
@@ -238,11 +239,6 @@ static struct lightningd *new_lightningd(const tal_t *ctx)
 	 *  is that :-)
 	 */
 	jsonrpc_setup(ld);
-
-	/*~ We changed when we start plugins, messing up relative paths.
-	 * This saves our original dirs so we can fixup and warn for the
-	 * moment (0.7.2). */
-	ld->original_directory = path_cwd(ld);
 
 	/*~ We run a number of plugins (subprocesses that we talk JSON-RPC with)
 	 * alongside this process. This allows us to have an easy way for users
@@ -700,22 +696,91 @@ static void on_sigterm(int _ UNUSED)
         _exit(1);
 }
 
+/* Globals are terrible, but we all do it. */
+static int sigchld_wfd;
+
+static void on_sigchild(int _ UNUSED)
+{
+	/*~ UNIX signals are async, which is usually terrible.  The usual
+	 * trick, which we use here, it to write a byte to a pipe, and
+	 * then handle it in the main event loop.
+	 *
+	 * This can fail if we get flooded by signals but that's OK;
+	 * we made it non-blocking, and the reader will loop until
+	 * there are no more children.  But glibc's overzealous use of
+	 * __attribute__((warn_unused_result)) means we have to
+	 * "catch" the return value. */
+        if (write(sigchld_wfd, "", 1) != 1)
+		assert(errno == EAGAIN || errno == EWOULDBLOCK);
+}
+
 /*~ We only need to handle SIGTERM and SIGINT for the case we are PID 1 of
  * docker container since Linux makes special this PID and requires that
- * some handler exist. */
-static void setup_sig_handlers(void)
+ * some handler exist.
+ *
+ * We also want to catch SIGCHLD, so we can report on such children and
+ * avoid zombies. */
+static int setup_sig_handlers(void)
 {
-	struct sigaction sigint, sigterm;
+	struct sigaction sigint, sigterm, sigchild;
+	int fds[2];
+
 	memset(&sigint, 0, sizeof(struct sigaction));
 	memset(&sigterm, 0, sizeof(struct sigaction));
+	memset(&sigchild, 0, sizeof(struct sigaction));
 
 	sigint.sa_handler = on_sigint;
 	sigterm.sa_handler = on_sigterm;
+	sigchild.sa_handler = on_sigchild;
+	sigchild.sa_flags = SA_RESTART;
 
 	if (1 == getpid()) {
 		sigaction(SIGINT, &sigint, NULL);
 		sigaction(SIGTERM, &sigterm, NULL);
 	}
+
+	if (pipe(fds) != 0)
+		err(1, "creating sigchild pipe");
+	sigchld_wfd = fds[1];
+	if (fcntl(sigchld_wfd, F_SETFL,
+		  fcntl(sigchld_wfd, F_GETFL)|O_NONBLOCK) != 0)
+		err(1, "setting sigchild pip nonblock");
+	sigaction(SIGCHLD, &sigchild, NULL);
+
+	return fds[0];
+}
+
+/*~ This removes the SIGCHLD handler, so we don't try to write
+ * to a broken pipe. */
+static void remove_sigchild_handler(void)
+{
+	struct sigaction sigchild;
+
+	memset(&sigchild, 0, sizeof(struct sigaction));
+	sigchild.sa_handler = SIG_DFL;
+	sigaction(SIGCHLD, &sigchild, NULL);
+}
+
+/*~ This is the routine which sets up the sigchild handling.  We just
+ * reap them for now so they don't become zombies, but our subd
+ * handling calls waitpid() synchronously, so we can't simply do this
+ * in the signal handler or set SIGCHLD to be ignored, which has the
+ * same effect.
+ *
+ * We can usually ignore these because we keep pipes to our children,
+ * and use the closure of those to indicate termination.
+ */
+static struct io_plan *sigchld_rfd_in(struct io_conn *conn,
+				      struct lightningd *ld)
+{
+	/* We don't actually care what we read, so we stuff things here. */
+	static u8 ignorebuf;
+	static size_t len;
+
+	/* Reap the plugins, since we otherwise ignore them. */
+	while (waitpid(-1, NULL, WNOHANG) != 0);
+
+	return io_read_partial(conn, &ignorebuf, 1, &len, sigchld_rfd_in, ld);
 }
 
 /*~ We actually keep more than one set of features, used in different
@@ -740,6 +805,7 @@ static struct feature_set *default_features(const tal_t *ctx)
 #if EXPERIMENTAL_FEATURES
 		OPTIONAL_FEATURE(OPT_ANCHOR_OUTPUTS),
 		OPTIONAL_FEATURE(OPT_ONION_MESSAGES),
+		OPTIONAL_FEATURE(OPT_SHUTDOWN_ANYSEGWIT),
 #endif
 	};
 
@@ -782,8 +848,10 @@ int main(int argc, char *argv[])
 	struct htlc_in_map *unconnected_htlcs_in;
 	struct ext_key *bip32_base;
 	struct rlimit nofile = {1024, 1024};
-
+	int sigchld_rfd;
 	int exit_code = 0;
+	char **orig_argv;
+	bool try_reexec;
 
 	/*~ Make sure that we limit ourselves to something reasonable. Modesty
 	 *  is a virtue. */
@@ -792,7 +860,8 @@ int main(int argc, char *argv[])
 	/*~ What happens in strange locales should stay there. */
 	setup_locale();
 
-	setup_sig_handlers();
+	/*~ This sets up SIGCHLD to make sigchld_rfd readable. */
+	sigchld_rfd = setup_sig_handlers();
 
 	/*~ This checks that the system-installed libraries (usually
 	 * dynamically linked) actually are compatible with the ones we
@@ -817,6 +886,17 @@ int main(int argc, char *argv[])
 	ld = new_lightningd(NULL);
 	ld->state = LD_STATE_RUNNING;
 
+	/*~ We store an copy of our arguments before parsing mangles them, so
+	 * we can re-exec if versions of subdaemons change.  Note the use of
+	 * notleak() since our leak-detector can't find orig_argv on the
+	 * stack. */
+	orig_argv = notleak(tal_arr(ld, char *, argc + 1));
+	for (size_t i = 1; i < argc; i++)
+		orig_argv[i] = tal_strdup(orig_argv, argv[i]);
+	/*~ Turn argv[0] into an absolute path (if not already) */
+	orig_argv[0] = path_join(orig_argv, take(path_cwd(NULL)), argv[0]);
+	orig_argv[argc] = NULL;
+
 	/* Figure out where our daemons are first. */
 	ld->daemon_dir = find_daemon_dir(ld, argv[0]);
 	if (!ld->daemon_dir)
@@ -835,6 +915,16 @@ int main(int argc, char *argv[])
 	 *  do their thing and tell us about themselves (including
 	 *  options registration). */
 	plugins_init(ld->plugins);
+
+	/*~ If the plugis are misconfigured we don't want to proceed. A
+	 * misconfiguration could for example be a plugin marked as important
+	 * not working correctly or a plugin squatting something an important
+	 * plugin needs to register, such as a method or CLI option. If we are
+	 * going to shut down immediately again, we shouldn't spend too much
+	 * effort in starting up.
+	 */
+	if (ld->exit_code)
+		fatal("Could not initialize the plugins, see above for details.");
 
 	/*~ Handle options and config. */
 	handle_opts(ld, argc, argv);
@@ -878,7 +968,7 @@ int main(int argc, char *argv[])
 	/*~ If hsm_secret is encrypted, we don't need its encryption key
 	 * anymore. Note that sodium_munlock() also zeroes the memory.*/
 	if (ld->config.keypass)
-		sodium_munlock(ld->config.keypass->data, sizeof(ld->config.keypass->data));
+		discard_key(take(ld->config.keypass));
 
 	/*~ Our default color and alias are derived from our node id, so we
 	 * can only set those now (if not set by config options). */
@@ -971,6 +1061,11 @@ int main(int argc, char *argv[])
 	 * "funding transaction spent" event which creates it. */
 	onchaind_replay_channels(ld);
 
+	/*~ Now handle sigchld, so we can clean up appropriately.
+	 * We don't keep a pointer to this, so our simple leak detection
+	 * code gets upset unless we mark it notleak(). */
+	notleak(io_new_conn(ld, sigchld_rfd, sigchld_rfd_in, ld));
+
 	/*~ Mark ourselves live.
 	 *
 	 * Note the use of type_to_string() here: it's a typesafe formatter,
@@ -1034,6 +1129,8 @@ int main(int argc, char *argv[])
 		stop_response = tal_steal(NULL, ld->stop_response);
 	}
 
+	/* We're not going to collect our children. */
+	remove_sigchild_handler();
 	shutdown_subdaemons(ld);
 
 	/* Remove plugins. */
@@ -1056,6 +1153,11 @@ int main(int argc, char *argv[])
 	 * ld->payments, so clean that up. */
 	clean_tmpctx();
 
+	/* Gather these before we free ld! */
+	try_reexec = ld->try_reexec;
+	if (try_reexec)
+		tal_steal(NULL, orig_argv);
+
 	/* Free this last: other things may clean up timers. */
 	timers = tal_steal(NULL, ld->timers);
 	tal_free(ld);
@@ -1071,6 +1173,21 @@ int main(int argc, char *argv[])
 		write_all(stop_fd, stop_response, strlen(stop_response));
 		close(stop_fd);
 		tal_free(stop_response);
+	}
+
+	/* Were we supposed to restart ourselves? */
+	if (try_reexec) {
+		long max_fd;
+
+		/* Give a reasonable chance for the install to finish. */
+		sleep(5);
+
+		/* Close all filedescriptors except stdin/stdout/stderr */
+		max_fd = sysconf(_SC_OPEN_MAX);
+		for (int i = STDERR_FILENO+1; i < max_fd; i++)
+			close(i);
+		execv(orig_argv[0], orig_argv);
+		err(1, "Failed to re-exec ourselves after version change");
 	}
 
 	/*~ Farewell.  Next stop: hsmd/hsmd.c. */

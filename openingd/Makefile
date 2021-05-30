@@ -23,12 +23,7 @@ $(DUALOPEND_OBJS): $(DUALOPEND_HEADERS)
 # Make sure these depend on everything.
 ALL_C_SOURCES += $(OPENINGD_SRC) $(DUALOPEND_SRC)
 ALL_C_HEADERS += $(OPENINGD_HEADERS) $(DUALOPEND_HEADERS)
-ALL_PROGRAMS += lightningd/lightning_openingd
-
-# Only build dualopend if experimental features is on
-ifeq ($(EXPERIMENTAL_FEATURES),1)
-ALL_PROGRAMS += lightningd/lightning_dualopend
-endif
+ALL_PROGRAMS += lightningd/lightning_openingd lightningd/lightning_dualopend
 
 # Here's what lightningd depends on
 LIGHTNINGD_CONTROL_HEADERS += openingd/openingd_wiregen.h openingd/dualopend_wiregen.h
@@ -39,6 +34,7 @@ OPENINGD_COMMON_OBJS :=				\
 	common/amount.o				\
 	common/base32.o				\
 	common/bigsize.o			\
+	common/billboard.o			\
 	common/bip32.o				\
 	common/channel_config.o			\
 	common/channel_id.o			\
@@ -70,10 +66,12 @@ OPENINGD_COMMON_OBJS :=				\
 	common/peer_billboard.o			\
 	common/peer_failed.o			\
 	common/permute_tx.o			\
+	common/psbt_internal.o			\
 	common/psbt_open.o			\
 	common/pseudorand.o			\
 	common/read_peer_msg.o			\
 	common/setup.o				\
+	common/shutdown_scriptpubkey.o		\
 	common/status.o				\
 	common/status_wire.o			\
 	common/subdaemon.o			\

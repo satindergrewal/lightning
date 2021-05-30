@@ -6,10 +6,14 @@ COMMON_SRC_NOGEN :=				\
 	common/bech32.c				\
 	common/bech32_util.c			\
 	common/bigsize.c			\
+	common/billboard.c			\
 	common/bip32.c				\
 	common/blinding.c			\
+	common/blindedpath.c			\
 	common/bolt11.c				\
+	common/bolt11_json.c			\
 	common/bolt12.c				\
+	common/bolt12_merkle.c			\
 	common/channel_config.c			\
 	common/channel_id.c			\
 	common/coin_mvt.c			\
@@ -28,10 +32,12 @@ COMMON_SRC_NOGEN :=				\
 	common/ecdh_hsmd.c			\
 	common/features.c			\
 	common/fee_states.c			\
+	common/fp16.c				\
 	common/gossip_rcvd_filter.c		\
 	common/gossip_store.c			\
 	common/hash_u5.c			\
 	common/hmac.c				\
+	common/hsm_encryption.c			\
 	common/htlc_state.c			\
 	common/htlc_trim.c			\
 	common/htlc_tx.c			\
@@ -39,6 +45,7 @@ COMMON_SRC_NOGEN :=				\
 	common/initial_channel.c		\
 	common/initial_commit_tx.c		\
 	common/io_lock.c			\
+	common/iso4217.c			\
 	common/json.c				\
 	common/json_helpers.c			\
 	common/json_stream.c			\
@@ -58,6 +65,7 @@ COMMON_SRC_NOGEN :=				\
 	common/peer_failed.c			\
 	common/permute_tx.c			\
 	common/ping.c				\
+	common/psbt_internal.c			\
 	common/psbt_open.c			\
 	common/private_channel_announcement.c	\
 	common/pseudorand.c			\
@@ -65,6 +73,7 @@ COMMON_SRC_NOGEN :=				\
 	common/read_peer_msg.c			\
 	common/route.c				\
 	common/setup.c				\
+	common/shutdown_scriptpubkey.c		\
 	common/socket_close.c			\
 	common/sphinx.c				\
 	common/status.c				\
@@ -81,17 +90,7 @@ COMMON_SRC_NOGEN :=				\
 	common/wire_error.c
 
 
-ifeq ($(EXPERIMENTAL_FEATURES),1)
-COMMON_SRC_NOGEN += common/psbt_internal.c
-COMMON_SRC_NOGEN += common/blindedpath.c
-endif
-
 COMMON_SRC_GEN := common/status_wiregen.c common/peer_status_wiregen.c
-
-ifeq ($(EXPERIMENTAL_FEATURES),1)
-COMMON_SRC_NOGEN += common/bolt12.c
-COMMON_SRC_NOGEN += common/bolt12_merkle.c
-endif
 
 COMMON_HEADERS_NOGEN := $(COMMON_SRC_NOGEN:.c=.h)	\
 	common/closing_fee.h				\
@@ -99,7 +98,6 @@ COMMON_HEADERS_NOGEN := $(COMMON_SRC_NOGEN:.c=.h)	\
 	common/errcode.h				\
 	common/gossip_constants.h			\
 	common/htlc.h					\
-	common/iso4217.h				\
 	common/json_command.h				\
 	common/jsonrpc_errors.h				\
 	common/overflows.h				\

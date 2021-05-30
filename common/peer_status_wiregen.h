@@ -29,9 +29,9 @@ bool peer_status_wire_is_defined(u16 type);
 
 /* WIRE: STATUS_PEER_ERROR */
 /*  An error occurred: if error_for_them */
-u8 *towire_status_peer_error(const tal_t *ctx, const struct channel_id *channel, const wirestring *desc, bool soft_error, const struct per_peer_state *pps, const u8 *error_for_them);
-bool fromwire_status_peer_error(const tal_t *ctx, const void *p, struct channel_id *channel, wirestring **desc, bool *soft_error, struct per_peer_state **pps, u8 **error_for_them);
+u8 *towire_status_peer_error(const tal_t *ctx, const struct channel_id *channel, const wirestring *desc, bool warning, const struct per_peer_state *pps, const u8 *error_for_them);
+bool fromwire_status_peer_error(const tal_t *ctx, const void *p, struct channel_id *channel, wirestring **desc, bool *warning, struct per_peer_state **pps, u8 **error_for_them);
 
 
 #endif /* LIGHTNING_COMMON_PEER_STATUS_WIREGEN_H */
-// SHA256STAMP:3190167a077593b13e10bab07e02e8e9666ea73f136a2860eca9618e1771593f
+// SHA256STAMP:c002247f54d5016e614dd6d757c7d06f65c713c3e19d17901f7f685a6bd4b9d9

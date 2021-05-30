@@ -19,6 +19,7 @@
 #include <hsmd/capabilities.h>
 #include <lightningd/channel.h>
 #include <lightningd/connect_control.h>
+#include <lightningd/dual_open_control.h>
 #include <lightningd/hsm_control.h>
 #include <lightningd/json.h>
 #include <lightningd/jsonrpc.h>
@@ -67,11 +68,15 @@ static struct connect *find_connect(struct lightningd *ld,
 }
 
 static struct command_result *connect_cmd_succeed(struct command *cmd,
-						  const struct peer *peer)
+						  const struct peer *peer,
+						  bool incoming,
+						  const struct wireaddr_internal *addr)
 {
 	struct json_stream *response = json_stream_success(cmd);
 	json_add_node_id(response, "id", &peer->id);
 	json_add_hex_talarr(response, "features", peer->their_features);
+	json_add_string(response, "direction", incoming ? "in" : "out");
+	json_add_address_internal(response, "address", addr);
 	return command_success(cmd, response);
 }
 
@@ -137,9 +142,16 @@ static struct command_result *json_connect(struct command *cmd,
 	if (peer) {
 		struct channel *channel = peer_active_channel(peer);
 
+		if (!channel)
+			channel = peer_unsaved_channel(peer);
+
 		if (peer->uncommitted_channel
 		    || (channel && channel->connected)) {
-			return connect_cmd_succeed(cmd, peer);
+			log_debug(cmd->ld->log, "Already connected via %s",
+				  type_to_string(tmpctx, struct wireaddr_internal, &peer->addr));
+			return connect_cmd_succeed(cmd, peer,
+						   peer->connected_incoming,
+						   &peer->addr);
 		}
 	}
 
@@ -256,14 +268,16 @@ static void connect_failed(struct lightningd *ld, const u8 *msg)
 		delay_then_reconnect(channel, seconds_to_delay, addrhint);
 }
 
-void connect_succeeded(struct lightningd *ld, const struct peer *peer)
+void connect_succeeded(struct lightningd *ld, const struct peer *peer,
+		       bool incoming,
+		       const struct wireaddr_internal *addr)
 {
 	struct connect *c;
 
 	/* We can have multiple connect commands: fail them all */
 	while ((c = find_connect(ld, &peer->id)) != NULL) {
 		/* They delete themselves from list */
-		connect_cmd_succeed(c->cmd, peer);
+		connect_cmd_succeed(c->cmd, peer, incoming, addr);
 	}
 }
 
@@ -279,8 +293,16 @@ static void peer_please_disconnect(struct lightningd *ld, const u8 *msg)
 	c = active_channel_by_id(ld, &id, &uc);
 	if (uc)
 		kill_uncommitted_channel(uc, "Reconnected");
-	else if (c)
+	else if (c) {
+		channel_cleanup_commands(c, "Reconnected");
 		channel_fail_reconnect(c, "Reconnected");
+	}
+	else {
+		/* v2 has unsaved channels, not uncommitted_chans */
+		c = unsaved_channel_by_id(ld, &id);
+		if (c)
+			channel_close_conn(c, "Reconnected");
+	}
 }
 
 static unsigned connectd_msg(struct subd *connectd, const u8 *msg, const int *fds)

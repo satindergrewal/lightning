@@ -1,3 +1,4 @@
+#include "config.h"
 #include <assert.h>
 #include <ccan/breakpoint/breakpoint.h>
 #include <ccan/endian/endian.h>
@@ -10,6 +11,7 @@
 #include <common/status.h>
 #include <common/status_wiregen.h>
 #include <common/utils.h>
+#include <common/version.h>
 #include <errno.h>
 #include <signal.h>
 #include <wire/peer_wire.h>
@@ -58,6 +60,9 @@ void status_setup_sync(int fd)
 	assert(!status_conn);
 	status_fd = fd;
 	setup_logging_sighandler();
+
+	/* Send version now. */
+	status_send(take(towire_status_version(NULL, version())));
 }
 
 static void destroy_daemon_conn(struct daemon_conn *dc UNUSED)
@@ -74,6 +79,9 @@ void status_setup_async(struct daemon_conn *master)
 	tal_add_destructor(master, destroy_daemon_conn);
 
 	setup_logging_sighandler();
+
+	/* Send version now. */
+	status_send(take(towire_status_version(NULL, version())));
 }
 
 void status_send(const u8 *msg TAKES)

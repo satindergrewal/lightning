@@ -5,7 +5,7 @@ SYNOPSIS
 --------
 
 **invoice** *msatoshi* *label* *description* \[*expiry*\]
-\[*fallbacks*\] \[*preimage*\] \[*exposeprivatechannels*\]
+\[*fallbacks*\] \[*preimage*\] \[*exposeprivatechannels*\] \[*cltv*\]
 
 DESCRIPTION
 -----------
@@ -65,6 +65,9 @@ other public channel). The selection uses some randomness to prevent
 probing, but favors channels that become more balanced after the
 payment.
 
+If specified, *cltv* sets the *min_final_cltv_expiry* for the invoice.
+Otherwise, it's set to the parameter **cltv-final**.
+
 RETURN VALUE
 ------------
 
@@ -89,6 +92,10 @@ One of the following warnings may occur (on success):
 - *warning\_capacity* if there is no channel that has sufficient
     incoming capacity
 - *warning\_deadends* if there is no channel that is not a dead-end
+- *warning_mpp* if there is sufficient capacity, but not in a single channel,
+    so the payer will have to use multi-part payments.
+- *warning_mpp_capacity* if there is not sufficient capacity, even with all
+    channels.
 
 AUTHOR
 ------

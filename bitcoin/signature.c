@@ -173,6 +173,14 @@ bool check_signed_hash(const struct sha256_double *hash,
 {
 	int ret;
 
+	/* BOLT #2:
+	 *
+	 * - if `signature` is incorrect OR non-compliant with
+	 *   LOW-S-standard rule
+	 */
+	/* From the secp256k1_ecdsa_verify documentation: "To avoid
+	 * accepting malleable signatures, only ECDSA signatures in
+	 * lower-S form are accepted." */
 	ret = secp256k1_ecdsa_verify(secp256k1_ctx,
 				     signature,
 				     hash->sha.u.u8, &key->pubkey);
@@ -310,8 +318,7 @@ bool signature_from_der(const u8 *der, size_t len, struct bitcoin_signature *sig
 	return true;
 }
 
-static char *signature_to_hexstr(const tal_t *ctx,
-				 const secp256k1_ecdsa_signature *sig)
+char *fmt_signature(const tal_t *ctx, const secp256k1_ecdsa_signature *sig)
 {
 	u8 der[72];
 	size_t len = 72;
@@ -321,7 +328,7 @@ static char *signature_to_hexstr(const tal_t *ctx,
 
 	return tal_hexstr(ctx, der, len);
 }
-REGISTER_TYPE_TO_STRING(secp256k1_ecdsa_signature, signature_to_hexstr);
+REGISTER_TYPE_TO_STRING(secp256k1_ecdsa_signature, fmt_signature);
 
 static char *bitcoin_signature_to_hexstr(const tal_t *ctx,
 					 const struct bitcoin_signature *sig)

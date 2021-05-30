@@ -29,6 +29,7 @@ c-lightning Documentation
    :maxdepth: 1
    :caption: Manpages
 
+   lightning-addgossip <lightning-addgossip.7.md>
    lightning-autocleaninvoice <lightning-autocleaninvoice.7.md>
    lightning-check <lightning-check.7.md>
    lightning-checkmessage <lightning-checkmessage.7.md>
@@ -37,13 +38,16 @@ c-lightning Documentation
    lightning-connect <lightning-connect.7.md>
    lightning-createinvoice <lightning-createinvoice.7.md>
    lightning-createonion <lightning-createonion.7.md>
+   lightning-decode <lightning-decode.7.md>
    lightning-decodepay <lightning-decodepay.7.md>
    lightning-delexpiredinvoice <lightning-delexpiredinvoice.7.md>
    lightning-delinvoice <lightning-delinvoice.7.md>
    lightning-delpay <lightning-delpay.7.md>
    lightning-dev-sendcustommsg <lightning-dev-sendcustommsg.7.md>
+   lightning-disableoffer <lightning-disableoffer.7.md>
    lightning-disconnect <lightning-disconnect.7.md>
    lightning-feerates <lightning-feerates.7.md>
+   lightning-fetchinvoice <lightning-fetchinvoice.7.md>
    lightning-fundchannel <lightning-fundchannel.7.md>
    lightning-fundchannel_cancel <lightning-fundchannel_cancel.7.md>
    lightning-fundchannel_complete <lightning-fundchannel_complete.7.md>
@@ -63,6 +67,7 @@ c-lightning Documentation
    lightning-listfunds <lightning-listfunds.7.md>
    lightning-listinvoices <lightning-listinvoices.7.md>
    lightning-listnodes <lightning-listnodes.7.md>
+   lightning-listoffers <lightning-listoffers.7.md>
    lightning-listpays <lightning-listpays.7.md>
    lightning-listpeers <lightning-listpeers.7.md>
    lightning-listsendpays <lightning-listsendpays.7.md>
@@ -71,6 +76,10 @@ c-lightning Documentation
    lightning-multiwithdraw <lightning-multiwithdraw.7.md>
    lightning-newaddr <lightning-newaddr.7.md>
    lightning-notifications <lightning-notifications.7.md>
+   lightning-offer <lightning-offer.7.md>
+   lightning-offerout <lightning-offerout.7.md>
+   lightning-openchannel_abort <lightning-openchannel_abort.7.md>
+   lightning-openchannel_bump <lightning-openchannel_bump.7.md>
    lightning-openchannel_init <lightning-openchannel_init.7.md>
    lightning-openchannel_signed <lightning-openchannel_signed.7.md>
    lightning-openchannel_update <lightning-openchannel_update.7.md>
@@ -78,7 +87,9 @@ c-lightning Documentation
    lightning-ping <lightning-ping.7.md>
    lightning-plugin <lightning-plugin.7.md>
    lightning-reserveinputs <lightning-reserveinputs.7.md>
+   lightning-sendinvoice <lightning-sendinvoice.7.md>
    lightning-sendonion <lightning-sendonion.7.md>
+   lightning-sendonionmessage <lightning-sendonionmessage.7.md>
    lightning-sendpay <lightning-sendpay.7.md>
    lightning-sendpsbt <lightning-sendpsbt.7.md>
    lightning-setchannelfee <lightning-setchannelfee.7.md>

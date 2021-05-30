@@ -190,13 +190,13 @@ command_success_str(struct command *cmd, const char *str);
 struct command_result *WARN_UNUSED_RESULT
 command_hook_success(struct command *cmd);
 
-/* Synchronous helper to send command and extract single field from
+/* Synchronous helper to send command and extract fields from
  * response; can only be used in init callback. */
-const char *rpc_delve(const tal_t *ctx,
-		      struct plugin *plugin,
-		      const char *method,
-		      const struct json_out *params TAKES,
-		      const char *guide);
+void rpc_scan(struct plugin *plugin,
+	      const char *method,
+	      const struct json_out *params TAKES,
+	      const char *guide,
+	      ...);
 
 /* Send an async rpc request to lightningd. */
 struct command_result *
@@ -277,8 +277,9 @@ char *flag_option(const char *arg, bool *i);
 
 /* The main plugin runner: append with 0 or more plugin_option(), then NULL. */
 void NORETURN LAST_ARG_NULL plugin_main(char *argv[],
-					void (*init)(struct plugin *p,
-						     const char *buf, const jsmntok_t *),
+					const char *(*init)(struct plugin *p,
+							    const char *buf,
+							    const jsmntok_t *),
 					const enum plugin_restartability restartability,
 					bool init_rpc,
 					struct feature_set *features,

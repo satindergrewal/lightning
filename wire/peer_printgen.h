@@ -14,9 +14,23 @@ void printwire_init(const char *fieldname, const u8 *cursor);
 
 void printwire_error(const char *fieldname, const u8 *cursor);
 
+void printwire_warning(const char *fieldname, const u8 *cursor);
+
 void printwire_ping(const char *fieldname, const u8 *cursor);
 
 void printwire_pong(const char *fieldname, const u8 *cursor);
+
+void printwire_tx_add_input(const char *fieldname, const u8 *cursor);
+
+void printwire_tx_add_output(const char *fieldname, const u8 *cursor);
+
+void printwire_tx_remove_input(const char *fieldname, const u8 *cursor);
+
+void printwire_tx_remove_output(const char *fieldname, const u8 *cursor);
+
+void printwire_tx_complete(const char *fieldname, const u8 *cursor);
+
+void printwire_tx_signatures(const char *fieldname, const u8 *cursor);
 
 void printwire_open_channel(const char *fieldname, const u8 *cursor);
 
@@ -27,6 +41,14 @@ void printwire_funding_created(const char *fieldname, const u8 *cursor);
 void printwire_funding_signed(const char *fieldname, const u8 *cursor);
 
 void printwire_funding_locked(const char *fieldname, const u8 *cursor);
+
+void printwire_open_channel2(const char *fieldname, const u8 *cursor);
+
+void printwire_accept_channel2(const char *fieldname, const u8 *cursor);
+
+void printwire_init_rbf(const char *fieldname, const u8 *cursor);
+
+void printwire_ack_rbf(const char *fieldname, const u8 *cursor);
 
 void printwire_shutdown(const char *fieldname, const u8 *cursor);
 
@@ -66,8 +88,12 @@ void printwire_reply_channel_range(const char *fieldname, const u8 *cursor);
 
 void printwire_gossip_timestamp_filter(const char *fieldname, const u8 *cursor);
 
+void printwire_onion_message(const char *fieldname, const u8 *cursor);
 
+
+void printwire_witness_element(const char *fieldname, const u8 **cursor, size_t *plen);
 void printwire_channel_update_checksums(const char *fieldname, const u8 **cursor, size_t *plen);
 void printwire_channel_update_timestamps(const char *fieldname, const u8 **cursor, size_t *plen);
+void printwire_witness_stack(const char *fieldname, const u8 **cursor, size_t *plen);
 #endif /* LIGHTNING_WIRE_PEER_PRINTGEN_H */
-// SHA256STAMP:433cf5b6bd1df5f251b4be28aa38e2e6aa4c15432f3ae103f69591fd970188bd
+// SHA256STAMP:aecb66d3600732f50b4279272e4c057d1ea410bddf41cbb01b6326320f5b9de8

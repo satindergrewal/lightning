@@ -78,6 +78,9 @@ struct funding_channel {
 	/* Channel, subsequent owner of us */
 	struct uncommitted_channel *uc;
 
+	/* The scriptpubkey to pay (once started) */
+	u8 *funding_scriptpubkey;
+
 	/* Whether or not this is in the middle of getting funded */
 	bool inflight;
 
@@ -96,7 +99,7 @@ void opend_channel_errmsg(struct uncommitted_channel *uc,
 			  struct per_peer_state *pps,
 			  const struct channel_id *channel_id UNUSED,
 			  const char *desc,
-			  bool soft_error UNUSED,
+			  bool warning UNUSED,
 			  const u8 *err_for_them UNUSED);
 
 void opend_channel_set_billboard(struct uncommitted_channel *uc,

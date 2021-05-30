@@ -1,6 +1,6 @@
 from concurrent import futures
 from pyln.testing.db import SqliteDbProvider, PostgresDbProvider
-from pyln.testing.utils import NodeFactory, BitcoinD, ElementsD, env, DEVELOPER, LightningNode, TEST_DEBUG
+from pyln.testing.utils import NodeFactory, BitcoinD, ElementsD, env, DEVELOPER, LightningNode, TEST_DEBUG, Throttler
 from typing import Dict
 
 import logging
@@ -90,7 +90,7 @@ def directory(request, test_base_dir, test_name):
     if not failed:
         try:
             shutil.rmtree(directory)
-        except Exception:
+        except (OSError, Exception):
             files = [os.path.join(dp, f) for dp, dn, fn in os.walk(directory) for f in fn]
             print("Directory still contains files:", files)
             raise
@@ -198,7 +198,12 @@ def teardown_checks(request):
 
 
 @pytest.fixture
-def node_factory(request, directory, test_name, bitcoind, executor, db_provider, teardown_checks, node_cls):
+def throttler(test_base_dir):
+    yield Throttler(test_base_dir)
+
+
+@pytest.fixture
+def node_factory(request, directory, test_name, bitcoind, executor, db_provider, teardown_checks, node_cls, throttler):
     nf = NodeFactory(
         request,
         test_name,
@@ -206,7 +211,8 @@ def node_factory(request, directory, test_name, bitcoind, executor, db_provider,
         executor,
         directory=directory,
         db_provider=db_provider,
-        node_cls=node_cls
+        node_cls=node_cls,
+        throttler=throttler,
     )
 
     yield nf
@@ -223,6 +229,7 @@ def node_factory(request, directory, test_name, bitcoind, executor, db_provider,
     map_node_error(nf.nodes, printValgrindErrors, "reported valgrind errors")
     map_node_error(nf.nodes, printCrashLog, "had crash.log files")
     map_node_error(nf.nodes, lambda n: not n.allow_broken_log and n.daemon.is_in_log(r'\*\*BROKEN\*\*'), "had BROKEN messages")
+    map_node_error(nf.nodes, lambda n: not n.allow_warning and n.daemon.is_in_log(r' WARNING:'), "had warning messages")
     map_node_error(nf.nodes, checkReconnect, "had unexpected reconnections")
     map_node_error(nf.nodes, checkBadGossip, "had bad gossip messages")
     map_node_error(nf.nodes, lambda n: n.daemon.is_in_log('Bad reestablish'), "had bad reestablish")

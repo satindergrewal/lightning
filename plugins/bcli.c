@@ -69,6 +69,14 @@ struct bitcoind {
 
 	/* Percent of CONSERVATIVE/2 feerate we'll use for commitment txs. */
 	u64 commit_fee_percent;
+
+	/* Whether we fake fees (regtest) */
+	bool fake_fees;
+
+#if DEVELOPER
+	/* Override in case we're developer mode for testing*/
+	bool no_fake_fees;
+#endif
 };
 
 static struct bitcoind *bitcoind;
@@ -323,9 +331,10 @@ static struct command_result *command_err_bcli_badjson(struct bitcoin_cli *bcli,
 
 static struct command_result *process_getutxout(struct bitcoin_cli *bcli)
 {
-	const jsmntok_t *tokens, *valuetok, *scriptpubkeytok, *hextok;
+	const jsmntok_t *tokens;
 	struct json_stream *response;
 	struct bitcoin_tx_output output;
+	const char *err;
 
 	/* As of at least v0.15.1.0, bitcoind returns "success" but an empty
 	   string on a spent txout. */
@@ -343,36 +352,14 @@ static struct command_result *process_getutxout(struct bitcoin_cli *bcli)
 		return command_err_bcli_badjson(bcli, "cannot parse");
 	}
 
-	if (tokens[0].type != JSMN_OBJECT) {
-		return command_err_bcli_badjson(bcli, "non-object");
-	}
-
-	valuetok = json_get_member(bcli->output, tokens, "value");
-	if (!valuetok) {
-		return command_err_bcli_badjson(bcli, "no value member");
-	}
-
-	if (!json_to_bitcoin_amount(bcli->output, valuetok, &output.amount.satoshis)) {/* Raw: talking to bitcoind */
-		return command_err_bcli_badjson(bcli, "bad value member");
-	}
-
-	scriptpubkeytok = json_get_member(bcli->output, tokens, "scriptPubKey");
-	if (!scriptpubkeytok) {
-		return command_err_bcli_badjson(bcli, "no scriptPubkey member");
-	}
-
-	hextok = json_get_member(bcli->output, scriptpubkeytok, "hex");
-	if (!hextok) {
-		return command_err_bcli_badjson(bcli,
-						"no scriptPubkey.hex member");
-	}
-
-	output.script = tal_hexdata(bcli, bcli->output + hextok->start,
-	                            hextok->end - hextok->start);
-	if (!output.script) {
-		return command_err_bcli_badjson(bcli,
-						"scriptPubkey.hex invalid hex");
-	}
+	err = json_scan(tmpctx, bcli->output, tokens,
+		       "{value:%,scriptPubKey:{hex:%}}",
+		       JSON_SCAN(json_to_bitcoin_amount,
+				 &output.amount.satoshis), /* Raw: bitcoind */
+		       JSON_SCAN_TAL(bcli, json_tok_bin_from_hex,
+				     &output.script));
+	if (err)
+		return command_err_bcli_badjson(bcli, err);
 
 	response = jsonrpc_stream_success(bcli->cmd);
 	json_add_amount_sat_only(response, "amount", output.amount);
@@ -383,10 +370,11 @@ static struct command_result *process_getutxout(struct bitcoin_cli *bcli)
 
 static struct command_result *process_getblockchaininfo(struct bitcoin_cli *bcli)
 {
-	const jsmntok_t *tokens, *chaintok, *headerstok, *blockstok, *ibdtok;
+	const jsmntok_t *tokens;
 	struct json_stream *response;
 	bool ibd;
 	u32 headers, blocks;
+	const char *chain, *err;
 
 	tokens = json_parse_simple(bcli->output,
 				   bcli->output, bcli->output_bytes);
@@ -394,36 +382,17 @@ static struct command_result *process_getblockchaininfo(struct bitcoin_cli *bcli
 		return command_err_bcli_badjson(bcli, "cannot parse");
 	}
 
-	if (tokens[0].type != JSMN_OBJECT) {
-		return command_err_bcli_badjson(bcli, "non-object");
-	}
-
-	chaintok = json_get_member(bcli->output, tokens, "chain");
-	if (!chaintok) {
-		return command_err_bcli_badjson(bcli, "missing chain member");
-	}
-
-	headerstok = json_get_member(bcli->output, tokens, "headers");
-	if (!headerstok || !json_to_number(bcli->output, headerstok, &headers)) {
-		return command_err_bcli_badjson(bcli,
-						"missing/bad headers member");
-	}
-
-	blockstok = json_get_member(bcli->output, tokens, "blocks");
-	if (!blockstok || !json_to_number(bcli->output, blockstok, &blocks)) {
-		return command_err_bcli_badjson(bcli,
-						"missing/bad blocks member");
-	}
-
-	ibdtok = json_get_member(bcli->output, tokens, "initialblockdownload");
-	if (!ibdtok || !json_to_bool(bcli->output, ibdtok, &ibd)) {
-		return command_err_bcli_badjson(bcli,
-						"missing/bad initialblockdownload member");
-	}
+	err = json_scan(tmpctx, bcli->output, tokens,
+			"{chain:%,headers:%,blocks:%,initialblockdownload:%}",
+			JSON_SCAN_TAL(tmpctx, json_strdup, &chain),
+			JSON_SCAN(json_to_number, &headers),
+			JSON_SCAN(json_to_number, &blocks),
+			JSON_SCAN(json_to_bool, &ibd));
+	if (err)
+		return command_err_bcli_badjson(bcli, err);
 
 	response = jsonrpc_stream_success(bcli->cmd);
-	json_add_string(response, "chain",
-			json_strdup(response, bcli->output, chaintok));
+	json_add_string(response, "chain", chain);
 	json_add_u32(response, "headercount", headers);
 	json_add_u32(response, "blockcount", blocks);
 	json_add_bool(response, "ibd", ibd);
@@ -457,7 +426,7 @@ estimatefees_null_response(struct bitcoin_cli *bcli)
 static struct command_result *
 estimatefees_parse_feerate(struct bitcoin_cli *bcli, u64 *feerate)
 {
-	const jsmntok_t *tokens, *feeratetok = NULL;
+	const jsmntok_t *tokens;
 
 	tokens = json_parse_simple(bcli->output,
 				   bcli->output, bcli->output_bytes);
@@ -465,18 +434,20 @@ estimatefees_parse_feerate(struct bitcoin_cli *bcli, u64 *feerate)
 		return command_err_bcli_badjson(bcli, "cannot parse");
 	}
 
-	if (tokens[0].type != JSMN_OBJECT) {
-		return command_err_bcli_badjson(bcli, "non-object");
-	}
-
-	feeratetok = json_get_member(bcli->output, tokens, "feerate");
-	if (feeratetok &&
-	    !json_to_bitcoin_amount(bcli->output, feeratetok, feerate)) {
-		return command_err_bcli_badjson(bcli, "bad feerate");
-	} else if (!feeratetok)
+	if (json_scan(tmpctx, bcli->output, tokens, "{feerate:%}",
+		      JSON_SCAN(json_to_bitcoin_amount, feerate)) != NULL) {
+		/* Paranoia: if it had a feerate, but was malformed: */
+		if (json_get_member(bcli->output, tokens, "feerate"))
+			return command_err_bcli_badjson(bcli, "cannot scan");
+		/* Regtest fee estimation is generally awful: Fake it at min. */
+		if (bitcoind->fake_fees) {
+			*feerate = 1000;
+			return NULL;
+		}
 		/* We return null if estimation failed, and bitcoin-cli will
 		 * exit with 0 but no feerate field on failure. */
-		return estimatefees_null_response(bcli);
+		// return estimatefees_null_response(bcli);
+	}
 
 	return NULL;
 }
@@ -488,33 +459,62 @@ static struct command_result *estimatefees_final_step(struct bitcoin_cli *bcli)
 	struct json_stream *response;
 	struct estimatefees_stash *stash = bcli->stash;
 
-	/* bitcoind could theoretically fail to estimate for a higher target. */
-	if (*bcli->exitstatus != 0)
-		return estimatefees_null_response(bcli);
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
+		/* bitcoind could theoretically fail to estimate for a higher target. */
+		if (*bcli->exitstatus != 0)
+			return estimatefees_null_response(bcli);
+	}
 
 	err = estimatefees_parse_feerate(bcli, &stash->slow);
 	if (err)
 		return err;
 
+	
+
 	response = jsonrpc_stream_success(bcli->cmd);
-	json_add_u64(response, "opening", stash->normal);
-	json_add_u64(response, "mutual_close", stash->slow);
-	json_add_u64(response, "unilateral_close",
-		     stash->very_urgent * bitcoind->commit_fee_percent / 100);
-	json_add_u64(response, "delayed_to_us", stash->normal);
-	json_add_u64(response, "htlc_resolution", stash->urgent);
-	json_add_u64(response, "penalty", stash->urgent);
-	/* We divide the slow feerate for the minimum acceptable, lightningd
-	 * will use floor if it's hit, though. */
-	json_add_u64(response, "min_acceptable", stash->slow / 2);
-	/* BOLT #2:
-	*
-	* Given the variance in fees, and the fact that the transaction may be
-	* spent in the future, it's a good idea for the fee payer to keep a good
-	* margin (say 5x the expected fee requirement)
-	*/
-	json_add_u64(response, "max_acceptable",
-		     stash->very_urgent * bitcoind->max_fee_multiplier);
+	
+	
+
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
+		json_add_u64(response, "opening", stash->normal);
+		json_add_u64(response, "mutual_close", stash->slow);
+		json_add_u64(response, "unilateral_close",
+			     stash->very_urgent * bitcoind->commit_fee_percent / 100);
+		json_add_u64(response, "delayed_to_us", stash->normal);
+		json_add_u64(response, "htlc_resolution", stash->urgent);
+		json_add_u64(response, "penalty", stash->urgent);
+		/* We divide the slow feerate for the minimum acceptable, lightningd
+		 * will use floor if it's hit, though. */
+		json_add_u64(response, "min_acceptable", stash->slow / 2);
+		/* BOLT #2:
+		*
+		* Given the variance in fees, and the fact that the transaction may be
+		* spent in the future, it's a good idea for the fee payer to keep a good
+		* margin (say 5x the expected fee requirement)
+		*/
+		json_add_u64(response, "max_acceptable",
+			     stash->very_urgent * bitcoind->max_fee_multiplier);
+	} else {
+		json_add_u64(response, "opening", 5000);
+		json_add_u64(response, "mutual_close", 5000);
+		json_add_u64(response, "unilateral_close",
+				5000 * bitcoind->commit_fee_percent / 100);
+		json_add_u64(response, "delayed_to_us", 5000);
+		json_add_u64(response, "htlc_resolution", 5000);
+		json_add_u64(response, "penalty", 5000);
+		/* We divide the slow feerate for the minimum acceptable, lightningd
+		* will use floor if it's hit, though. */
+		json_add_u64(response, "min_acceptable", 5000 / 2);
+		// json_add_string(response, "network_name", chainparams->network_name);
+		/* BOLT #2:
+		*
+		* Given the variance in fees, and the fact that the transaction may be
+		* spent in the future, it's a good idea for the fee payer to keep a good
+		* margin (say 5x the expected fee requirement)
+		*/
+		json_add_u64(response, "max_acceptable",
+				5000 * bitcoind->max_fee_multiplier);
+	}
 
 	return command_finished(bcli->cmd, response);
 }
@@ -526,9 +526,11 @@ static struct command_result *estimatefees_fourth_step(struct bitcoin_cli *bcli)
 	struct estimatefees_stash *stash = bcli->stash;
 	const char **params = tal_arr(bcli->cmd, const char *, 2);
 
-	/* bitcoind could theoretically fail to estimate for a higher target. */
-	if (*bcli->exitstatus != 0)
-		return estimatefees_null_response(bcli);
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
+		/* bitcoind could theoretically fail to estimate for a higher target. */
+		if (*bcli->exitstatus != 0)
+			return estimatefees_null_response(bcli);
+	}
 
 	err = estimatefees_parse_feerate(bcli, &stash->normal);
 	if (err)
@@ -549,9 +551,11 @@ static struct command_result *estimatefees_third_step(struct bitcoin_cli *bcli)
 	struct estimatefees_stash *stash = bcli->stash;
 	const char **params = tal_arr(bcli->cmd, const char *, 2);
 
-	/* If we cannot estimate fees, no need to continue bothering bitcoind. */
-	if (*bcli->exitstatus != 0)
-		return estimatefees_null_response(bcli);
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
+		/* If we cannot estimate fees, no need to continue bothering bitcoind. */
+		if (*bcli->exitstatus != 0)
+			return estimatefees_null_response(bcli);
+	}
 
 	err = estimatefees_parse_feerate(bcli, &stash->urgent);
 	if (err)
@@ -572,9 +576,11 @@ static struct command_result *estimatefees_second_step(struct bitcoin_cli *bcli)
 	struct estimatefees_stash *stash = bcli->stash;
 	const char **params = tal_arr(bcli->cmd, const char *, 2);
 
-	/* If we cannot estimate fees, no need to continue bothering bitcoind. */
-	if (*bcli->exitstatus != 0)
-		return estimatefees_null_response(bcli);
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
+		/* If we cannot estimate fees, no need to continue bothering bitcoind. */
+		if (*bcli->exitstatus != 0)
+			return estimatefees_null_response(bcli);
+	}
 
 	err = estimatefees_parse_feerate(bcli, &stash->very_urgent);
 	if (err)
@@ -594,15 +600,21 @@ static struct command_result *process_sendrawtransaction(struct bitcoin_cli *bcl
 	struct json_stream *response;
 
 	/* This is useful for functional tests. */
-	if (*bcli->exitstatus == 0)
-		plugin_log(bcli->cmd->plugin, LOG_DBG, "sendrawtx exit %i (%s)",
-			   *bcli->exitstatus, bcli_args(bcli));
+	if (bcli->exitstatus)
+		plugin_log(bcli->cmd->plugin, LOG_DBG,
+			   "sendrawtx exit %i (%s) %.*s",
+			   *bcli->exitstatus, bcli_args(bcli),
+			   *bcli->exitstatus ?
+				(u32)bcli->output_bytes-1 : 0,
+				bcli->output);
 
 	response = jsonrpc_stream_success(bcli->cmd);
 	json_add_bool(response, "success", *bcli->exitstatus == 0);
 	json_add_string(response, "errmsg",
-			bcli->exitstatus ? tal_strndup(bcli, bcli->output,
-						       bcli->output_bytes-1) : "");
+			*bcli->exitstatus ?
+			tal_strndup(bcli->cmd,
+				    bcli->output, bcli->output_bytes-1)
+			: "");
 
 	return command_finished(bcli->cmd, response);
 }
@@ -816,9 +828,10 @@ static void bitcoind_failure(struct plugin *p, const char *error_message)
 /* Do some sanity checks on bitcoind based on the output of `getnetworkinfo`. */
 static void parse_getnetworkinfo_result(struct plugin *p, const char *buf)
 {
-	const jsmntok_t *result, *versiontok, *relaytok;
+	const jsmntok_t *result;
 	bool tx_relay;
 	u32 min_version = 160000;
+	const char *err;
 
 	result = json_parse_simple(NULL, buf, strlen(buf));
 	if (!result)
@@ -827,16 +840,14 @@ static void parse_getnetworkinfo_result(struct plugin *p, const char *buf)
 			      gather_args(bitcoind, "getnetworkinfo", NULL), buf);
 
 	/* Check that we have a fully-featured `estimatesmartfee`. */
-	versiontok = json_get_member(buf, result, "version");
-	if (!versiontok)
-		plugin_err(p, "No 'version' in '%s' ? Got '%s'. Can not"
-			      " continue without proceeding to sanity checks.",
-			      gather_args(bitcoind, "getnetworkinfo", NULL), buf);
-
-	if (!json_to_u32(buf, versiontok, &bitcoind->version))
-		plugin_err(p, "Invalid 'version' in '%s' ? Got '%s'. Can not"
-			      " continue without proceeding to sanity checks.",
-			      gather_args(bitcoind, "getnetworkinfo", NULL), buf);
+	err = json_scan(tmpctx, buf, result, "{version:%,localrelay:%}",
+			JSON_SCAN(json_to_u32, &bitcoind->version),
+			JSON_SCAN(json_to_bool, &tx_relay));
+	if (err)
+		plugin_err(p, "%s.  Got '%s'. Can not"
+			   " continue without proceeding to sanity checks.",
+			   err,
+			   gather_args(bitcoind, "getnetworkinfo", NULL), buf);
 
 	if (bitcoind->version < min_version)
 		plugin_err(p, "Unsupported bitcoind version %"PRIu32", at least"
@@ -844,12 +855,6 @@ static void parse_getnetworkinfo_result(struct plugin *p, const char *buf)
 
 	/* We don't support 'blocksonly', as we rely on transaction relay for fee
 	 * estimates. */
-	relaytok = json_get_member(buf, result, "localrelay");
-	if (!relaytok || !json_to_bool(buf, relaytok, &tx_relay))
-		plugin_err(p, "No 'localrelay' in '%s' ? Got '%s'. Can not"
-			      " continue without proceeding to sanity checks.",
-			      gather_args(bitcoind, "getnetworkinfo", NULL), buf);
-
 	if (!tx_relay)
 		plugin_err(p, "The 'blocksonly' mode of bitcoind, or any option "
 			      "deactivating transaction relay is not supported.");
@@ -913,12 +918,19 @@ static void wait_and_check_bitcoind(struct plugin *p)
 	tal_free(cmd);
 }
 
-static void init(struct plugin *p, const char *buffer UNUSED,
-                 const jsmntok_t *config UNUSED)
+static const char *init(struct plugin *p, const char *buffer UNUSED,
+			const jsmntok_t *config UNUSED)
 {
 	wait_and_check_bitcoind(p);
+
+	/* Usually we fake up fees in regtest */
+	if (streq(chainparams->network_name, "regtest"))
+		bitcoind->fake_fees = IFDEV(!bitcoind->no_fake_fees, true);
+
 	plugin_log(p, LOG_INFORM,
 		   "bitcoin-cli initialized and connected to bitcoind.");
+
+	return NULL;
 }
 
 static const struct plugin_command commands[] = {
@@ -955,7 +967,7 @@ static const struct plugin_command commands[] = {
 	{
 		"getutxout",
 		"bitcoin",
-		"Get informations about an output, identified by a {txid} an a {vout}",
+		"Get information about an output, identified by a {txid} an a {vout}",
 		"",
 		getutxout
 	},
@@ -979,6 +991,9 @@ static struct bitcoind *new_bitcoind(const tal_t *ctx)
 	bitcoind->rpcport = NULL;
 	bitcoind->max_fee_multiplier = 10;
 	bitcoind->commit_fee_percent = 100;
+#if DEVELOPER
+	bitcoind->no_fake_fees = false;
+#endif
 
 	return bitcoind;
 }
@@ -1035,6 +1050,10 @@ int main(int argc, char *argv[])
 				  " closed more often due to fee fluctuations,"
 				  " large values may result in large fees.",
 				  u32_option, &bitcoind->max_fee_multiplier),
+		    plugin_option("dev-no-fake-fees",
+				  "bool",
+				  "Suppress fee faking for regtest",
+				  bool_option, &bitcoind->no_fake_fees),
 #endif /* DEVELOPER */
 		    NULL);
 }

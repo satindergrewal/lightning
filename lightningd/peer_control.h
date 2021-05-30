@@ -39,6 +39,7 @@ struct peer {
 
 	/* Where we connected to, or it connected from. */
 	struct wireaddr_internal addr;
+	bool connected_incoming;
 
 	/* We keep a copy of their feature bits */
 	const u8 *their_features;
@@ -52,20 +53,12 @@ struct peer {
 #endif
 };
 
-struct open_command {
-	/* Inside struct lightningd open_commands. */
-	struct list_node list;
-	/* Command structure. This is the parent of the open command. */
-	struct command *cmd;
-	/* Channel being opened. */
-	struct channel *channel;
-};
-
 struct peer *find_peer_by_dbid(struct lightningd *ld, u64 dbid);
 
 struct peer *new_peer(struct lightningd *ld, u64 dbid,
 		      const struct node_id *id,
-		      const struct wireaddr_internal *addr);
+		      const struct wireaddr_internal *addr,
+		      bool connected_incoming);
 
 /* Last one out deletes peer.  Also removes from db. */
 void maybe_delete_peer(struct peer *peer);
@@ -85,7 +78,7 @@ void channel_errmsg(struct channel *channel,
 		    struct per_peer_state *pps,
 		    const struct channel_id *channel_id,
 		    const char *desc,
-		    bool soft_error,
+		    bool warning,
 		    const u8 *err_for_them);
 
 u8 *p2wpkh_for_keyidx(const tal_t *ctx, struct lightningd *ld, u64 keyidx);
@@ -96,22 +89,16 @@ void activate_peers(struct lightningd *ld);
 void drop_to_chain(struct lightningd *ld, struct channel *channel, bool cooperative);
 
 void channel_watch_funding(struct lightningd *ld, struct channel *channel);
+/* If this channel has a "wrong funding" shutdown, watch that too. */
+void channel_watch_wrong_funding(struct lightningd *ld, struct channel *channel);
 
 struct amount_msat channel_amount_receivable(const struct channel *channel);
-
-/* Find the open command that was registered for this channel */
-struct open_command *find_open_command(struct lightningd *ld,
-				       const struct channel *channel);
-
-/* Save an `openchannel_signed` command */
-void register_open_command(struct lightningd *ld,
-			   struct command *cmd,
-			   struct channel *channel);
-
 
 /* Pull peers, channels and HTLCs from db, and wire them up.
  * Returns any HTLCs we have to resubmit via htlcs_resubmit. */
 struct htlc_in_map *load_channels_from_wallet(struct lightningd *ld);
+
+int ld_peer_test2(struct lightningd *ld);
 
 #if DEVELOPER
 void peer_dev_memleak(struct command *cmd);

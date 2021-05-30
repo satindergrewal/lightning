@@ -46,6 +46,24 @@ static void memleak_help_pending_requests(struct htable *memtable,
 }
 #endif /* DEVELOPER */
 
+static const char *state_desc(const struct plugin *plugin)
+{
+	switch (plugin->plugin_state) {
+	case UNCONFIGURED:
+		return "unconfigured";
+	case AWAITING_GETMANIFEST_RESPONSE:
+		return "before replying to getmanifest";
+	case NEEDS_INIT:
+		return "before we sent init";
+	case AWAITING_INIT_RESPONSE:
+		return "before replying to init";
+	case INIT_COMPLETE:
+		return "during normal operation";
+	}
+	fatal("Invalid plugin state %i for %s",
+	      plugin->plugin_state, plugin->cmd);
+}
+
 struct plugins *plugins_new(const tal_t *ctx, struct log_book *log_book,
 			    struct lightningd *ld)
 {
@@ -99,7 +117,7 @@ static void check_plugins_manifests(struct plugins *plugins)
 		/* Only complain and free plugins! */
 		if (depfail[i]->plugin_state != NEEDS_INIT)
 			continue;
-		plugin_kill(depfail[i],
+		plugin_kill(depfail[i], LOG_UNUSUAL,
 			    "Cannot meet required hook dependencies");
 	}
 
@@ -269,9 +287,19 @@ bool plugin_blacklisted(struct plugins *plugins, const char *name)
 	return false;
 }
 
-void plugin_kill(struct plugin *plugin, const char *msg)
+void plugin_kill(struct plugin *plugin, enum log_level loglevel,
+		 const char *fmt, ...)
 {
-	log_info(plugin->log, "Killing plugin: %s", msg);
+	va_list ap;
+	const char *msg;
+
+	va_start(ap, fmt);
+	msg = tal_vfmt(tmpctx, fmt, ap);
+	va_end(ap);
+
+	log_(plugin->log, loglevel,
+	     NULL, loglevel >= LOG_UNUSUAL,
+	     "Killing plugin: %s", msg);
 	kill(plugin->pid, SIGKILL);
 	if (plugin->start_cmd) {
 		plugin_cmd_killed(plugin->start_cmd, plugin, msg);
@@ -587,7 +615,8 @@ static struct io_plan *plugin_read_json(struct io_conn *conn,
 				return io_close(NULL);
 
 			if (err) {
-				plugin_kill(plugin, err);
+				plugin_kill(plugin, LOG_UNUSUAL,
+					    "%s", err);
 				/* plugin_kill frees plugin */
 				return io_close(NULL);
 			}
@@ -630,7 +659,11 @@ static struct io_plan *plugin_write_json(struct io_conn *conn,
 /* This catches the case where their stdout closes (usually they're dead). */
 static void plugin_conn_finish(struct io_conn *conn, struct plugin *plugin)
 {
-	plugin_kill(plugin, "Plugin exited before completing handshake.");
+	/* This is expected at shutdown of course. */
+	plugin_kill(plugin,
+		    plugin->plugins->shutdown
+		    ? LOG_DBG : LOG_INFORM,
+		    "exited %s", state_desc(plugin));
 }
 
 struct io_plan *plugin_stdin_conn_init(struct io_conn *conn,
@@ -1040,10 +1073,13 @@ static const char *plugin_rpcmethod_add(struct plugin *plugin,
 
 	cmd->dispatch = plugin_rpcmethod_dispatch;
 	if (!jsonrpc_command_add(plugin->plugins->ld->jsonrpc, cmd, usage)) {
-		return tal_fmt(plugin,
-			   "Could not register method \"%s\", a method with "
-			   "that name is already registered",
-			   cmd->name);
+		struct plugin *p =
+		    find_plugin_for_command(plugin->plugins->ld, cmd->name);
+		return tal_fmt(
+		    plugin,
+		    "Could not register method \"%s\", a method with "
+		    "that name is already registered by plugin %s",
+		    cmd->name, p->cmd);
 	}
 	tal_arr_expand(&plugin->methods, cmd->name);
 	return NULL;
@@ -1204,12 +1240,9 @@ static const char *plugin_add_params(struct plugin *plugin)
 static void plugin_manifest_timeout(struct plugin *plugin)
 {
 	bool startup = plugin->plugins->startup;
-	if (plugin->plugin_state == AWAITING_GETMANIFEST_RESPONSE)
-		plugin_kill(plugin,
-			    "failed to respond to 'getmanifest' in time, terminating.");
-	else
-		plugin_kill(plugin,
-			    "failed to respond to 'init' in time, terminating.");
+
+	plugin_kill(plugin, LOG_UNUSUAL,
+		    "timed out %s", state_desc(plugin));
 
 	if (startup)
 		fatal("Can't recover from plugin failure, terminating.");
@@ -1218,16 +1251,28 @@ static void plugin_manifest_timeout(struct plugin *plugin)
 static const char *plugin_parse_getmanifest_response(const char *buffer,
 						     const jsmntok_t *toks,
 						     const jsmntok_t *idtok,
-						     struct plugin *plugin)
+						     struct plugin *plugin,
+	const char **disabled)
 {
 	const jsmntok_t *resulttok, *dynamictok, *featurestok, *tok;
 	const char *err;
+
+	*disabled = NULL;
 
 	resulttok = json_get_member(buffer, toks, "result");
 	if (!resulttok || resulttok->type != JSMN_OBJECT)
 		return tal_fmt(plugin, "Invalid/missing result tok in '%.*s'",
 			       json_tok_full_len(toks),
 			       json_tok_full(buffer, toks));
+
+	/* Plugin can disable itself: returns why it's disabled. */
+	tok = json_get_member(buffer, resulttok, "disable");
+	if (tok) {
+		/* Don't get upset if this was a built-in! */
+		plugin->important = false;
+		*disabled = json_strdup(plugin, buffer, tok);
+		return NULL;
+	}
 
 	dynamictok = json_get_member(buffer, resulttok, "dynamic");
 	if (dynamictok && !json_to_bool(buffer, dynamictok, &plugin->dynamic)) {
@@ -1327,11 +1372,17 @@ static void plugin_manifest_cb(const char *buffer,
 			       const jsmntok_t *idtok,
 			       struct plugin *plugin)
 {
-	const char *err;
-	err = plugin_parse_getmanifest_response(buffer, toks, idtok, plugin);
+	const char *err, *disabled;
+	err = plugin_parse_getmanifest_response(buffer, toks, idtok, plugin, &disabled);
 
 	if (err) {
-		plugin_kill(plugin, err);
+		plugin_kill(plugin, LOG_UNUSUAL, "%s", err);
+		return;
+	}
+
+	if (disabled) {
+		plugin_kill(plugin, LOG_DBG,
+			    "disabled itself: %s", disabled);
 		return;
 	}
 
@@ -1339,7 +1390,8 @@ static void plugin_manifest_cb(const char *buffer,
 	plugin->timeout_timer = tal_free(plugin->timeout_timer);
 
 	if (!plugin->plugins->startup && !plugin->dynamic)
-		plugin_kill(plugin, "Not a dynamic plugin");
+		plugin_kill(plugin, LOG_INFORM,
+			    "Not a dynamic plugin");
 	else
 		check_plugins_manifests(plugin->plugins);
 }
@@ -1499,9 +1551,7 @@ const char *plugin_send_getmanifest(struct plugin *p)
 	p->stdin_conn = io_new_conn(p, stdinfd, plugin_stdin_conn_init, p);
 	req = jsonrpc_request_start(p, "getmanifest", p->log,
 				    NULL, plugin_manifest_cb, p);
-	/* Adding allow-deprecated-apis is part of the deprecation cycle! */
-	if (!deprecated_apis)
-		json_add_bool(req->stream, "allow-deprecated-apis", deprecated_apis);
+	json_add_bool(req->stream, "allow-deprecated-apis", deprecated_apis);
 	jsonrpc_request_end(req);
 	plugin_request_send(p, req);
 	p->plugin_state = AWAITING_GETMANIFEST_RESPONSE;
@@ -1528,7 +1578,7 @@ bool plugins_send_getmanifest(struct plugins *plugins)
 		}
 		if (plugins->startup)
 			fatal("error starting plugin '%s': %s", p->cmd, err);
-		plugin_kill(p, err);
+		plugin_kill(p, LOG_UNUSUAL, "%s", err);
 	}
 
 	return sent;
@@ -1572,6 +1622,19 @@ static void plugin_config_cb(const char *buffer,
 			     const jsmntok_t *idtok,
 			     struct plugin *plugin)
 {
+	const char *disable;
+
+	/* Plugin can also disable itself at this stage. */
+	if (json_scan(tmpctx, buffer, toks, "{result:{disable:%}}",
+		      JSON_SCAN_TAL(tmpctx, json_strdup, &disable)) == NULL) {
+		/* Don't get upset if this was a built-in! */
+		plugin->important = false;
+		plugin_kill(plugin, LOG_DBG,
+			    "disabled itself at init: %s",
+			    disable);
+		return;
+	}
+
 	plugin->plugin_state = INIT_COMPLETE;
 	plugin->timeout_timer = tal_free(plugin->timeout_timer);
 	if (plugin->start_cmd) {

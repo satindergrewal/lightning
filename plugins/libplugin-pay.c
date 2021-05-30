@@ -12,6 +12,7 @@
 #include <common/type_to_string.h>
 #include <errno.h>
 #include <plugins/libplugin-pay.h>
+#include <wire/peer_wire.h>
 
 static struct gossmap *global_gossmap;
 
@@ -60,6 +61,7 @@ struct payment *payment_new(tal_t *ctx, struct command *cmd,
 	p->invstring = NULL;
 	p->routetxt = NULL;
 	p->max_htlcs = UINT32_MAX;
+	p->aborterror = NULL;
 
 	/* Copy over the relevant pieces of information. */
 	if (parent != NULL) {
@@ -806,6 +808,12 @@ static struct command_result *payment_getroute(struct payment *p)
 	p->step = PAYMENT_STEP_GOT_ROUTE;
 	p->route = route_hops_from_route(p, p, r);
 
+	if (tal_count(p->route) == 0) {
+		payment_root(p)->abort = true;
+		payment_fail(p, "Empty route returned by getroute, are you "
+				"trying to pay yourself?");
+	}
+
 	fee = payment_route_fee(p);
 
 	/* Ensure that our fee and CLTV budgets are respected. */
@@ -1340,12 +1348,105 @@ static bool assign_blame(const struct payment *p,
 	return true;
 }
 
+/* Fix up the channel_update to include the type if it doesn't currently have
+ * one. See ElementsProject/lightning#1730 and lightningnetwork/lnd#1599 for the
+ * in-depth discussion on why we break message parsing here... */
+static u8 *patch_channel_update(const tal_t *ctx, u8 *channel_update TAKES)
+{
+	u8 *fixed;
+	if (channel_update != NULL &&
+	    fromwire_peektype(channel_update) != WIRE_CHANNEL_UPDATE) {
+		/* This should be a channel_update, prefix with the
+		 * WIRE_CHANNEL_UPDATE type, but isn't. Let's prefix it. */
+		fixed = tal_arr(ctx, u8, 0);
+		towire_u16(&fixed, WIRE_CHANNEL_UPDATE);
+		towire(&fixed, channel_update, tal_bytelen(channel_update));
+		if (taken(channel_update))
+			tal_free(channel_update);
+		return fixed;
+	} else {
+		return tal_dup_talarr(ctx, u8, channel_update);
+	}
+}
+
+/* Return NULL if the wrapped onion error message has no channel_update field,
+ * or return the embedded channel_update message otherwise. */
+static u8 *channel_update_from_onion_error(const tal_t *ctx,
+					   const u8 *onion_message)
+{
+	u8 *channel_update = NULL;
+	struct amount_msat unused_msat;
+	u32 unused32;
+
+	/* Identify failcodes that have some channel_update.
+	 *
+	 * TODO > BOLT 1.0: Add new failcodes when updating to a
+	 * new BOLT version. */
+	if (!fromwire_temporary_channel_failure(ctx,
+						onion_message,
+						&channel_update) &&
+	    !fromwire_amount_below_minimum(ctx,
+					   onion_message, &unused_msat,
+					   &channel_update) &&
+	    !fromwire_fee_insufficient(ctx,
+		    		       onion_message, &unused_msat,
+				       &channel_update) &&
+	    !fromwire_incorrect_cltv_expiry(ctx,
+		    			    onion_message, &unused32,
+					    &channel_update) &&
+	    !fromwire_expiry_too_soon(ctx,
+		    		      onion_message,
+				      &channel_update))
+		/* No channel update. */
+		return NULL;
+
+	return patch_channel_update(ctx, take(channel_update));
+}
+
+
+static struct command_result *
+payment_addgossip_success(struct command *cmd, const char *buffer,
+			  const jsmntok_t *toks, struct payment *p)
+{
+	const struct node_id *errnode;
+	const struct route_hop *errchan;
+
+	if (!assign_blame(p, &errnode, &errchan)) {
+		paymod_log(p, LOG_UNUSUAL,
+			   "No erring_index set in `waitsendpay` result: %.*s",
+			   json_tok_full_len(toks),
+			   json_tok_full(buffer, toks));
+		/* FIXME: Pick a random channel to fail? */
+		payment_set_step(p, PAYMENT_STEP_FAILED);
+		payment_continue(p);
+		return command_still_pending(cmd);
+	}
+
+	if (!errchan)
+		return handle_final_failure(cmd, p, errnode,
+					    p->result->failcode);
+
+	return handle_intermediate_failure(cmd, p, errnode, errchan,
+					   p->result->failcode);
+}
+
+/* If someone gives us an invalid update, all we can do is log it */
+static struct command_result *
+payment_addgossip_failure(struct command *cmd, const char *buffer,
+			  const jsmntok_t *toks, struct payment *p)
+{
+	paymod_log(p, LOG_DBG, "Invalid channel_update: %.*s",
+		   json_tok_full_len(toks),
+		   json_tok_full(buffer, toks));
+
+	return payment_addgossip_success(cmd, NULL, NULL, p);
+}
+
 static struct command_result *
 payment_waitsendpay_finished(struct command *cmd, const char *buffer,
 			     const jsmntok_t *toks, struct payment *p)
 {
-	const struct node_id *errnode;
-	const struct route_hop *errchan;
+	u8 *update;
 
 	assert(p->route != NULL);
 
@@ -1372,23 +1473,23 @@ payment_waitsendpay_finished(struct command *cmd, const char *buffer,
 
 	payment_chanhints_apply_route(p, true);
 
-	if (!assign_blame(p, &errnode, &errchan)) {
-		paymod_log(p, LOG_UNUSUAL,
-			   "No erring_index set in `waitsendpay` result: %.*s",
-			   json_tok_full_len(toks),
-			   json_tok_full(buffer, toks));
-		/* FIXME: Pick a random channel to fail? */
-		payment_set_step(p, PAYMENT_STEP_FAILED);
-		payment_continue(p);
+	/* Tell gossipd, if we received an update */
+	update = channel_update_from_onion_error(tmpctx, p->result->raw_message);
+	if (update) {
+		struct out_req *req;
+		paymod_log(p, LOG_DBG,
+			   "Extracted channel_update %s from onionreply %s",
+			   tal_hex(tmpctx, update),
+			   tal_hex(tmpctx, p->result->raw_message));
+		req = jsonrpc_request_start(p->plugin, NULL, "addgossip",
+					    payment_addgossip_success,
+					    payment_addgossip_failure, p);
+		json_add_hex_talarr(req->js, "message", update);
+		send_outreq(p->plugin, req);
 		return command_still_pending(cmd);
 	}
 
-	if (!errchan)
-		return handle_final_failure(cmd, p, errnode,
-					    p->result->failcode);
-
-	return handle_intermediate_failure(cmd, p, errnode, errchan,
-					   p->result->failcode);
+	return payment_addgossip_success(cmd, NULL, NULL, p);
 }
 
 static struct command_result *payment_sendonion_success(struct command *cmd,
@@ -1786,6 +1887,14 @@ static void payment_finished(struct payment *p)
 
 			if (command_finished(cmd, ret)) {/* Ignore result. */}
 			return;
+		} else if (p->aborterror != NULL) {
+			/* We set an explicit toplevel error message,
+			 * so let's report that. */
+			ret = jsonrpc_stream_fail(cmd, PAY_STOPPED_RETRYING,
+						  p->aborterror);
+			payment_json_add_attempts(ret, "attempts", p);
+			if (command_finished(cmd, ret)) {/* Ignore result. */}
+			return;
 		} else if (result.failure == NULL || result.failure->failcode < NODE) {
 			/* This is failing because we have no more routes to try */
 			msg = tal_fmt(cmd,
@@ -1926,6 +2035,32 @@ void payment_continue(struct payment *p)
 	/* We should never get here, it'd mean one of the state machine called
 	 * `payment_continue` after the final state. */
 	abort();
+}
+
+void payment_abort(struct payment *p, const char *fmt, ...) {
+	va_list ap;
+	struct payment *root = payment_root(p);
+	payment_set_step(p, PAYMENT_STEP_FAILED);
+	p->end_time = time_now();
+
+	va_start(ap, fmt);
+	p->failreason = tal_vfmt(p, fmt, ap);
+	va_end(ap);
+
+	root->abort = true;
+
+	/* Only set the abort error if it's not yet set, otherwise we
+	 * might end up clobbering the earliest and decisive failure
+	 * with less relevant ones. */
+	if (root->aborterror == NULL)
+		root->aborterror = tal_dup_talarr(root, char, p->failreason);
+
+	paymod_log(p, LOG_INFORM, "%s", p->failreason);
+
+	/* Do not use payment_continue, because that'd continue
+	 * applying the modifiers before calling
+	 * payment_finished(). */
+	payment_finished(p);
 }
 
 void payment_fail(struct payment *p, const char *fmt, ...)
@@ -2178,14 +2313,19 @@ static void trim_route(struct route_info **route, size_t n)
 
 /* Make sure routehints are reasonable length, and (since we assume we
  * can append), not directly to us.  Note: untrusted data! */
-static struct route_info **filter_routehints(struct routehints_data *d,
+static struct route_info **filter_routehints(struct gossmap *map,
+					     struct payment *p,
+					     struct routehints_data *d,
 					     struct node_id *myid,
 					     struct route_info **hints)
 {
+	const size_t max_hops = ROUTING_MAX_HOPS / 2;
 	char *mods = tal_strdup(tmpctx, "");
 	for (size_t i = 0; i < tal_count(hints); i++) {
+		struct gossmap_node *entrynode, *src;
+		u32 distance;
+
 		/* Trim any routehint > 10 hops */
-		size_t max_hops = ROUTING_MAX_HOPS / 2;
 		if (tal_count(hints[i]) > max_hops) {
 			tal_append_fmt(&mods,
 				       "Trimmed routehint %zu (%zu hops) to %zu. ",
@@ -2206,6 +2346,52 @@ static struct route_info **filter_routehints(struct routehints_data *d,
 		if (tal_count(hints[i]) == 0) {
 			tal_append_fmt(&mods,
 				       "Removed empty routehint %zu. ", i);
+			tal_arr_remove(&hints, i);
+			i--;
+		}
+
+		/* If routehint entrypoint is unreachable there's no
+		 * point in keeping it. */
+		entrynode = gossmap_find_node(map, &hints[i][0].pubkey);
+		src = gossmap_find_node(map, p->local_id);
+
+		if (entrynode == NULL) {
+			tal_append_fmt(&mods,
+				       "Removed routehint %zu because "
+				       "entrypoint %s is unknown. ",
+				       i,
+				       type_to_string(tmpctx, struct node_id,
+						      &hints[i][0].pubkey));
+			plugin_log(p->plugin, LOG_DBG,
+				   "Removed routehint %zu because "
+				   "entrypoint %s is unknown. ",
+				   i,
+				   type_to_string(tmpctx, struct node_id,
+						  &hints[i][0].pubkey));
+			tal_arr_remove(&hints, i);
+			i--;
+			continue;
+		}
+
+		distance = dijkstra_distance(
+		    dijkstra(tmpctx, map, entrynode, AMOUNT_MSAT(1), 1,
+			     payment_route_can_carry_even_disabled,
+			     route_score_cheaper, p),
+		    gossmap_node_idx(map, src));
+
+		if (distance == UINT_MAX) {
+			tal_append_fmt(&mods,
+				       "Removed routehint %zu because "
+				       "entrypoint %s is unreachable. ",
+				       i,
+				       type_to_string(tmpctx, struct node_id,
+						      &hints[i][0].pubkey));
+			plugin_log(p->plugin, LOG_DBG,
+				       "Removed routehint %zu because "
+				       "entrypoint %s is unreachable. ",
+				       i,
+				       type_to_string(tmpctx, struct node_id,
+						      &hints[i][0].pubkey));
 			tal_arr_remove(&hints, i);
 			i--;
 		}
@@ -2412,18 +2598,34 @@ static void routehint_pre_getroute(struct routehints_data *d, struct payment *p)
 		paymod_log(p, LOG_DBG, "Not using a routehint");
 }
 
-static struct command_result *routehint_getroute_result(struct command *cmd,
-							const char *buffer,
-							const jsmntok_t *toks,
-							struct payment *p)
+static void routehint_check_reachable(struct payment *p)
 {
+	const struct gossmap_node *dst, *src;
+	struct gossmap *gossmap = get_gossmap(p->plugin);
+	const struct dijkstra *dij;
+	struct route **r;
 	struct payment *root = payment_root(p);
-	const jsmntok_t *rtok = json_get_member(buffer, toks, "route");
 	struct routehints_data *d = payment_mod_routehints_get_data(root);
 
-	/* If there was a route the destination is reachable without
-	 * routehints. */
-	d->destination_reachable = (rtok != NULL);
+	/* Start a tiny exploratory route computation, so we know
+	 * whether we stand any chance of reaching the destination
+	 * without routehints. This will later be used to mix in
+	 * attempts without routehints. */
+	src = gossmap_find_node(gossmap, p->local_id);
+	dst = gossmap_find_node(gossmap, p->destination);
+	if (dst == NULL)
+		d->destination_reachable = false;
+	else {
+		dij = dijkstra(tmpctx, gossmap, dst, AMOUNT_MSAT(1000),
+			       10 / 1000000.0,
+			       payment_route_can_carry_even_disabled,
+			       route_score_cheaper, p);
+		r = route_from_dijkstra(tmpctx, gossmap, dij, src);
+
+		/* If there was a route the destination is reachable
+		 * without routehints. */
+		d->destination_reachable = r != NULL;
+	}
 
 	if (d->destination_reachable) {
 		tal_arr_expand(&d->routehints, NULL);
@@ -2439,6 +2641,17 @@ static struct command_result *routehint_getroute_result(struct command *cmd,
 		/* FIXME: ***DO*** we need to add this extra routehint?
 		 * Once we run out of routehints the default system will
 		 * just attempt directly routing to the destination anyway.  */
+	} else if (tal_count(d->routehints) == 0) {
+		/* If we don't have any routehints and the destination
+		 * isn't reachable, then there is no point in
+		 * continuing. */
+
+		payment_abort(
+		    p,
+		    "Destination %s is not reachable directly and "
+		    "all routehints were unusable.",
+		    type_to_string(tmpctx, struct node_id, p->destination));
+		return;
 	}
 
 	routehint_pre_getroute(d, p);
@@ -2451,37 +2664,13 @@ static struct command_result *routehint_getroute_result(struct command *cmd,
 
 	/* Now we can continue on our merry way. */
 	payment_continue(p);
-
-	/* Let payment_finished_ handle this, so we mark it as pending */
-	return command_still_pending(cmd);
-}
-
-static void routehint_check_reachable(struct payment *p)
-{
-	struct out_req *req;
-	/* Start a tiny exploratory getroute request, so we
-	 * know whether we stand any chance of reaching the
-	 * destination without routehints. This will later be
-	 * used to mix in attempts without routehints. */
-	req = jsonrpc_request_start(p->plugin, NULL, "getroute",
-				    routehint_getroute_result,
-				    routehint_getroute_result, p);
-	json_add_node_id(req->js, "id", p->destination);
-	json_add_amount_msat_only(req->js, "msatoshi", AMOUNT_MSAT(1000));
-	json_add_num(req->js, "maxhops", 20);
-	json_add_num(req->js, "riskfactor", 10);
-	send_outreq(p->plugin, req);
-	paymod_log(p, LOG_DBG,
-		   "Asking gossipd whether %s is reachable "
-		   "without routehints.",
-		   type_to_string(tmpctx, struct node_id, p->destination));
 }
 
 static void routehint_step_cb(struct routehints_data *d, struct payment *p)
 {
 	struct route_hop hop;
 	const struct payment *root = payment_root(p);
-
+	struct gossmap *map;
 	if (p->step == PAYMENT_STEP_INITIALIZED) {
 		if (root->routes == NULL)
 			return payment_continue(p);
@@ -2490,8 +2679,9 @@ static void routehint_step_cb(struct routehints_data *d, struct payment *p)
 		 * beginning, and every other payment will filter out the
 		 * exluded ones on the fly. */
 		if (p->parent == NULL) {
-			d->routehints = filter_routehints(d, p->local_id,
-							  p->routes);
+			map = get_gossmap(p->plugin);
+			d->routehints = filter_routehints(
+			    map, p, d, p->local_id, p->routes);
 			/* filter_routehints modifies the array, but
 			 * this could trigger a resize and the resize
 			 * could trigger a realloc.
@@ -3003,27 +3193,44 @@ static struct command_result *waitblockheight_rpc_cb(struct command *cmd,
 						     const jsmntok_t *toks,
 						     struct payment *p)
 {
-	const jsmntok_t *blockheighttok =
-		json_get_member(buffer, toks, "blockheight");
+	const jsmntok_t *blockheighttok, *codetok;
+
 	u32 blockheight;
+	int code;
 	struct payment *subpayment;
 
-	if (!blockheighttok
-	 || !json_to_number(buffer, blockheighttok, &blockheight))
-		plugin_err(p->plugin,
-			   "Unexpected result from waitblockheight: %.*s",
-			   json_tok_full_len(toks),
-			   json_tok_full(buffer, toks));
+	blockheighttok = json_get_member(buffer, toks, "blockheight");
 
-	subpayment = payment_new(p, NULL, p, p->modifiers);
-	payment_start_at_blockheight(subpayment, blockheight);
-	payment_set_step(p, PAYMENT_STEP_RETRY);
-	subpayment->why =
-		tal_fmt(subpayment, "Retrying after waiting for blockchain sync.");
-	paymod_log(p, LOG_DBG,
-		   "Retrying after waitblockheight, new partid %"PRIu32,
-		   subpayment->partid);
-	payment_continue(p);
+	if (!blockheighttok ||
+	    !json_to_number(buffer, blockheighttok, &blockheight)) {
+		codetok = json_get_member(buffer, toks, "code");
+		json_to_int(buffer, codetok, &code);
+		if (code == WAIT_TIMEOUT) {
+			payment_fail(
+			    p,
+			    "Timed out while attempting to sync to blockheight "
+			    "returned by destination. Please finish syncing "
+			    "with the blockchain and try again.");
+
+		} else {
+			plugin_err(
+			    p->plugin,
+			    "Unexpected result from waitblockheight: %.*s",
+			    json_tok_full_len(toks),
+			    json_tok_full(buffer, toks));
+		}
+	} else {
+		subpayment = payment_new(p, NULL, p, p->modifiers);
+		payment_start_at_blockheight(subpayment, blockheight);
+		payment_set_step(p, PAYMENT_STEP_RETRY);
+		subpayment->why = tal_fmt(
+		    subpayment, "Retrying after waiting for blockchain sync.");
+		paymod_log(
+		    p, LOG_DBG,
+		    "Retrying after waitblockheight, new partid %" PRIu32,
+		    subpayment->partid);
+		payment_continue(p);
+	}
 	return command_still_pending(cmd);
 }
 
@@ -3040,10 +3247,12 @@ static void waitblockheight_cb(void *d, struct payment *p)
 	if (p->result == NULL)
 		return payment_continue(p);
 
-	if (time_after(now, p->deadline))
-		return payment_continue(p);
-
+	/* Check if we'd be waiting more than 0 seconds. If we have
+	 * less than a second then waitblockheight would return
+	 * immediately resulting in a loop. */
 	remaining = time_between(p->deadline, now);
+	if (time_to_sec(remaining) < 1)
+		return payment_continue(p);
 
 	/* *Was* it a blockheight disagreement that caused the failure?  */
 	if (!failure_is_blockheight_disagreement(p, &blockheight))

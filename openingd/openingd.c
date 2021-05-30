@@ -33,8 +33,8 @@
 #include <common/peer_failed.h>
 #include <common/peer_status_wiregen.h>
 #include <common/penalty_base.h>
-#include <common/pseudorand.h>
 #include <common/read_peer_msg.h>
+#include <common/shutdown_scriptpubkey.h>
 #include <common/status.h>
 #include <common/subdaemon.h>
 #include <common/type_to_string.h>
@@ -120,31 +120,6 @@ struct state {
 	struct feature_set *our_features;
 };
 
-static u8 *no_upfront_shutdown_script(const tal_t *ctx, struct state *state)
-{
-#if DEVELOPER
-	/* This is a hack, for feature testing */
-	const char *e = getenv("DEV_OPENINGD_UPFRONT_SHUTDOWN_SCRIPT");
-	if (e)
-		return tal_hexdata(ctx, e, strlen(e));
-#endif
-
-	/* BOLT #2:
-	 *
-	 * - if both nodes advertised the `option_upfront_shutdown_script`
-	 *   feature:
-	 *   - MUST include `upfront_shutdown_script` with either a valid
-	 *     `shutdown_scriptpubkey` as required by `shutdown`
-	 *     `scriptpubkey`, or a zero-length `shutdown_scriptpubkey`
-	 *     (ie. `0x0000`).
-	 */
-	if (feature_negotiated(state->our_features, state->their_features,
-			       OPT_UPFRONT_SHUTDOWN_SCRIPT))
-		return tal_arr(ctx, u8, 0);
-
-	return NULL;
-}
-
 /*~ If we can't agree on parameters, we fail to open the channel.  If we're
  * the opener, we need to tell lightningd, otherwise it never really notices. */
 static void negotiation_aborted(struct state *state, bool am_opener,
@@ -214,22 +189,6 @@ static void set_reserve(struct state *state, const struct amount_sat dust_limit)
 			= dust_limit;
 }
 
-/* BOLT #2:
- *
- * The sending node:
- *...
- *  - MUST ensure `temporary_channel_id` is unique from any other channel ID
- *    with the same peer.
- */
-static void temporary_channel_id(struct channel_id *channel_id)
-{
-	size_t i;
-
-	/* Randomness FTW. */
-	for (i = 0; i < sizeof(*channel_id); i++)
-		channel_id->id[i] = pseudorand(256);
-}
-
 /*~ Handle random messages we might get during opening negotiation, (eg. gossip)
  * returning the first non-handled one, or NULL if we aborted negotiation. */
 static u8 *opening_negotiate_msg(const tal_t *ctx, struct state *state,
@@ -241,7 +200,7 @@ static u8 *opening_negotiate_msg(const tal_t *ctx, struct state *state,
 		u8 *msg;
 		bool from_gossipd;
 		char *err;
-		bool all_channels;
+		bool warning;
 		struct channel_id actual;
 
 		/* The event loop is responsible for freeing tmpctx, so our
@@ -280,7 +239,7 @@ static u8 *opening_negotiate_msg(const tal_t *ctx, struct state *state,
 
 		/* A helper which decodes an error. */
 		if (is_peer_error(tmpctx, msg, &state->channel_id,
-				  &err, &all_channels)) {
+				  &err, &warning)) {
 			/* BOLT #1:
 			 *
 			 *  - if no existing channel is referred to by the
@@ -293,18 +252,8 @@ static u8 *opening_negotiate_msg(const tal_t *ctx, struct state *state,
 				tal_free(msg);
 				continue;
 			}
-			/* Close connection on all_channels error. */
-			if (all_channels) {
-				if (am_opener) {
-					msg = towire_openingd_funder_failed(NULL,
-									   err);
-					wire_sync_write(REQ_FD, take(msg));
-				}
-				peer_failed_received_errmsg(state->pps, err,
-							    NULL, false);
-			}
 			negotiation_aborted(state, am_opener,
-					    tal_fmt(tmpctx, "They sent error %s",
+					    tal_fmt(tmpctx, "They sent %s",
 						    err));
 			/* Return NULL so caller knows to stop negotiating. */
 			return NULL;
@@ -373,6 +322,24 @@ static bool setup_channel_funder(struct state *state)
 	return true;
 }
 
+static void set_remote_upfront_shutdown(struct state *state,
+					u8 *shutdown_scriptpubkey STEALS)
+{
+	bool anysegwit = feature_negotiated(state->our_features,
+					    state->their_features,
+					    OPT_SHUTDOWN_ANYSEGWIT);
+
+	state->upfront_shutdown_script[REMOTE]
+		= tal_steal(state, shutdown_scriptpubkey);
+
+	if (shutdown_scriptpubkey
+	    && !valid_shutdown_scriptpubkey(shutdown_scriptpubkey, anysegwit))
+		peer_failed_err(state->pps,
+				&state->channel_id,
+				"Unacceptable upfront_shutdown_script %s",
+				tal_hex(tmpctx, shutdown_scriptpubkey));
+}
+
 /* We start the 'open a channel' negotation with the supplied peer, but
  * stop when we get to the part where we need the funding txid */
 static u8 *funder_channel_start(struct state *state, u8 channel_flags)
@@ -388,7 +355,10 @@ static u8 *funder_channel_start(struct state *state, u8 channel_flags)
 		return NULL;
 
 	if (!state->upfront_shutdown_script[LOCAL])
-		state->upfront_shutdown_script[LOCAL] = no_upfront_shutdown_script(state, state);
+		state->upfront_shutdown_script[LOCAL]
+			= no_upfront_shutdown_script(state,
+						     state->our_features,
+						     state->their_features);
 
 	open_tlvs = tlv_open_channel_tlvs_new(tmpctx);
 	open_tlvs->upfront_shutdown_script
@@ -449,12 +419,11 @@ static u8 *funder_channel_start(struct state *state, u8 channel_flags)
 				     &state->their_points.htlc,
 				     &state->first_per_commitment_point[REMOTE],
 				     accept_tlvs)) {
-			peer_failed(state->pps,
-				    &state->channel_id,
-				    "Parsing accept_channel %s", tal_hex(msg, msg));
+		peer_failed_err(state->pps,
+				&state->channel_id,
+				"Parsing accept_channel %s", tal_hex(msg, msg));
 	}
-	state->upfront_shutdown_script[REMOTE]
-		= tal_steal(state, accept_tlvs->upfront_shutdown_script);
+	set_remote_upfront_shutdown(state, accept_tlvs->upfront_shutdown_script);
 
 	/* BOLT #2:
 	 *
@@ -462,12 +431,11 @@ static u8 *funder_channel_start(struct state *state, u8 channel_flags)
 	 * `temporary_channel_id` in the `open_channel` message. */
 	if (!channel_id_eq(&id_in, &state->channel_id))
 		/* In this case we exit, since we don't know what's going on. */
-		peer_failed(state->pps,
-			    &state->channel_id,
-			    "accept_channel ids don't match: sent %s got %s",
-			    type_to_string(msg, struct channel_id, &id_in),
-			    type_to_string(msg, struct channel_id,
-					   &state->channel_id));
+		peer_failed_err(state->pps, &id_in,
+				"accept_channel ids don't match: sent %s got %s",
+				type_to_string(msg, struct channel_id, &id_in),
+				type_to_string(msg, struct channel_id,
+					       &state->channel_id));
 
 	if (amount_sat_greater(state->remoteconf.dust_limit,
 			       state->localconf.channel_reserve)) {
@@ -559,9 +527,9 @@ static bool funder_finalize_channel_setup(struct state *state,
 	/* We were supposed to do enough checks above, but just in case,
 	 * new_initial_channel will fail to create absurd channels */
 	if (!state->channel)
-		peer_failed(state->pps,
-			    &state->channel_id,
-			    "could not create channel with given config");
+		peer_failed_err(state->pps,
+				&state->channel_id,
+				"could not create channel with given config");
 
 	/* BOLT #2:
 	 *
@@ -641,9 +609,8 @@ static bool funder_finalize_channel_setup(struct state *state,
 
 	sig->sighash_type = SIGHASH_ALL;
 	if (!fromwire_funding_signed(msg, &id_in, &sig->s))
-		peer_failed(state->pps,
-			    &state->channel_id,
-			    "Parsing funding_signed: %s", tal_hex(msg, msg));
+		peer_failed_err(state->pps, &state->channel_id,
+				"Parsing funding_signed: %s", tal_hex(msg, msg));
 	/* BOLT #2:
 	 *
 	 * This message introduces the `channel_id` to identify the channel.
@@ -670,17 +637,17 @@ static bool funder_finalize_channel_setup(struct state *state,
 	state->channel_id = cid;
 
 	if (!channel_id_eq(&id_in, &state->channel_id))
-		peer_failed(state->pps, &id_in,
-			    "funding_signed ids don't match: expected %s got %s",
-			    type_to_string(msg, struct channel_id,
-					   &state->channel_id),
-			    type_to_string(msg, struct channel_id, &id_in));
+		peer_failed_err(state->pps, &id_in,
+				"funding_signed ids don't match: expected %s got %s",
+				type_to_string(msg, struct channel_id,
+					       &state->channel_id),
+				type_to_string(msg, struct channel_id, &id_in));
 
 	/* BOLT #2:
 	 *
 	 * The recipient:
-	 *   - if `signature` is incorrect:
-	 *     - MUST fail the channel.
+	 *   - if `signature` is incorrect OR non-compliant with LOW-S-standard rule...:
+	 *     - MUST fail the channel
 	 */
 	/* So we create *our* initial commitment transaction, and check the
 	 * signature they sent against that. */
@@ -694,14 +661,13 @@ static bool funder_finalize_channel_setup(struct state *state,
 	}
 
 	if (!check_tx_sig(*tx, 0, NULL, wscript, &state->their_funding_pubkey, sig)) {
-		peer_failed(state->pps,
-			    &state->channel_id,
-			    "Bad signature %s on tx %s using key %s",
-			    type_to_string(tmpctx, struct bitcoin_signature,
-					   sig),
-			    type_to_string(tmpctx, struct bitcoin_tx, *tx),
-			    type_to_string(tmpctx, struct pubkey,
-					   &state->their_funding_pubkey));
+		peer_failed_err(state->pps, &state->channel_id,
+				"Bad signature %s on tx %s using key %s",
+				type_to_string(tmpctx, struct bitcoin_signature,
+					       sig),
+				type_to_string(tmpctx, struct bitcoin_tx, *tx),
+				type_to_string(tmpctx, struct pubkey,
+					       &state->their_funding_pubkey));
 	}
 
 	/* We save their sig to our first commitment tx */
@@ -813,11 +779,10 @@ static u8 *fundee_channel(struct state *state, const u8 *open_channel_msg)
 			    &state->first_per_commitment_point[REMOTE],
 			    &channel_flags,
 			    open_tlvs))
-		    peer_failed(state->pps,
-				&state->channel_id,
-				"Parsing open_channel %s", tal_hex(tmpctx, open_channel_msg));
-	state->upfront_shutdown_script[REMOTE]
-		= tal_steal(state, open_tlvs->upfront_shutdown_script);
+		    peer_failed_err(state->pps,
+				    &state->channel_id,
+				    "Parsing open_channel %s", tal_hex(tmpctx, open_channel_msg));
+	set_remote_upfront_shutdown(state, open_tlvs->upfront_shutdown_script);
 
 	/* BOLT #2:
 	 *
@@ -858,14 +823,13 @@ static u8 *fundee_channel(struct state *state, const u8 *open_channel_msg)
 	 *   - `push_msat` is greater than `funding_satoshis` * 1000.
 	 */
 	if (amount_msat_greater_sat(state->push_msat, state->funding)) {
-		peer_failed(state->pps,
-			    &state->channel_id,
-			    "Their push_msat %s"
-			    " would be too large for funding_satoshis %s",
-			    type_to_string(tmpctx, struct amount_msat,
-					   &state->push_msat),
-			    type_to_string(tmpctx, struct amount_sat,
-					   &state->funding));
+		peer_failed_err(state->pps, &state->channel_id,
+				"Their push_msat %s"
+				" would be too large for funding_satoshis %s",
+				type_to_string(tmpctx, struct amount_msat,
+					       &state->push_msat),
+				type_to_string(tmpctx, struct amount_sat,
+					       &state->funding));
 		return NULL;
 	}
 
@@ -972,7 +936,10 @@ static u8 *fundee_channel(struct state *state, const u8 *open_channel_msg)
 	}
 
 	if (!state->upfront_shutdown_script[LOCAL])
-		state->upfront_shutdown_script[LOCAL] = no_upfront_shutdown_script(state, state);
+		state->upfront_shutdown_script[LOCAL]
+			= no_upfront_shutdown_script(state,
+						     state->our_features,
+						     state->their_features);
 
 	/* OK, we accept! */
 	accept_tlvs = tlv_accept_channel_tlvs_new(tmpctx);
@@ -1012,8 +979,7 @@ static u8 *fundee_channel(struct state *state, const u8 *open_channel_msg)
 				      &state->funding_txid,
 				      &state->funding_txout,
 				      &theirsig.s))
-		peer_failed(state->pps,
-			    &state->channel_id,
+		peer_failed_err(state->pps, &state->channel_id,
 			    "Parsing funding_created");
 
 	/* BOLT #2:
@@ -1022,11 +988,11 @@ static u8 *fundee_channel(struct state *state, const u8 *open_channel_msg)
 	 * `temporary_channel_id` in the `open_channel` message.
 	 */
 	if (!channel_id_eq(&id_in, &state->channel_id))
-		peer_failed(state->pps, &id_in,
-			    "funding_created ids don't match: sent %s got %s",
-			    type_to_string(msg, struct channel_id,
-					   &state->channel_id),
-			    type_to_string(msg, struct channel_id, &id_in));
+		peer_failed_err(state->pps, &id_in,
+				"funding_created ids don't match: sent %s got %s",
+				type_to_string(msg, struct channel_id,
+					       &state->channel_id),
+				type_to_string(msg, struct channel_id, &id_in));
 
 	/* Now we can create the channel structure. */
 	state->channel = new_initial_channel(state,
@@ -1049,14 +1015,14 @@ static u8 *fundee_channel(struct state *state, const u8 *open_channel_msg)
 	/* We don't expect this to fail, but it does do some additional
 	 * internal sanity checks. */
 	if (!state->channel)
-		peer_failed(state->pps,
-			    &state->channel_id,
-			    "We could not create channel with given config");
+		peer_failed_err(state->pps, &state->channel_id,
+				"We could not create channel with given config");
 
 	/* BOLT #2:
 	 *
 	 * The recipient:
-	 *   - if `signature` is incorrect:
+	 *   - if `signature` is incorrect OR non-compliant with LOW-S-standard
+	 *     rule...:
 	 *     - MUST fail the channel.
 	 */
 	local_commit = initial_channel_tx(state, &wscript, state->channel,
@@ -1084,14 +1050,13 @@ static u8 *fundee_channel(struct state *state, const u8 *open_channel_msg)
 		 * a courtesy to other implementaters whose brains may be so
 		 * twisted by coding in Go, Scala and Rust that they can no
 		 * longer read C code. */
-		peer_failed(state->pps,
-			    &state->channel_id,
-			    "Bad signature %s on tx %s using key %s",
-			    type_to_string(tmpctx, struct bitcoin_signature,
-					   &theirsig),
-			    type_to_string(tmpctx, struct bitcoin_tx, local_commit),
-			    type_to_string(tmpctx, struct pubkey,
-					   &their_funding_pubkey));
+		peer_failed_err(state->pps, &state->channel_id,
+				"Bad signature %s on tx %s using key %s",
+				type_to_string(tmpctx, struct bitcoin_signature,
+					       &theirsig),
+				type_to_string(tmpctx, struct bitcoin_tx, local_commit),
+				type_to_string(tmpctx, struct pubkey,
+					       &their_funding_pubkey));
 	}
 
 	/* BOLT #2:
@@ -1206,11 +1171,11 @@ static u8 *handle_peer_in(struct state *state)
 		return NULL;
 
 	sync_crypto_write(state->pps,
-			  take(towire_errorfmt(NULL,
-					       extract_channel_id(msg, &channel_id) ? &channel_id : NULL,
-					       "Unexpected message %s: %s",
-					       peer_wire_name(t),
-					       tal_hex(tmpctx, msg))));
+			  take(towire_warningfmt(NULL,
+						 extract_channel_id(msg, &channel_id) ? &channel_id : NULL,
+						 "Unexpected message %s: %s",
+						 peer_wire_name(t),
+						 tal_hex(tmpctx, msg))));
 
 	/* FIXME: We don't actually want master to try to send an
 	 * error, since peer is transient.  This is a hack.
@@ -1232,20 +1197,18 @@ static void handle_gossip_in(struct state *state)
 	handle_gossip_msg(state->pps, take(msg));
 }
 
-/*~ Is this message of type `error` with the special zero-id
- * "fail-everything"?  If lightningd asked us to send such a thing, we're
- * done. */
-static void fail_if_all_error(const u8 *inner)
+/*~ Is this message of a `warning` or `error`?  If lightningd asked us to send
+ * such a thing, it wants to close the connection. */
+static void fail_if_warning_or_error(const u8 *inner)
 {
 	struct channel_id channel_id;
 	u8 *data;
 
-	if (!fromwire_error(tmpctx, inner, &channel_id, &data)
-	    || !channel_id_is_all(&channel_id)) {
+	if (!fromwire_warning(tmpctx, inner, &channel_id, &data)
+	    && !fromwire_error(tmpctx, inner, &channel_id, &data))
 		return;
-	}
 
-	status_info("Master said send err: %s",
+	status_info("Master said send %s",
 		    sanitize_error(tmpctx, inner, NULL));
 	exit(0);
 }
@@ -1279,7 +1242,10 @@ static void handle_dev_memleak(struct state *state, const u8 *msg)
  * just forward it here. */
 static void openingd_send_custommsg(struct state *state, const u8 *msg)
 {
-	sync_crypto_write(state->pps, take(msg));
+	u8 *inner;
+	if (!fromwire_custommsg_out(tmpctx, msg, &inner))
+		master_badmsg(WIRE_CUSTOMMSG_OUT, msg);
+	sync_crypto_write(state->pps, take(inner));
 }
 #endif /* DEVELOPER */
 
@@ -1411,10 +1377,10 @@ int main(int argc, char *argv[])
 	per_peer_state_set_fds(state->pps, 3, 4, 5);
 
 	/*~ If lightningd wanted us to send a msg, do so before we waste time
-	 * doing work.  If it's a global error, we'll close immediately. */
+	 * doing work.  If it's a warning, we'll close immediately. */
 	if (inner != NULL) {
 		sync_crypto_write(state->pps, inner);
-		fail_if_all_error(inner);
+		fail_if_warning_or_error(inner);
 		tal_free(inner);
 	}
 

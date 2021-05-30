@@ -66,6 +66,9 @@ struct config {
 
 	/* How long before we give up waiting for INIT msg */
 	u32 connection_timeout_secs;
+
+	/* EXPERIMENTAL: offers support */
+	bool exp_offers;
 };
 
 typedef STRMAP(const char *) alt_subdaemon_map;
@@ -110,6 +113,9 @@ struct lightningd {
 
 	/* This is us. */
 	struct node_id id;
+
+	/* The public base for our payer_id keys */
+	struct pubkey32 bolt12_base;
 
 	/* Feature set we offer. */
 	struct feature_set *our_features;
@@ -176,8 +182,6 @@ struct lightningd {
 	struct list_head sendpay_commands;
 	/* Outstanding close commands. */
 	struct list_head close_commands;
-	/* Outstanding openchannel_signed commands. */
-	struct list_head open_commands;
 	/* Outstanding ping commands. */
 	struct list_head ping_commands;
 
@@ -189,10 +193,6 @@ struct lightningd {
 
 	/* PID file */
 	char *pidfile;
-
-	/* Number of blocks we wait for a channel to get funded
-	 * if we are the fundee. */
-	u32 max_funding_unconfirmed;
 
 	/* RPC which asked us to shutdown, if non-NULL */
 	struct io_conn *stop_conn;
@@ -239,6 +239,10 @@ struct lightningd {
 	bool dev_no_htlc_timeout;
 
 	bool dev_no_version_checks;
+
+	/* Number of blocks we wait for a channel to get funded
+	 * if we are the fundee. */
+	u32 dev_max_funding_unconfirmed;
 #endif /* DEVELOPER */
 
 	/* tor support */
@@ -246,9 +250,6 @@ struct lightningd {
 	bool use_proxy_always;
 	char *tor_service_password;
 	bool pure_tor_setup;
-
-	/* Original directory for deprecated plugin-relative-to-cwd */
-	const char *original_directory;
 
 	struct plugins *plugins;
 
@@ -274,6 +275,9 @@ struct lightningd {
 
 	/* The round-robin list of channels, for use when doing MPP.  */
 	u64 rr_counter;
+
+	/* Should we re-exec ourselves instead of just exiting? */
+	bool try_reexec;
 };
 
 /* Turning this on allows a tal allocation to return NULL, rather than aborting.

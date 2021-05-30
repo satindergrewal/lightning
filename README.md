@@ -15,10 +15,11 @@ c-lightning is a lightweight, highly customizable and [standard compliant][std] 
     * [Pruning](#pruning)
     * [HD wallet encryption](#hd-wallet-encryption)
 	* [Developers](#developers)
+* [Documentation](https://lightning.readthedocs.io/)
 
 ## Project Status
 
-[![Build Status][travis-ci]][travis-ci-link]
+[![Continuous Integration](https://github.com/ElementsProject/lightning/workflows/Continuous%20Integration/badge.svg)][actions]
 [![Pull Requests Welcome][prs]][prs-link]
 [![Irc][IRC]][IRC-link]
 [![Documentation Status](https://readthedocs.org/projects/lightning/badge/?version=docs)][docs]
@@ -54,14 +55,24 @@ sudo apt-get install bitcoind lightningd
 
 ### Starting `lightningd`
 
+#### Regtest (local, fast-start) Option
 If you want to experiment with `lightningd`, there's a script to set
 up a `bitcoind` regtest test network of two local lightning nodes,
-which provides a convenient `start_ln` helper:
+which provides a convenient `start_ln` helper. See the notes at the top
+of the `startup_regtest.sh` file for details on how to use it.
 
 ```bash
 . contrib/startup_regtest.sh
 ```
 
+Note that your local nodeset will be much faster/more responsive if
+you've configured your node to expose the developer options, e.g.
+
+```bash
+./configure --enable-developer
+```
+
+#### Mainnet Option
 To test with real bitcoin,  you will need to have a local `bitcoind` node running:
 
 ```bash
@@ -230,3 +241,4 @@ You should also configure with `--enable-developer` to get additional checks and
 [dockerhub]: https://hub.docker.com/r/elementsproject/lightningd/
 [jsonrpcspec]: https://www.jsonrpc.org/specification
 [helpme-github]: https://github.com/lightningd/plugins/tree/master/helpme
+[actions]: https://github.com/ElementsProject/lightning/actions

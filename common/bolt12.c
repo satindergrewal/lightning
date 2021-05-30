@@ -9,6 +9,7 @@
 #include <common/bolt12_merkle.h>
 #include <common/features.h>
 #include <secp256k1_schnorrsig.h>
+#include <time.h>
 
 bool bolt12_chains_match(const struct bitcoin_blkid *chains,
 			 const struct chainparams *must_be_chain)
@@ -70,6 +71,22 @@ static char *check_features_and_chain(const tal_t *ctx,
 	return NULL;
 }
 
+bool bolt12_check_signature(const struct tlv_field *fields,
+			    const char *messagename,
+			    const char *fieldname,
+			    const struct pubkey32 *key,
+			    const struct bip340sig *sig)
+{
+	struct sha256 m, shash;
+
+	merkle_tlv(fields, &m);
+	sighash_from_merkle(messagename, fieldname, &m, &shash);
+	return secp256k1_schnorrsig_verify(secp256k1_ctx,
+					   sig->u8,
+					   shash.u.u8,
+					   &key->pubkey) == 1;
+}
+
 static char *check_signature(const tal_t *ctx,
 			     const struct tlv_field *fields,
 			     const char *messagename,
@@ -77,19 +94,13 @@ static char *check_signature(const tal_t *ctx,
 			     const struct pubkey32 *node_id,
 			     const struct bip340sig *sig)
 {
-	struct sha256 m, shash;
-
 	if (!node_id)
 		return tal_fmt(ctx, "Missing node_id");
 	if (!sig)
 		return tal_fmt(ctx, "Missing signature");
 
-	merkle_tlv(fields, &m);
-	sighash_from_merkle(messagename, fieldname, &m, &shash);
-	if (secp256k1_schnorrsig_verify(secp256k1_ctx,
-					sig->u8,
-					shash.u.u8,
-					&node_id->pubkey) != 1)
+	if (!bolt12_check_signature(fields,
+				    messagename, fieldname, node_id, sig))
 		return tal_fmt(ctx, "Invalid signature");
 	return NULL;
 }
@@ -278,6 +289,120 @@ struct tlv_invoice *invoice_decode_nosig(const tal_t *ctx,
 	return invoice;
 }
 
+static void add_days(struct tm *tm, u32 number)
+{
+	tm->tm_mday += number;
+}
+
+static void add_months(struct tm *tm, u32 number)
+{
+	tm->tm_mon += number;
+}
+
+static void add_years(struct tm *tm, u32 number)
+{
+	tm->tm_year += number;
+}
+
+static u64 time_change(u64 prevstart, u32 number,
+		       void (*add_time)(struct tm *tm, u32 number),
+		       bool day_const)
+{
+	struct tm tm;
+	time_t prev = prevstart, ret;
+
+	tm = *gmtime(&prev);
+
+	for (;;) {
+		struct tm new_tm = tm;
+		add_time(&new_tm, number);
+		ret = mktime(&new_tm);
+
+		if (ret == (time_t)-1)
+			return 0;
+
+		/* If we overflowed that month, try one less. */
+		if (!day_const || new_tm.tm_mday == tm.tm_mday)
+			break;
+		tm.tm_mday--;
+	}
+
+	return ret;
+}
+
+u64 offer_period_start(u64 basetime, size_t n,
+		       const struct tlv_offer_recurrence *recur)
+{
+	/* BOLT-offers #12:
+	 * 1. A `time_unit` defining 0 (seconds), 1 (days), 2 (months),
+	 *    3 (years).
+	 */
+	switch (recur->time_unit) {
+	case 0:
+		return basetime + recur->period * n;
+	case 1:
+		return time_change(basetime, recur->period * n, add_days, false);
+	case 2:
+		return time_change(basetime, recur->period * n, add_months, true);
+	case 3:
+		return time_change(basetime, recur->period * n, add_years, true);
+	default:
+		/* This is our offer, how did we get here? */
+		return 0;
+	}
+}
+
+void offer_period_paywindow(const struct tlv_offer_recurrence *recurrence,
+			    const struct tlv_offer_recurrence_paywindow *recurrence_paywindow,
+			    const struct tlv_offer_recurrence_base *recurrence_base,
+			    u64 basetime, u64 period_idx,
+			    u64 *start, u64 *end)
+{
+	/* BOLT-offers #12:
+	 * - if the offer contains `recurrence_paywindow`:
+	 */
+	if (recurrence_paywindow) {
+		u64 pstart = offer_period_start(basetime, period_idx,
+						recurrence);
+		/* BOLT-offers #12:
+		 * - if the offer has a `recurrence_basetime` or the
+		 *    `recurrence_counter` is non-zero:
+		 *   - SHOULD NOT send an `invoice_request` for a period prior to
+		 *     `seconds_before` seconds before that period start.
+		 *   - SHOULD NOT send an `invoice_request` for a period later
+		 *     than `seconds_after` seconds past that period start.
+		 */
+		*start = pstart - recurrence_paywindow->seconds_before;
+		*end = pstart + recurrence_paywindow->seconds_after;
+
+		/* First payment without recurrence_base, we give
+		 * ourselves 60 seconds, since period will start
+		 * now */
+		if (!recurrence_base && period_idx == 0
+		    && recurrence_paywindow->seconds_after < 60)
+			*end = pstart + 60;
+	} else {
+		/* BOLT-offers #12:
+		 * - otherwise:
+		 *   - SHOULD NOT send an `invoice_request` with
+		 *     `recurrence_counter` is non-zero for a period whose
+		 *     immediate predecessor has not yet begun.
+		 */
+		if (period_idx == 0)
+			*start = 0;
+		else
+			*start = offer_period_start(basetime, period_idx-1,
+						    recurrence);
+
+		/* BOLT-offers #12:
+		 *     - SHOULD NOT send an `invoice_request` for a period which
+		 *       has already passed.
+		 */
+		*end = offer_period_start(basetime, period_idx+1,
+					  recurrence) - 1;
+	}
+}
+
 struct tlv_invoice *invoice_decode(const tal_t *ctx,
 				   const char *b12, size_t b12len,
 				   const struct feature_set *our_features,
@@ -296,4 +421,25 @@ struct tlv_invoice *invoice_decode(const tal_t *ctx,
 			invoice = tal_free(invoice);
 	}
 	return invoice;
+}
+
+bool bolt12_has_invoice_prefix(const char *str)
+{
+	return strstarts(str, "lni1") || strstarts(str, "LNI1");
+}
+
+bool bolt12_has_request_prefix(const char *str)
+{
+	return strstarts(str, "lnr1") || strstarts(str, "LNR1");
+}
+
+bool bolt12_has_offer_prefix(const char *str)
+{
+	return strstarts(str, "lno1") || strstarts(str, "LNO1");
+}
+
+bool bolt12_has_prefix(const char *str)
+{
+	return bolt12_has_invoice_prefix(str) || bolt12_has_offer_prefix(str) ||
+	       bolt12_has_request_prefix(str);
 }
