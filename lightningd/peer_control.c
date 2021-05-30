@@ -1919,11 +1919,11 @@ static struct command_result *json_getinfo(struct command *cmd,
             if (channel->state == CHANNELD_AWAITING_LOCKIN
 		|| channel->state == DUALOPEND_AWAITING_LOCKIN
 		|| channel->state == DUALOPEND_OPEN_INIT) {
-		pending_channels++;
+                pending_channels++;
             } else if (channel_active(channel)) {
-		active_channels++;
+                active_channels++;
             } else {
-		inactive_channels++;
+                inactive_channels++;
             }
         }
     }
@@ -2795,78 +2795,76 @@ AUTODATA(json_command, &sendcustommsg_command);
 
 #endif /* DEVELOPER */
 
-
 static struct command_result *json_peer_channel_state(struct command *cmd,
-					       const char *buffer,
-					       const jsmntok_t *obj UNNEEDED,
-					       const jsmntok_t *params)
+                                               const char *buffer,
+                                               const jsmntok_t *obj UNNEEDED,
+                                               const jsmntok_t *params)
 {
-	struct json_stream *response;
-	const jsmntok_t *idtok;
-	char my_node_id[100];
-	struct db_stmt *stmt;
-	int channel_state=-1, peer_exists;
+        struct json_stream *response;
+        const jsmntok_t *idtok;
+        char my_node_id[100];
+        struct db_stmt *stmt;
+        int channel_state=-1, peer_exists;
 
-	if (!param(cmd, buffer, params,
-		p_req("id", param_tok, &idtok),
-		// p_opt("id", param_tok, &idtok),
-		NULL))
-	return command_param_failed();
+        if (!param(cmd, buffer, params,
+                p_req("id", param_tok, &idtok),
+                // p_opt("id", param_tok, &idtok),
+                NULL))
+        return command_param_failed();
 
-	response = json_stream_success(cmd);
+        response = json_stream_success(cmd);
 
         struct node_id peerid;
         json_to_node_id(buffer, idtok, &peerid);
 
-	memcpy(my_node_id,buffer + idtok->start,idtok->end - idtok->start);
-	my_node_id[idtok->end - idtok->start] = '\0';
+        memcpy(my_node_id,buffer + idtok->start,idtok->end - idtok->start);
+        my_node_id[idtok->end - idtok->start] = '\0';
 
-	printf("-----------\n");
-	printf("my_node_id %s\n", my_node_id);
-	printf("-----------\n");
+        //printf("-----------\n");
+        //printf("my_node_id %s\n", my_node_id);
+        //printf("-----------\n");
 
-	stmt = db_prepare_v2(cmd->ld->wallet->db, "SELECT count(*) FROM peers"
-					       "  WHERE lower(hex(node_id))=?;");
-	db_bind_text(stmt, 0, my_node_id);
-	db_query_prepared(stmt);
+        stmt = db_prepare_v2(cmd->ld->wallet->db, "SELECT count(*) FROM peers"
+                                               "  WHERE lower(hex(node_id))=?;");
+        db_bind_text(stmt, 0, my_node_id);
+        db_query_prepared(stmt);
 
-	while (db_step(stmt)) {
-		if (!db_column_is_null(stmt, 0)) {
-			peer_exists=db_column_int(stmt, 0);
-		} else {
-			peer_exists = 0;
-		}
-	}
+        while (db_step(stmt)) {
+                if (!db_column_is_null(stmt, 0)) {
+                        peer_exists=db_column_int(stmt, 0);
+                } else {
+                        peer_exists = 0;
+                }
+        }
 
-	printf("peer_exists_count: %d\n", peer_exists);
-	printf("-----------\n");
+        //printf("peer_exists_count: %d\n", peer_exists);
+        //printf("-----------\n");
 
         tal_free(stmt);
 
-	// json_object_start(response, NULL);
-	json_array_start(response,"channel-states");
-	if (peer_exists == 0)
-	{
-		json_object_start(response,NULL);
-		json_add_num(response, "channel-state", 0);
-		json_object_end(response);
-	} else {
-		struct peer *peer = peer_by_id(cmd->ld, &peerid);
-		struct channel *channel = peer_active_channel(peer);
-		if (channel) {
-			channel_state = channel->state;
-		} else {
-			printf("Couldn't find channel!");
-		}
-		json_object_start(response,NULL);
-		json_add_num(response, "channel-state", channel_state);
-		json_object_end(response);
-	}
-	printf("channel_state - %d\n", channel_state);
+        json_array_start(response,"channel-states");
+        if (peer_exists == 0)
+        {
+                json_object_start(response,NULL);
+                json_add_num(response, "channel-state", 0);
+                json_object_end(response);
+        } else {
+                struct peer *peer = peer_by_id(cmd->ld, &peerid);
+                struct channel *channel = peer_active_channel(peer);
+                if (channel) {
+                        channel_state = channel->state;
+                } else {
+                        printf("Couldn't find channel!");
+                }
+                json_object_start(response,NULL);
+                json_add_num(response, "channel-state", channel_state);
+                json_object_end(response);
+        }
+        //printf("channel_state - %d\n", channel_state);
 
-	json_array_end(response);
-	// json_object_end(response);
-	return command_success(cmd, response);
+        json_array_end(response);
+        // json_object_end(response);
+        return command_success(cmd, response);
 }
 
 static const struct json_command peer_channel_state = {
@@ -2937,3 +2935,4 @@ AUTODATA(json_command, &peer_channel_state);
 // 	json_check_if_peer_exits,
 // 	"Finds if there exists the peer with {id}"
 // };
+// AUTODATA(json_command, &check_if_peer_exits);
