@@ -1149,6 +1149,12 @@ struct db_query db_postgres_queries[] = {
          .readonly = true,
     },
     {
+         .name = "SELECT state FROM channels WHERE peer_id IN (SELECT id FROM peers WHERE lower(hex(node_id))=?);",
+         .query = "SELECT state FROM channels WHERE peer_id IN (SELECT id FROM peers WHERE lower(hex(node_id))=?);",
+         .placeholders = 1,
+         .readonly = true,
+    },
+    {
          .name = "SELECT txid, outnum FROM utxoset WHERE spendheight is NULL",
          .query = "SELECT txid, outnum FROM utxoset WHERE spendheight is NULL",
          .placeholders = 0,
