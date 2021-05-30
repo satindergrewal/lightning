@@ -28,9 +28,6 @@
  * to prune? */
 #define UTXO_PRUNE_DEPTH 144
 
-/* 12 hours is usually enough reservation time */
-#define RESERVATION_INC (6 * 12)
-
 static void outpointfilters_init(struct wallet *w)
 {
 	struct db_stmt *stmt;
@@ -439,7 +436,9 @@ static void db_set_utxo(struct db *db, const struct utxo *utxo)
 	db_exec_prepared_v2(take(stmt));
 }
 
-bool wallet_reserve_utxo(struct wallet *w, struct utxo *utxo, u32 current_height)
+bool wallet_reserve_utxo(struct wallet *w, struct utxo *utxo,
+			 u32 current_height,
+			 u32 reserve)
 {
 	switch (utxo->status) {
 	case OUTPUT_STATE_SPENT:
@@ -453,9 +452,9 @@ bool wallet_reserve_utxo(struct wallet *w, struct utxo *utxo, u32 current_height
 
 	/* We simple increase existing reservations, which DTRT if we unreserve */
 	if (utxo->reserved_til >= current_height)
-		utxo->reserved_til += RESERVATION_INC;
+		utxo->reserved_til += reserve;
 	else
-		utxo->reserved_til = current_height + RESERVATION_INC;
+		utxo->reserved_til = current_height + reserve;
 
 	utxo->status = OUTPUT_STATE_RESERVED;
 
@@ -464,18 +463,20 @@ bool wallet_reserve_utxo(struct wallet *w, struct utxo *utxo, u32 current_height
 	return true;
 }
 
-void wallet_unreserve_utxo(struct wallet *w, struct utxo *utxo, u32 current_height)
+void wallet_unreserve_utxo(struct wallet *w, struct utxo *utxo,
+			   u32 current_height,
+			   u32 unreserve)
 {
 	if (utxo->status != OUTPUT_STATE_RESERVED)
 		fatal("UTXO %s:%u is not reserved",
 		      type_to_string(tmpctx, struct bitcoin_txid, &utxo->txid),
 		      utxo->outnum);
 
-	if (utxo->reserved_til <= current_height + RESERVATION_INC) {
+	if (utxo->reserved_til <= current_height + unreserve) {
 		utxo->status = OUTPUT_STATE_AVAILABLE;
 		utxo->reserved_til = 0;
 	} else
-		utxo->reserved_til -= RESERVATION_INC;
+		utxo->reserved_til -= unreserve;
 
 	db_set_utxo(w->db, utxo);
 }
@@ -820,7 +821,8 @@ static struct peer *wallet_peer_load(struct wallet *w, const u64 dbid)
 	db_column_node_id(stmt, 1, &id);
 
 	addrstr = db_column_text(stmt, 2);
-	if (!parse_wireaddr_internal((const char*)addrstr, &addr, DEFAULT_PORT, false, false, true, NULL))
+	if (!parse_wireaddr_internal((const char*)addrstr, &addr, DEFAULT_PORT,
+				     false, false, true, true, NULL))
 		goto done;
 
 	/* FIXME: save incoming in db! */
@@ -969,7 +971,7 @@ void wallet_inflight_add(struct wallet *w, struct channel_inflight *inflight)
 	db_bind_amount_sat(stmt, 4, &inflight->funding->total_funds);
 	db_bind_amount_sat(stmt, 5, &inflight->funding->our_funds);
 	db_bind_psbt(stmt, 6, inflight->funding_psbt);
-	db_bind_tx(stmt, 7, inflight->last_tx->wtx);
+	db_bind_psbt(stmt, 7, inflight->last_tx->psbt);
 	db_bind_signature(stmt, 8, &inflight->last_sig.s);
 	db_exec_prepared_v2(stmt);
 	assert(!stmt->error);
@@ -1001,6 +1003,24 @@ void wallet_inflight_save(struct wallet *w,
 	db_exec_prepared_v2(take(stmt));
 }
 
+void wallet_channel_clear_inflights(struct wallet *w,
+				    struct channel *chan)
+{
+	struct db_stmt *stmt;
+	struct channel_inflight *inflight;
+
+	/* Remove all the inflights for the channel */
+	stmt = db_prepare_v2(w->db, SQL("DELETE FROM channel_funding_inflights"
+					" WHERE channel_id = ?"));
+	db_bind_u64(stmt, 0, chan->dbid);
+	db_exec_prepared_v2(take(stmt));
+
+	/* Empty out the list too */
+	while ((inflight = list_tail(&chan->inflights,
+				     struct channel_inflight, list)))
+		tal_free(inflight);
+}
+
 static struct channel_inflight *
 wallet_stmt2inflight(struct wallet *w, struct db_stmt *stmt,
 		     struct channel *chan)
@@ -1024,7 +1044,7 @@ wallet_stmt2inflight(struct wallet *w, struct db_stmt *stmt,
 				funding_sat,
 				our_funding_sat,
 				db_column_psbt(tmpctx, stmt, 5),
-				db_column_tx(tmpctx, stmt, 6),
+				db_column_psbt_to_tx(tmpctx, stmt, 6),
 				last_sig);
 
 	/* Pull out the serialized tx-sigs-received-ness */
@@ -1049,7 +1069,8 @@ static bool wallet_channel_load_inflights(struct wallet *w,
 					", last_sig" // 7
 					", funding_tx_remote_sigs_received" //8
 					" FROM channel_funding_inflights"
-					" WHERE channel_id = ?")); // ?0
+					" WHERE channel_id = ?" // ?0
+					" ORDER BY funding_feerate"));
 
 	db_bind_u64(stmt, 0, chan->dbid);
 	db_query_prepared(stmt);

@@ -60,16 +60,20 @@ void broadcast_tx(struct chain_topology *topo UNNEEDED,
 				 bool success UNNEEDED,
 				 const char *err))
 { fprintf(stderr, "broadcast_tx called!\n"); abort(); }
-/* Generated stub for channel_close_conn */
-void channel_close_conn(struct channel *channel UNNEEDED,
-			const char *why UNNEEDED)
-{ fprintf(stderr, "channel_close_conn called!\n"); abort(); }
 /* Generated stub for channel_tell_depth */
 bool channel_tell_depth(struct lightningd *ld UNNEEDED,
 				 struct channel *channel UNNEEDED,
 				 const struct bitcoin_txid *txid UNNEEDED,
 				 u32 depth UNNEEDED)
 { fprintf(stderr, "channel_tell_depth called!\n"); abort(); }
+/* Generated stub for channel_unsaved_close_conn */
+void channel_unsaved_close_conn(struct channel *channel UNNEEDED, const char *why UNNEEDED)
+{ fprintf(stderr, "channel_unsaved_close_conn called!\n"); abort(); }
+/* Generated stub for channel_update_reserve */
+void channel_update_reserve(struct channel *channel UNNEEDED,
+			    struct channel_config *their_config UNNEEDED,
+			    struct amount_sat funding_total UNNEEDED)
+{ fprintf(stderr, "channel_update_reserve called!\n"); abort(); }
 /* Generated stub for command_fail */
 struct command_result *command_fail(struct command *cmd UNNEEDED, errcode_t code UNNEEDED,
 				    const char *fmt UNNEEDED, ...)
@@ -1324,7 +1328,7 @@ static bool test_channel_crud(struct lightningd *ld, const tal_t *ctx)
 	mempat(scriptpubkey, tal_count(scriptpubkey));
 	c1.first_blocknum = 1;
 	parse_wireaddr_internal("localhost:1234", &addr, 0, false, false, false,
-				NULL);
+				true, NULL);
 	c1.final_key_idx = 1337;
 	p = new_peer(ld, 0, &id, &addr, false);
 	c1.peer = p;
@@ -1485,7 +1489,7 @@ static bool test_channel_inflight_crud(struct lightningd *ld, const tal_t *ctx)
 	pubkey_from_der(tal_hexdata(w, "02a1633cafcc01ebfb6d78e39f687a1f0995c62fc95f51ead10a02ee0be551b5dc", 66), 33, &pk);
 	node_id_from_pubkey(&id, &pk);
 	parse_wireaddr_internal("localhost:1234", &addr, 0, false, false, false,
-				NULL);
+				true, NULL);
 
 	/* new channel! */
 	p = new_peer(ld, 0, &id, &addr, false);
