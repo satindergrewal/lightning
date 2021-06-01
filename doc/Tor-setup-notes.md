@@ -38,7 +38,10 @@ export LIGHTNINGUSER=$(whoami)
 # Add tor service's user group to lightingd running user's group (i.e debian-tor).
 # In our case the same user logged in currently (i.e. satinder) will be running lightningd.
 # So, adding adding satinder to debian-tor group.
-usermod -a -G $TORGROUP $LIGHTNINGUSER
+sudo usermod -a -G $TORGROUP $LIGHTNINGUSER
+
+# Or you can also use this command directly
+sudo usermod -a -G debian-tor $(whoami)
 ```
 
 ### Logout/Login, or Restart
@@ -51,17 +54,6 @@ satinder adm cdrom sudo dip plugdev lpadmin sambashare debian-tor
 # Following command should just return nothing. If error, setup is not done correct
 satinder@ubuntu:~$ cat /run/tor/control.authcookie > /dev/null
 satinder@ubuntu:~$
-```
-
-### Add following to config
-
-```bash
-nano ~/.lightning/config
-
-proxy=127.0.0.1:9050
-bind-addr=127.0.0.1:9735
-addr=statictor:127.0.0.1:9051
-always-use-proxy=true
 ```
 
 ### After editing the /etc/tor/torrc file looks like this
@@ -80,7 +72,7 @@ HiddenServicePort 80 127.0.0.1:80
 # This is the lightningd service setup with tor hidden service
 HiddenServiceDir /var/lib/tor/lightningd-service_v3/
 HiddenServiceVersion 3
-HiddenServicePort 1234 127.0.0.1:9735
+HiddenServicePort 9735 127.0.0.1:9735
 ```
 
 ### Restart Tor service and check the onion v3 address
@@ -121,87 +113,88 @@ root@ubuntu:/var/lib/tor/lightningd-service_v3# cat hostname
 root@ubuntu:/var/lib/tor/lightningd-service_v3# 
 ```
 
+### Add following to config
+
+```bash
+nano ~/.lightning/config
+
+proxy=127.0.0.1:9050
+bind-addr=127.0.0.1:9735
+addr=4rn3inojrpfnre7ewaizrcdeqopy6dcgjyso5nmqu76r72fa2xmchvqd.onion:9735
+always-use-proxy=true
+```
 
 ### At the end just start lightningd server like before
 
 ```bash
-satinder@ubuntu:~/lightning$ ./lightningd/lightningd --log-level debug
-2021-05-30T15:53:47.149Z DEBUG   plugin-manager: started(7062) /home/satinder/lightning/lightningd/../plugins/autoclean
-2021-05-30T15:53:47.150Z DEBUG   plugin-manager: started(7063) /home/satinder/lightning/lightningd/../plugins/bcli
-2021-05-30T15:53:47.159Z DEBUG   plugin-manager: started(7064) /home/satinder/lightning/lightningd/../plugins/fetchinvoice
-2021-05-30T15:53:47.161Z DEBUG   plugin-manager: started(7065) /home/satinder/lightning/lightningd/../plugins/keysend
-2021-05-30T15:53:47.164Z DEBUG   plugin-manager: started(7066) /home/satinder/lightning/lightningd/../plugins/offers
-2021-05-30T15:53:47.165Z DEBUG   plugin-manager: started(7067) /home/satinder/lightning/lightningd/../plugins/pay
-2021-05-30T15:53:47.167Z DEBUG   plugin-manager: started(7068) /home/satinder/lightning/lightningd/../plugins/txprepare
-2021-05-30T15:53:47.177Z DEBUG   plugin-manager: started(7069) /home/satinder/lightning/lightningd/../plugins/spenderp
-2021-05-30T15:53:47.205Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_channeld
-2021-05-30T15:53:47.222Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_closingd
-2021-05-30T15:53:47.242Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_connectd
-2021-05-30T15:53:47.259Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_gossipd
-2021-05-30T15:53:47.274Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_hsmd
-2021-05-30T15:53:47.293Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_onchaind
-2021-05-30T15:53:47.314Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_openingd
-2021-05-30T15:53:47.323Z DEBUG   hsmd: pid 7077, msgfd 31
-2021-05-30T15:53:47.358Z INFO    database: Creating database
-2021-05-30T15:53:47.384Z DEBUG   connectd: pid 7078, msgfd 35
-2021-05-30T15:53:47.384Z DEBUG   hsmd: Client: Received message 11 from client
-2021-05-30T15:53:47.385Z UNUSUAL hsmd: HSM: created new hsm_secret file
-2021-05-30T15:53:47.385Z DEBUG   hsmd: Client: Received message 9 from client
-2021-05-30T15:53:47.385Z DEBUG   hsmd: new_client: 0
-2021-05-30T15:53:47.497Z DEBUG   connectd: Created IPv6 listener on port 9735
-2021-05-30T15:53:47.498Z DEBUG   connectd: Failed to connect 10 socket: Network is unreachable
-2021-05-30T15:53:47.498Z DEBUG   connectd: Created IPv4 listener on port 9735
-2021-05-30T15:53:47.498Z DEBUG   connectd: REPLY WIRE_CONNECTD_INIT_REPLY with 0 fds
-2021-05-30T15:53:47.500Z DEBUG   gossipd: pid 7079, msgfd 34
+satinder@ubuntu:~/lightning$ ./lightningd/lightningd --log-level debug --conf=$HOME/.lightning/config
+2021-06-01T19:39:41.276Z DEBUG   plugin-manager: started(36316) /home/satinder/lightning/lightningd/../plugins/autoclean
+2021-06-01T19:39:41.278Z DEBUG   plugin-manager: started(36317) /home/satinder/lightning/lightningd/../plugins/bcli
+2021-06-01T19:39:41.279Z DEBUG   plugin-manager: started(36318) /home/satinder/lightning/lightningd/../plugins/fetchinvoice
+2021-06-01T19:39:41.280Z DEBUG   plugin-manager: started(36319) /home/satinder/lightning/lightningd/../plugins/keysend
+2021-06-01T19:39:41.290Z DEBUG   plugin-manager: started(36320) /home/satinder/lightning/lightningd/../plugins/offers
+2021-06-01T19:39:41.293Z DEBUG   plugin-manager: started(36321) /home/satinder/lightning/lightningd/../plugins/pay
+2021-06-01T19:39:41.294Z DEBUG   plugin-manager: started(36322) /home/satinder/lightning/lightningd/../plugins/txprepare
+2021-06-01T19:39:41.296Z DEBUG   plugin-manager: started(36323) /home/satinder/lightning/lightningd/../plugins/spenderp
+2021-06-01T19:39:41.311Z UNUSUAL lightningd: You used `--addr=4rn3inojrpfnre7ewaizrcdeqopy6dcgjyso5nmqu76r72fa2xmchvqd.onion:9735` option with an .onion address, please use `--announce-addr` ! You are lucky in this node live some wizards and fairies, we have done this for you and announce, Be as hidden as wished
+2021-06-01T19:39:41.312Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_channeld
+2021-06-01T19:39:41.315Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_closingd
+2021-06-01T19:39:41.316Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_connectd
+2021-06-01T19:39:41.318Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_gossipd
+2021-06-01T19:39:41.320Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_hsmd
+2021-06-01T19:39:41.323Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_onchaind
+2021-06-01T19:39:41.325Z DEBUG   lightningd: testing /home/satinder/lightning/lightningd/lightning_openingd
+2021-06-01T19:39:41.327Z DEBUG   hsmd: pid 36331, msgfd 31
+2021-06-01T19:39:41.343Z DEBUG   connectd: pid 36332, msgfd 35
+2021-06-01T19:39:41.343Z DEBUG   hsmd: Client: Received message 11 from client
+2021-06-01T19:39:41.343Z DEBUG   hsmd: Client: Received message 9 from client
+2021-06-01T19:39:41.343Z DEBUG   hsmd: new_client: 0
+2021-06-01T19:39:41.353Z DEBUG   connectd: Proxy address: 127.0.0.1:9050
+2021-06-01T19:39:41.353Z DEBUG   connectd: Created IPv4 listener on port 9735
+2021-06-01T19:39:41.353Z DEBUG   connectd: REPLY WIRE_CONNECTD_INIT_REPLY with 0 fds
+2021-06-01T19:39:41.353Z DEBUG   gossipd: pid 36333, msgfd 34
 topo 0
-2021-05-30T15:53:47.510Z DEBUG   hsmd: Client: Received message 9 from client
-2021-05-30T15:53:47.510Z DEBUG   hsmd: new_client: 0
-2021-05-30T15:53:47.519Z DEBUG   gossipd: total store load time: 0 msec
-2021-05-30T15:53:47.519Z DEBUG   gossipd: gossip_store: Read 0/0/0/0 cannounce/cupdate/nannounce/cdelete from store (0 deleted) in 1 bytes
-2021-05-30T15:53:47.519Z DEBUG   gossipd: seeker: state = STARTING_UP New seeker
-2021-05-30T15:53:47.554Z INFO    plugin-bcli: bitcoin-cli initialized and connected to bitcoind.
+2021-06-01T19:39:41.358Z DEBUG   hsmd: Client: Received message 9 from client
+2021-06-01T19:39:41.358Z DEBUG   hsmd: new_client: 0
+2021-06-01T19:39:41.364Z INFO    plugin-bcli: bitcoin-cli initialized and connected to bitcoind.
 topo 1
-2021-05-30T15:53:47.554Z DEBUG   lightningd: All Bitcoin plugin commands registered
+2021-06-01T19:39:41.364Z DEBUG   lightningd: All Bitcoin plugin commands registered
 topo 2
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Smoothed feerate estimate for opening initialized to polled estimate 12500
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Feerate estimate for opening set to 12500 (was 0)
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Smoothed feerate estimate for mutual_close initialized to polled estimate 12500
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Feerate estimate for mutual_close set to 12500 (was 0)
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Smoothed feerate estimate for unilateral_close initialized to polled estimate 12500
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Feerate estimate for unilateral_close set to 12500 (was 0)
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Smoothed feerate estimate for delayed_to_us initialized to polled estimate 12500
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Feerate estimate for delayed_to_us set to 12500 (was 0)
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Smoothed feerate estimate for htlc_resolution initialized to polled estimate 12500
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Feerate estimate for htlc_resolution set to 12500 (was 0)
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Smoothed feerate estimate for penalty initialized to polled estimate 12500
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Feerate estimate for penalty set to 12500 (was 0)
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Smoothed feerate estimate for min_acceptable initialized to polled estimate 6250
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Feerate estimate for min_acceptable set to 6250 (was 0)
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Smoothed feerate estimate for max_acceptable initialized to polled estimate 125000
-2021-05-30T15:53:47.605Z DEBUG   lightningd: Feerate estimate for max_acceptable set to 125000 (was 0)
-2021-05-30T15:53:53.188Z DEBUG   lightningd: Adding block 8073896: 0000002ea48cbcc40f9f25e6214eb3e75814bc6885c8f3d25b1120484a384738
-2021-05-30T15:53:53.191Z DEBUG   wallet: Loaded 0 channels from DB
-2021-05-30T15:53:53.192Z DEBUG   plugin-autoclean: autocleaning not active
-2021-05-30T15:53:53.193Z DEBUG   connectd: REPLY WIRE_CONNECTD_ACTIVATE_REPLY with 0 fds
-2021-05-30T15:53:53.193Z INFO    lightningd: --------------------------------------------------
-2021-05-30T15:53:53.193Z INFO    lightningd: Server started with public key 03e45318266315810eaf9f53e4ecb4dd683ec3d274574e823ff5b81a7d9ab093f6, alias VIOLENTMASTER (color #03e453) and lightningd chipsln.0.0.0
-2021-05-30T15:53:53.194Z DEBUG   plugin-fetchinvoice: Killing plugin: disabled itself at init: offers not enabled in config
-2021-05-30T15:53:53.194Z DEBUG   plugin-offers: Killing plugin: disabled itself at init: offers not enabled in config
-2021-05-30T15:53:53.208Z DEBUG   lightningd: Adding block 8073897: 0000004fc861d1825991004ab068997a3558a35eb4ac2d682be8817d1fec662b
-2021-05-30T15:53:53.241Z DEBUG   lightningd: Adding block 8073898: 00000057afc4281572d706fca5b45bab5f0f4fb603a15238358cfc48cd60d4fc
-2021-05-30T15:53:53.259Z DEBUG   lightningd: Adding block 8073899: 0000001898dc3f981278567090df6549acbbd948ad80e76eef305c6297e06adc
-2021-05-30T15:53:53.277Z DEBUG   lightningd: Adding block 8073900: 0000006170b6a67b942cb29df219f26686b57ec6a7c2c924a0223915552cf739
-2021-05-30T15:53:53.295Z DEBUG   lightningd: Adding block 8073901: 00000039714c93afcf3a360cfb2615dd3b32483f5a78b9a7a1b8200341b9dd59
-2021-05-30T15:53:53.311Z DEBUG   lightningd: Adding block 8073902: 000000296a0c1b02fe740a2b8169bec8b4e808920196b5b013e9ef452ecf39d1
-2021-05-30T15:53:53.326Z DEBUG   lightningd: Adding block 8073903: 000000535d8dc0f0c96855eb8d33c7e1e678c4c5c673e412b33e93c2c5a9efb9
-2021-05-30T15:53:53.344Z DEBUG   lightningd: Adding block 8073904: 00000045351bdc0f7f8c1bfcba0e5b491fc3a4ee15904a8e35fc4542dfbb5a65
-2021-05-30T15:53:53.366Z DEBUG   lightningd: Adding block 8073905: 0000000a35c18ac829c861c33465cac856e027852e17c090ce3f2b2648836a8d
-2021-05-30T15:53:53.392Z DEBUG   lightningd: Adding block 8073906: 000000529a3baa1ccca2e8fa277208ca5438261558abfa44bd471954ff70550d
-2021-05-30T15:53:53.418Z DEBUG   lightningd: Adding block 8073907: 000000317076339f99c8d2842871537fd7f8eac8fa8b1a7b36ee91fee2cdb63f
-2021-05-30T15:53:53.441Z DEBUG   lightningd: Adding block 8073908: 0000002df76b8907f13830ce9235226fe4fb164b778659f1ec6e7c38bbdbd266
-2021-05-30T15:53:53.465Z DEBUG   lightningd: Adding block 8073909: 0000001ea8dc7d7f75f9207068c38376a5a2fa33bfea113c1c5e324fa598983d
-2021-05-30T15:53:53.486Z DEBUG   lightningd: Adding block 8073910: 000000114fd537e91a89433d2fd29c2ca988ea306fe8a5ad3ebc25c9b10ed60b
-2021-05-30T15:53:53.510Z DEBUG   lightningd: Adding block 8073911: 0000001a33e8d082bb8b30e99e4b4f75013df3475b6bfb98c768af86363d0ded
-2021-05-30T15:54:23.565Z DEBUG   lightningd: Adding block 8073912: 0000005267dc5e51f603f1fb4894a4e4a94ce78f80e7361df0feedfe4eb04200
+2021-06-01T19:39:41.365Z DEBUG   gossipd: gossip_store_compact_offline: 0 deleted, 0 copied
+2021-06-01T19:39:41.365Z DEBUG   gossipd: total store load time: 0 msec
+2021-06-01T19:39:41.365Z DEBUG   gossipd: gossip_store: Read 0/0/0/0 cannounce/cupdate/nannounce/cdelete from store (0 deleted) in 1 bytes
+2021-06-01T19:39:41.365Z DEBUG   gossipd: seeker: state = STARTING_UP New seeker
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Smoothed feerate estimate for opening initialized to polled estimate 12500
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Feerate estimate for opening set to 12500 (was 0)
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Smoothed feerate estimate for mutual_close initialized to polled estimate 12500
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Feerate estimate for mutual_close set to 12500 (was 0)
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Smoothed feerate estimate for unilateral_close initialized to polled estimate 12500
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Feerate estimate for unilateral_close set to 12500 (was 0)
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Smoothed feerate estimate for delayed_to_us initialized to polled estimate 12500
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Feerate estimate for delayed_to_us set to 12500 (was 0)
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Smoothed feerate estimate for htlc_resolution initialized to polled estimate 12500
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Feerate estimate for htlc_resolution set to 12500 (was 0)
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Smoothed feerate estimate for penalty initialized to polled estimate 12500
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Feerate estimate for penalty set to 12500 (was 0)
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Smoothed feerate estimate for min_acceptable initialized to polled estimate 6250
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Feerate estimate for min_acceptable set to 6250 (was 0)
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Smoothed feerate estimate for max_acceptable initialized to polled estimate 125000
+2021-06-01T19:39:41.393Z DEBUG   lightningd: Feerate estimate for max_acceptable set to 125000 (was 0)
+2021-06-01T19:39:41.436Z DEBUG   lightningd: Adding block 8090742: 000000506a7e4df9d0d9ef2c89b5d38bf0a65613f0333a989837019cd1f64a48
+2021-06-01T19:39:41.438Z DEBUG   wallet: Loaded 0 channels from DB
+2021-06-01T19:39:41.439Z DEBUG   plugin-autoclean: autocleaning not active
+2021-06-01T19:39:41.439Z DEBUG   connectd: REPLY WIRE_CONNECTD_ACTIVATE_REPLY with 0 fds
+2021-06-01T19:39:41.439Z INFO    lightningd: --------------------------------------------------
+2021-06-01T19:39:41.439Z INFO    lightningd: Server started with public key 03e45318266315810eaf9f53e4ecb4dd683ec3d274574e823ff5b81a7d9ab093f6, alias VIOLENTMASTER (color #03e453) and lightningd chipsln.0.0.0
+2021-06-01T19:39:41.440Z DEBUG   plugin-fetchinvoice: Killing plugin: disabled itself at init: offers not enabled in config
+2021-06-01T19:39:41.440Z DEBUG   plugin-offers: Killing plugin: disabled itself at init: offers not enabled in config
+2021-06-01T19:39:41.452Z DEBUG   lightningd: Adding block 8090743: 0000003e4cca5e26fe0d0ce842aa0d3640996c32429afbabe205932667acc015
+2021-06-01T19:39:41.466Z DEBUG   lightningd: Adding block 8090744: 00000029ea741b67a84d2524ee6c5bf476776941aea8a378a87af6573cb430da
+2021-06-01T19:39:41.480Z DEBUG   lightningd: Adding block 8090745: 0000000b95db2ffd75816f6bc57ced974fe2379295e6dd062f126fb0291e1534
+2021-06-01T19:39:41.493Z DEBUG   lightningd: Adding block 8090746: 00000020a33e7f8cf3ab29acddb5505de5c5304671178950240e5292c25efb4a
+2021-06-01T19:39:41.506Z DEBUG   lightningd: Adding block 8090747: 0000000da7f4c278e5f2fea59f7f8874564e66a9a1925a4d55fe3d9b22cc8370
+2021-06-01T19:39:41.517Z DEBUG   lightningd: Adding block 8090748: 00000058aaac43a81193cfc121d7b2e52a2eaf55548c2907ded567ef3aade53b
+2021-06-01T19:39:41.530Z DEBUG   lightningd: Adding block 8090749: 00000034c6e38829de3a4c14338e49cd1193a1f5673ee461210ec4ff4980ecf5
+2021-06-01T19:39:41.541Z DEBUG   lightningd: Adding block 8090750: 000000048c43bbe0efba94c9834b1208ad2c8fb08fb59cfaf17aebb2fdd06802
 2021-05-30T15:54:47.542Z DEBUG   gossipd: seeker: no peers, waiting
 ```
