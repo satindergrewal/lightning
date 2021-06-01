@@ -63,12 +63,6 @@ ControlPort 9051
 CookieAuthentication 1
 CookieAuthFileGroupReadable 1
 
-# This is just a test service, pointing to the local
-# nginx web server. Not needed in final setup.
-HiddenServiceDir /var/lib/tor/hidden_service/
-HiddenServiceVersion 3
-HiddenServicePort 80 127.0.0.1:80
-
 # This is the lightningd service setup with tor hidden service
 HiddenServiceDir /var/lib/tor/lightningd-service_v3/
 HiddenServiceVersion 3
@@ -96,24 +90,11 @@ May 30 07:54:51 ubuntu systemd[1]: Started Anonymizing overlay network for TCP (
 
 # Check the newly generated onion v3 address for lightningd service
 satinder@ubuntu:~$ sudo cat /var/lib/tor/lightningd-service_v3/hostname
-4rn3inojrpfnre7ewaizrcdeqopy6dcgjyso5nmqu76r72fa2xmchvqd.onion
-
-# Checking the other files, user permissions of this hidden service's files
-satinder@ubuntu:~$ sudo su
-root@ubuntu:/home/satinder# cd /var/lib/tor/lightningd-service_v3/
-root@ubuntu:/var/lib/tor/lightningd-service_v3# ls -lha
-total 20K
-drwx--S--- 2 debian-tor debian-tor 4.0K May 30 07:54 .
-drwx--S--- 4 debian-tor debian-tor 4.0K May 30 08:55 ..
--rw------- 1 debian-tor debian-tor   63 May 30 07:54 hostname
--rw------- 1 debian-tor debian-tor   64 May 30 07:54 hs_ed25519_public_key
--rw------- 1 debian-tor debian-tor   96 May 30 07:54 hs_ed25519_secret_key
-root@ubuntu:/var/lib/tor/lightningd-service_v3# cat hostname 
-4rn3inojrpfnre7ewaizrcdeqopy6dcgjyso5nmqu76r72fa2xmchvqd.onion
-root@ubuntu:/var/lib/tor/lightningd-service_v3# 
+4rn3inojrpfnre7ewaizrcdeqopy6dcgjyso5nmqu76r72fa2xmchvqd.onion 
 ```
 
 ### Add following to config
+Get your `.onion` address as shown earlier and use that in the lightning config file.
 
 ```bash
 nano ~/.lightning/config
