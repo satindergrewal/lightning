@@ -97,7 +97,8 @@ satinder@ubuntu:~$ sudo cat /var/lib/tor/lightningd-service_v3/hostname
 Get your `.onion` address as shown earlier and use that in the lightning config file.
 
 ```bash
-nano ~/.lightning/config
+mkdir -p ~/.chipsln/chips/
+nano ~/.chipsln/chips/config
 
 proxy=127.0.0.1:9050
 bind-addr=127.0.0.1:9735
@@ -108,7 +109,7 @@ always-use-proxy=true
 ### At the end just start lightningd server like before
 
 ```bash
-satinder@ubuntu:~/lightning$ ./lightningd/lightningd --log-level debug --conf=$HOME/.lightning/config
+satinder@ubuntu:~/lightning$ ./lightningd/lightningd --log-level debug
 2021-06-01T19:39:41.276Z DEBUG   plugin-manager: started(36316) /home/satinder/lightning/lightningd/../plugins/autoclean
 2021-06-01T19:39:41.278Z DEBUG   plugin-manager: started(36317) /home/satinder/lightning/lightningd/../plugins/bcli
 2021-06-01T19:39:41.279Z DEBUG   plugin-manager: started(36318) /home/satinder/lightning/lightningd/../plugins/fetchinvoice
