@@ -1,4 +1,3 @@
-
 # c-lightning Tor Setup
 
 - https://lightning.readthedocs.io/TOR.html
@@ -317,3 +316,9 @@ pi@raspberrypi:~ $ tail -f ~/.chips/debug.log
 ```
 
 It will keep updating with new blocks coming in from the network. To cancel just press `CTRL+C` to exit from this process.
+
+
+# Tor Monitoring service(s)
+
+You can try Nyx after you setup your tor hidden services to monitor Tor specific network traffic:
+https://nyx.torproject.org/#torrc
