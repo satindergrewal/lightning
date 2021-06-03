@@ -241,14 +241,10 @@ Additional options for `chips.conf` you will be able to use when there'll be mor
 onlynet=onion
 
 #Add seed nodes
-seednode=SOME_ONION_ADDRESS.onion
-seednode=SOME_ONION_ADDRESS.onion
-seednode=SOME_ONION_ADDRESS.onion
+seednode=syjmeab77as4hyhj.onion.onion
 
 #And/or add some nodes
-addnode=SOME_ONION_ADDRESS.onion
-addnode=SOME_ONION_ADDRESS.onion
-addnode=SOME_ONION_ADDRESS.onion
+addnode=syjmeab77as4hyhj.onion.onion
 ```
 
 Once `chips.conf` is setup, restart your `chipsd` daemon.
