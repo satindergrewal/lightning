@@ -229,7 +229,8 @@ bind=127.0.0.1
 externalip=d4mc5ld3jkyo5or2.onion
 ```
 
-**For future use only. Don't set the following now.**
+#### For future use only. Don't set the following now.
+
 Additional options for `chips.conf` you will be able to use when there'll be more hidden Chips services setup to help this network:
 
 ```shell
