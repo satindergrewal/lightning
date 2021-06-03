@@ -185,6 +185,10 @@ topo 2
 
 # Chips Tor Setup
 
+- https://bitcoin.stackexchange.com/questions/70069/how-can-i-setup-bitcoin-to-be-anonymous-with-tor
+- https://en.bitcoin.it/wiki/Setting_up_a_Tor_hidden_service
+- https://github.com/chips-blockchain/chips/blob/master/doc/tor.md
+
 If you configured `c-lightning` successfully with Tor, just add the following in `/etc/tor/torrc` Hidden Services section, just under where you configured `c-lightning` tor hidden service:
 
 ```shell
