@@ -1,4 +1,5 @@
 
+# c-lightning Tor Setup
 
 - https://lightning.readthedocs.io/TOR.html
 - https://2019.www.torproject.org/docs/tor-onion-service.html.en
@@ -180,3 +181,138 @@ topo 2
 2021-06-01T19:39:41.541Z DEBUG   lightningd: Adding block 8090750: 000000048c43bbe0efba94c9834b1208ad2c8fb08fb59cfaf17aebb2fdd06802
 2021-05-30T15:54:47.542Z DEBUG   gossipd: seeker: no peers, waiting
 ```
+
+
+# Chips Tor Setup
+
+If you configured `c-lightning` successfully with Tor, just add the following in `/etc/tor/torrc` Hidden Services section, just under where you configured `c-lightning` tor hidden service:
+
+```shell
+# Tor hidden service for Chips blockchain
+# Since Chips is old code fork from Bitcoin-Core, it only supports
+# version 2 of onion addresses, which are soon to
+# be obsolete https://blog.torproject.org/v2-deprecation-timeline
+# The ideal solution would be to also upgrade Chips-core software
+# to Bitcoin-Core's latest codebase to add latest upstream code support
+HiddenServiceDir /var/lib/tor/chips-service/
+HiddenServiceVersion 2
+HiddenServicePort 57777 127.0.0.1:57777
+```
+
+### Get Chips onion hidden service address
+Once above changes are done to `torrc`, restart `tor` service and get the generated v2 onion address for Chips hidden service:
+
+```shell
+# Restart tor service
+sudo systemctl restart tor
+
+# Get onion address for Chips hidden service
+sudo cat /var/lib/tor/chips-service/hostname
+d4mc5ld3jkyo5or2.onion
+```
+
+### Setup chips.conf to connect through tor
+
+```shell
+# Edit chips.conf
+nano ~/.chips/chips.conf
+
+# Then add the following at the end of this file
+
+proxy=127.0.0.1:9050
+listen=1
+bind=127.0.0.1
+externalip=d4mc5ld3jkyo5or2.onion
+```
+
+**For future use only. Don't set the following now.**
+Additional options for `chips.conf` you will be able to use when there'll be more hidden Chips services setup to help this network:
+
+```shell
+# If you want to connect your Chips node only through tor completly
+# and don't want any connections to be made over public network add the following
+# But this will require you to add .onion seed nodes too.
+# Otherwise you'll most probably have issues getting peers to connect to.
+onlynet=onion
+
+#Add seed nodes
+seednode=SOME_ONION_ADDRESS.onion
+seednode=SOME_ONION_ADDRESS.onion
+seednode=SOME_ONION_ADDRESS.onion
+
+#And/or add some nodes
+addnode=SOME_ONION_ADDRESS.onion
+addnode=SOME_ONION_ADDRESS.onion
+addnode=SOME_ONION_ADDRESS.onion
+```
+
+Once `chips.conf` is setup, restart your `chipsd` daemon.
+
+### Verify Chips tor connection
+To verify if you are able are getting blocks from the network and your node is connected through tor, you can use the command `getnetworkinfo`:
+
+```shell
+pi@raspberrypi:~ $ chips-cli getnetworkinfo
+{
+  "version": 169900,
+  "subversion": "/Satoshi:0.16.99/",
+  "protocolversion": 70016,
+  "localservices": "000000000000040d",
+  "localrelay": true,
+  "timeoffset": 0,
+  "networkactive": true,
+  "connections": 9,
+  "networks": [
+    {
+      "name": "ipv4",
+      "limited": false,
+      "reachable": true,
+      "proxy": "127.0.0.1:9050",
+      "proxy_randomize_credentials": true
+    },
+    {
+      "name": "ipv6",
+      "limited": false,
+      "reachable": true,
+      "proxy": "127.0.0.1:9050",
+      "proxy_randomize_credentials": true
+    },
+    {
+      "name": "onion",
+      "limited": false,
+      "reachable": true,
+      "proxy": "127.0.0.1:9050",
+      "proxy_randomize_credentials": true
+    }
+  ],
+  "relayfee": 0.00001000,
+  "incrementalfee": 0.00001000,
+  "localaddresses": [
+    {
+      "address": "d4mc5ld3jkyo5or2.onion",
+      "port": 57777,
+      "score": 4
+    }
+  ],
+  "warnings": "This is a pre-release test build - use at your own risk - do not use for mining or merchant applications"
+}
+```
+
+You can also check latest updates in chips' `debug.log` file:
+
+```shell
+pi@raspberrypi:~ $ tail -f ~/.chips/debug.log
+2021-06-03T12:44:29Z UpdateTip: new best=0000000bb2345c98b7ce36f0a020cc9aad23b894bb88e6cc151f4ef06706abd3 height=8104344 version=0x20000000 log2_work=75.981897 tx=8359473 date='2021-06-03T12:44:31Z' progress=1.000000 cache=0.0MiB(204txo)
+2021-06-03T12:44:37Z UpdateTip: new best=00000028a6f69f30c018c52acdfdf7737d360b013621e7e7605245414e73942a height=8104345 version=0x20000000 log2_work=75.981897 tx=8359474 date='2021-06-03T12:44:35Z' progress=1.000000 cache=0.0MiB(205txo)
+2021-06-03T12:44:40Z UpdateTip: new best=0000003922e6d642aeaf96f4cd9438b4c2e48c09d6438847bf0ad459db792d3c height=8104346 version=0x20000000 log2_work=75.981897 tx=8359475 date='2021-06-03T12:44:40Z' progress=1.000000 cache=0.0MiB(206txo)
+2021-06-03T12:44:48Z UpdateTip: new best=00000007281bd67c1ef14366f2e81ecaaa8ffd16f2422b515f6a03d066de0d92 height=8104347 version=0x20000000 log2_work=75.981897 tx=8359476 date='2021-06-03T12:44:47Z' progress=1.000000 cache=0.0MiB(207txo)
+2021-06-03T12:44:57Z Socks5() connect to 95.179.192.102:57777 failed: general failure
+2021-06-03T12:45:19Z UpdateTip: new best=0000000ec6915a165f94d0b72049ec35ebb00c61709f6fba50001bb91568af13 height=8104348 version=0x20000000 log2_work=75.981897 tx=8359477 date='2021-06-03T12:45:19Z' progress=1.000000 cache=0.0MiB(208txo)
+2021-06-03T12:45:21Z Socks5() connect to 145.239.149.173:57777 failed: general failure
+2021-06-03T12:45:21Z UpdateTip: new best=00000032d47a18a79e325a662287ecca810ecfbf346d6908c493b41e185734af height=8104349 version=0x20000000 log2_work=75.981897 tx=8359478 date='2021-06-03T12:45:20Z' progress=1.000000 cache=0.0MiB(209txo)
+2021-06-03T12:45:24Z UpdateTip: new best=000000172cb30e52f653a48803e4e040b745b1aa96b58055ce367296f5337ceb height=8104350 version=0x20000000 log2_work=75.981897 tx=8359479 date='2021-06-03T12:45:23Z' progress=1.000000 cache=0.0MiB(210txo)
+2021-06-03T12:45:25Z Socks5() connect to 178.63.53.110:57777 failed: general failure
+^C
+```
+
+It will keep updating with new blocks coming in from the network. To cancel just press `CTRL+C` to exit from this process.
