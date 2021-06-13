@@ -2,31 +2,21 @@
 #define LIGHTNING_GOSSIPD_BROADCAST_H
 #include "config.h"
 
-#include <ccan/intmap/intmap.h>
 #include <ccan/list/list.h>
 #include <ccan/short_types/short_types.h>
 #include <ccan/tal/tal.h>
 
-/* Common functionality to implement staggered broadcasts with replacement. */
-
-struct broadcast_state {
-	u64 next_index;
-	UINTMAP(struct queued_message *) broadcasts;
+/* This is nested inside a node, chan or half_chan; rewriting the store can
+ * cause it to change! */
+struct broadcastable {
+	/* This is also the offset within the gossip_store; even with 1M
+	 * channels we still have a factor of 8 before this wraps. */
+	u32 index;
+	u32 timestamp;
 };
 
-struct broadcast_state *new_broadcast_state(tal_t *ctx);
-
-/* Replace a queued message with @index, if it matches the type and
- * tag for the new message. The new message will be queued with the
- * next highest index. @index is updated to hold the index of the
- * newly queued message*/
-bool replace_broadcast(const tal_t *ctx,
-		       struct broadcast_state *bstate,
-		       u64 *index,
-		       const u8 *payload TAKES);
-
-
-const u8 *next_broadcast(struct broadcast_state *bstate, u64 *last_index);
-
-const u8 *get_broadcast(struct broadcast_state *bstate, u64 msgidx);
+static inline void broadcastable_init(struct broadcastable *bcast)
+{
+	bcast->index = 0;
+}
 #endif /* LIGHTNING_GOSSIPD_BROADCAST_H */

@@ -4,15 +4,17 @@
 
 struct lightningd;
 struct pubkey;
+struct wireaddr_internal;
 
-void connect_succeeded(struct lightningd *ld, const struct pubkey *id);
-void connect_failed(struct lightningd *ld, const struct pubkey *id,
-		    const char *error);
+/* Returns fd for gossipd to talk to connectd */
+int connectd_init(struct lightningd *ld);
+void connectd_activate(struct lightningd *ld);
 
-/* Gossipd was unable to connect to the peer */
-void peer_connection_failed(struct lightningd *ld, const u8 *msg);
-
-/* This simply means we asked to reach a peer, but we already have it */
-void peer_already_connected(struct lightningd *ld, const u8 *msg);
+void delay_then_reconnect(struct channel *channel, u32 seconds_delay,
+			  const struct wireaddr_internal *addrhint TAKES);
+void connect_succeeded(struct lightningd *ld, const struct peer *peer,
+		       bool incoming,
+		       const struct wireaddr_internal *addr);
+void gossip_connect_result(struct lightningd *ld, const u8 *msg);
 
 #endif /* LIGHTNING_LIGHTNINGD_CONNECT_CONTROL_H */

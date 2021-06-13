@@ -1,3 +1,4 @@
+#include "config.h"
 #include <assert.h>
 #include <ccan/build_assert/build_assert.h>
 #include <ccan/crypto/hkdf_sha256/hkdf_sha256.h>
@@ -20,11 +21,12 @@ static void hkdf_two_keys(struct secret *out1, struct secret *out2,
 {
 	/* BOLT #8:
 	 *
-	 *   * `HKDF(salt,ikm)`: a function is defined in [3](#reference-3),
-	 *      evaluated with a zero-length `info` field.
-	 *      * All invocations of the `HKDF` implicitly return `64-bytes`
-	 *        of cryptographic randomness using the extract-and-expand
-	 *        component of the `HKDF`.
+	 *  * `HKDF(salt,ikm)`: a function defined in
+	 *    `RFC 5869`<sup>[3](#reference-3)</sup>, evaluated with a
+	 *     zero-length `info` field
+	 *     * All invocations of `HKDF` implicitly return 64 bytes of
+	 *       cryptographic randomness using the extract-and-expand component
+	 *       of the `HKDF`.
 	 */
 	struct secret okm[2];
 
@@ -41,27 +43,28 @@ static void maybe_rotate_key(u64 *n, struct secret *k, struct secret *ck)
 
 	/* BOLT #8:
 	 *
-	 * A key is to be rotated after a party sends or decrypts
-	 * `1000` messages with it.  This can be properly accounted
+	 * A key is to be rotated after a party encrypts or decrypts 1000 times
+	 * with it (i.e. every 500 messages). This can be properly accounted
 	 * for by rotating the key once the nonce dedicated to it
-	 * exceeds `1000`.
+	 * exceeds 1000.
 	 */
 	if (*n != 1000)
 		return;
 
 	/* BOLT #8:
 	 *
-	 * Key rotation for a key `k` is performed according to the following:
+	 * Key rotation for a key `k` is performed according to the following
+	 * steps:
 	 *
-	 *   * Let `ck` be the chaining key obtained at the end of `Act Three`.
-	 *   * `ck', k' = HKDF(ck, k)`
-	 *   * Reset the nonce for the key to `n = 0`.
-	 *   * `k = k'`
-	 *   * `ck = ck'`
+	 * 1. Let `ck` be the chaining key obtained at the end of Act Three.
+	 * 2. `ck', k' = HKDF(ck, k)`
+	 * 3. Reset the nonce for the key to `n = 0`.
+	 * 4. `k = k'`
+	 * 5. `ck = ck'`
 	 */
 	hkdf_two_keys(&new_ck, &new_k, ck, k);
 #ifdef SUPERVERBOSE
-	status_trace("# 0x%s, 0x%s = HKDF(0x%s, 0x%s)",
+	status_debug("# 0x%s, 0x%s = HKDF(0x%s, 0x%s)",
 		     tal_hexstr(trc, &new_ck, sizeof(new_ck)),
 		     tal_hexstr(trc, &new_k, sizeof(new_k)),
 		     tal_hexstr(trc, ck, sizeof(*ck)),
@@ -76,9 +79,9 @@ static void le64_nonce(unsigned char *npub, u64 nonce)
 {
 	/* BOLT #8:
 	 *
-	 * ...with nonce `n` encoded as 32 zero bits followed by a
-	 * *little-endian* 64-bit value (this follows the Noise Protocol
-	 * convention, rather than our normal endian).
+	 * ...with nonce `n` encoded as 32 zero bits, followed by a
+	 * *little-endian* 64-bit value.  Note: this follows the Noise Protocol
+	 * convention, rather than our normal endian
 	 */
 	le64 le_nonce = cpu_to_le64(nonce);
 	const size_t zerolen = crypto_aead_chacha20poly1305_ietf_NPUBBYTES - sizeof(le_nonce);
@@ -105,10 +108,9 @@ u8 *cryptomsg_decrypt_body(const tal_t *ctx,
 
 	/* BOLT #8:
 	 *
-	 * * Decrypt `c` using `ChaCha20-Poly1305`, `rn`, and `rk` to
-	 *   obtain decrypted plaintext packet `p`.
-	 *
-	 *   * The nonce `rn` MUST be incremented after this step.
+	 * 5. Decrypt `c` (using `ChaCha20-Poly1305`, `rn`, and `rk`), to
+	 *    obtain decrypted plaintext packet `p`.
+	 *    * The nonce `rn` MUST be incremented after this step.
 	 */
 	if (crypto_aead_chacha20poly1305_ietf_decrypt(decrypted,
 						      &mlen, NULL,
@@ -125,41 +127,6 @@ u8 *cryptomsg_decrypt_body(const tal_t *ctx,
 	return decrypted;
 }
 
-static struct io_plan *peer_decrypt_body(struct io_conn *conn,
-					 struct peer_crypto_state *pcs)
-{
-	struct io_plan *plan;
-	u8 *in, *decrypted;
-
-	pcs->reading_body = false;
-
-	decrypted = cryptomsg_decrypt_body(pcs->in, &pcs->cs, pcs->in);
-	if (!decrypted)
-		return io_close(conn);
-
-	status_io(LOG_IO_IN, decrypted);
-
-	/* BOLT #1:
-	 *
-	 * A node MUST ignore a received message of unknown type, if that type
-	 * is odd.
-	 */
-	if (unlikely(is_unknown_msg_discardable(decrypted))) {
-		pcs->in = tal_free(pcs->in);
-		return peer_read_message(conn, pcs, pcs->next_in);
-	}
-
-	/* Steal cs->in: we free it after, and decrypted too unless
-	 * they steal but be careful not to touch anything after
-	 * next_in (could free itself) */
-	in = tal_steal(NULL, pcs->in);
-	pcs->in = NULL;
-
-	plan = pcs->next_in(conn, pcs->peer, decrypted);
-	tal_free(in);
-	return plan;
-}
-
 bool cryptomsg_decrypt_header(struct crypto_state *cs, u8 hdr[18], u16 *lenp)
 {
 	unsigned char npub[crypto_aead_chacha20poly1305_ietf_NPUBBYTES];
@@ -170,10 +137,9 @@ bool cryptomsg_decrypt_header(struct crypto_state *cs, u8 hdr[18], u16 *lenp)
 
 	/* BOLT #8:
 	 *
-	 *  * Let the encrypted length prefix be known as `lc`
-	 *
-	 *  * Decrypt `lc` using `ChaCha20-Poly1305`, `rn`, and `rk` to
-	 *    obtain size of the encrypted packet `l`.
+	 *  2. Let the encrypted length prefix be known as `lc`.
+	 *  3. Decrypt `lc` (using `ChaCha20-Poly1305`, `rn`, and `rk`), to
+	 *     obtain the size of the encrypted packet `l`.
 	 *    * A zero-length byte slice is to be passed as the AD
 	 *	(associated data).
 	 *    * The nonce `rn` MUST be incremented after this step.
@@ -191,57 +157,6 @@ bool cryptomsg_decrypt_header(struct crypto_state *cs, u8 hdr[18], u16 *lenp)
 	return true;
 }
 
-static struct io_plan *peer_decrypt_header(struct io_conn *conn,
-					   struct peer_crypto_state *pcs)
-{
-	u16 len;
-
-	if (!cryptomsg_decrypt_header(&pcs->cs, pcs->in, &len))
-		return io_close(conn);
-
-	tal_free(pcs->in);
-
-	pcs->reading_body = true;
-
-	/* BOLT #8:
-	 *
-	 * * Read _exactly_ `l+16` bytes from the network buffer, let
-	 *   the bytes be known as `c`.
-	 */
-	pcs->in = tal_arr(conn, u8, (u32)len + 16);
-	return io_read(conn, pcs->in, tal_count(pcs->in), peer_decrypt_body,
-		       pcs);
-}
-
-struct io_plan *peer_read_message(struct io_conn *conn,
-				  struct peer_crypto_state *pcs,
-				  struct io_plan *(*next)(struct io_conn *,
-							  struct peer *,
-							  u8 *msg))
-{
-	assert(!pcs->in);
-	/* BOLT #8:
-	 *
-	 * ### Decrypting Messages
-	 *
-	 * In order to decrypt the _next_ message in the network
-	 * stream, the following is done:
-	 *
-	 *  * Read _exactly_ `18-bytes` from the network buffer.
-	 */
-	pcs->reading_body = false;
-	pcs->in = tal_arr(conn, u8, 18);
-	pcs->next_in = next;
-	return io_read(conn, pcs->in, 18, peer_decrypt_header, pcs);
-}
-
-static struct io_plan *peer_write_done(struct io_conn *conn,
-				       struct peer_crypto_state *pcs)
-{
-	pcs->out = tal_free(pcs->out);
-	return pcs->next_out(conn, pcs->peer);
-}
-
 u8 *cryptomsg_encrypt_msg(const tal_t *ctx,
 			  struct crypto_state *cs,
 			  const u8 *msg TAKES)
@@ -256,26 +171,28 @@ u8 *cryptomsg_encrypt_msg(const tal_t *ctx,
 
 	/* BOLT #8:
 	 *
-	 * In order to encrypt a lightning message (`m`), given a
-	 * sending key (`sk`), and a nonce (`sn`), the following is done:
+	 * In order to encrypt and send a Lightning message (`m`) to the
+	 * network stream, given a sending key (`sk`) and a nonce (`sn`), the
+	 * following steps are completed:
 	 *
+	 *   1. Let `l = len(m)`.
+	 *      * where `len` obtains the length in bytes of the Lightning
+	 *        message
 	 *
-	 *   * let `l = len(m)`,
-	 *      where `len` obtains the length in bytes of the lightning message.
-	 *
-	 *   * Serialize `l` into `2-bytes` encoded as a big-endian integer.
+	 *   2. Serialize `l` into 2 bytes encoded as a big-endian integer.
 	 */
 	l = cpu_to_be16(mlen);
 
 	/* BOLT #8:
 	 *
-	 *   * Encrypt `l` using `ChaChaPoly-1305`, `sn`, and `sk` to obtain `lc`
-	 *     (`18-bytes`)
-	 *     * The nonce `sn` is encoded as a 96-bit little-endian number.
-	 *      As our decoded nonces a 64-bit, we encode the 96-bit nonce as
-	 *      follows: 32-bits of leading zeroes followed by a 64-bit value.
-	 * 	* The nonce `sn` MUST be incremented after this step.
-	 *     * A zero-length byte slice is to be passed as the AD
+	 * 3. Encrypt `l` (using `ChaChaPoly-1305`, `sn`, and `sk`), to obtain
+	 *    `lc` (18 bytes)
+	 *    * The nonce `sn` is encoded as a 96-bit little-endian number. As
+	 *      the decoded nonce is 64 bits, the 96-bit nonce is encoded as:
+	 *      32 bits of leading 0s followed by a 64-bit value.
+	 *        * The nonce `sn` MUST be incremented after this step.
+	 *    * A zero-length byte slice is to be passed as the AD (associated
+                data).
 	 */
 	le64_nonce(npub, cs->sn++);
 	ret = crypto_aead_chacha20poly1305_ietf_encrypt(out, &clen,
@@ -288,7 +205,7 @@ u8 *cryptomsg_encrypt_msg(const tal_t *ctx,
 	assert(ret == 0);
 	assert(clen == sizeof(l) + 16);
 #ifdef SUPERVERBOSE
-	status_trace("# encrypt l: cleartext=0x%s, AD=NULL, sn=0x%s, sk=0x%s => 0x%s",
+	status_debug("# encrypt l: cleartext=0x%s, AD=NULL, sn=0x%s, sk=0x%s => 0x%s",
 		     tal_hexstr(trc, &l, sizeof(l)),
 		     tal_hexstr(trc, npub, sizeof(npub)),
 		     tal_hexstr(trc, &cs->sk, sizeof(cs->sk)),
@@ -297,9 +214,9 @@ u8 *cryptomsg_encrypt_msg(const tal_t *ctx,
 
 	/* BOLT #8:
 	 *
-	 *   * Finally encrypt the message itself (`m`) using the same
-	 *     procedure used to encrypt the length prefix. Let
-	 *     encrypted ciphertext be known as `c`.
+	 *   4. Finally, encrypt the message itself (`m`) using the same
+	 *      procedure used to encrypt the length prefix. Let
+	 *      encrypted ciphertext be known as `c`.
 	 *
 	 *     * The nonce `sn` MUST be incremented after this step.
 	 */
@@ -313,11 +230,11 @@ u8 *cryptomsg_encrypt_msg(const tal_t *ctx,
 	assert(ret == 0);
 	assert(clen == mlen + 16);
 #ifdef SUPERVERBOSE
-	status_trace("# encrypt m: cleartext=0x%s, AD=NULL, sn=0x%s, sk=0x%s => 0x%s",
+	status_debug("# encrypt m: cleartext=0x%s, AD=NULL, sn=0x%s, sk=0x%s => 0x%s",
 		     tal_hexstr(trc, msg, mlen),
 		     tal_hexstr(trc, npub, sizeof(npub)),
 		     tal_hexstr(trc, &cs->sk, sizeof(cs->sk)),
-		     tal_hexstr(trc, out + 18, clen));
+		     tal_hexstr(trc, out + CRYPTOMSG_HDR_SIZE, clen));
 #endif
 
 	maybe_rotate_key(&cs->sn, &cs->sk, &cs->s_ck);
@@ -325,72 +242,4 @@ u8 *cryptomsg_encrypt_msg(const tal_t *ctx,
 	if (taken(msg))
 		tal_free(msg);
 	return out;
-}
-
-#if DEVELOPER
-static struct io_plan *peer_write_postclose(struct io_conn *conn,
-					    struct peer_crypto_state *pcs)
-{
-	pcs->out = tal_free(pcs->out);
-	dev_sabotage_fd(io_conn_fd(conn));
-	return pcs->next_out(conn, pcs->peer);
-}
-#endif
-
-struct io_plan *peer_write_message(struct io_conn *conn,
-				   struct peer_crypto_state *pcs,
-				   const u8 *msg,
-				   struct io_plan *(*next)(struct io_conn *,
-							   struct peer *))
-{
-	struct io_plan *(*post)(struct io_conn *, struct peer_crypto_state *);
-#if DEVELOPER
-	int type = fromwire_peektype(msg);
-#endif
-
-	assert(!pcs->out);
-
-	/* Important: this doesn't take msg! */
-	status_io(LOG_IO_OUT, msg);
-	pcs->out = cryptomsg_encrypt_msg(conn, &pcs->cs, msg);
-	pcs->next_out = next;
-
-	post = peer_write_done;
-
-#if DEVELOPER
-	switch (dev_disconnect(type)) {
-	case DEV_DISCONNECT_BEFORE:
-		dev_sabotage_fd(io_conn_fd(conn));
-		break;
-	case DEV_DISCONNECT_DROPPKT:
-		pcs->out = NULL; /* FALL THRU */
-	case DEV_DISCONNECT_AFTER:
-		post = peer_write_postclose;
-		break;
-	case DEV_DISCONNECT_BLACKHOLE:
-		dev_blackhole_fd(io_conn_fd(conn));
-		break;
-	case DEV_DISCONNECT_NORMAL:
-		break;
-	}
-#endif /* DEVELOPER */
-
-	/* BOLT #8:
-	 *   * Send `lc || c` over the network buffer.
-	 */
-	return io_write(conn, pcs->out, tal_count(pcs->out), post, pcs);
-}
-
-/* We read in two parts, so we might have started body. */
-bool peer_in_started(const struct io_conn *conn,
-		     const struct peer_crypto_state *cs)
-{
-	return io_plan_in_started(conn) || cs->reading_body;
-}
-
-void init_peer_crypto_state(struct peer *peer, struct peer_crypto_state *pcs)
-{
-	pcs->peer = peer;
-	pcs->out = pcs->in = NULL;
-	pcs->reading_body = false;
 }

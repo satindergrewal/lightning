@@ -1,0 +1,58 @@
+.TH "LIGHTNING-PLUGIN" "7" "" "" "lightning-plugin"
+.SH NAME
+lightning-plugin - Manage plugins with RPC
+.SH SYNOPSIS
+
+\fBplugin\fR command [parameter] [second_parameter]
+
+.SH DESCRIPTION
+
+The \fBplugin\fR RPC command allows to manage plugins without having to
+restart lightningd\. It takes 1 to 3 parameters: a command
+(start/stop/startdir/rescan/list) which describes the action to take and
+optionally one or two parameters which describes the plugin on which the
+action has to be taken\.
+
+
+The \fIstart\fR command takes a path as the first parameter and will load
+the plugin available from this path\.  Any additional parameters are
+passed to the plugin\. It will wait for the plugin to complete the
+handshake with \fBlightningd\fR for 20 seconds at the most\.
+
+
+The \fIstop\fR command takes a plugin name as parameter\. It will kill and
+unload the specified plugin\.
+
+
+The \fIstartdir\fR command takes a directory path as first parameter and will
+load all plugins this directory contains\. It will wait for each plugin to
+complete the handshake with \fBlightningd\fR for 20 seconds at the most\.
+
+
+The \fIrescan\fR command starts all not-already-loaded plugins from the
+default plugins directory (by default \fI~/\.lightning/plugins\fR)\.
+
+
+The \fIlist\fR command will return all the active plugins\.
+
+.SH RETURN VALUE
+
+On success, all subcommands but \fIstop\fR return an array \fIplugins\fR of
+objects, one by plugin\.
+Each object contains the name of the plugin (\fIname\fR field) and its
+status (\fIactive\fR boolean field)\. Since plugins are configured
+asynchronously, a freshly started plugin may not appear immediately\.
+
+
+On error, the reason why the action could not be taken upon the
+plugin is returned\.
+
+.SH AUTHOR
+
+Antoine Poinsot \fI<darosior@protonmail.com\fR> is mainly responsible\.
+
+.SH RESOURCES
+
+Main web site: \fIhttps://github.com/ElementsProject/lightning\fR
+
+\" SHA256STAMP:f4b405aa5a5bb8dde3b8947b7d6152ba5ac88108cde43c1375121e5c24555d30

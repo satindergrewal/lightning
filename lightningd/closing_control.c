@@ -1,133 +1,179 @@
+#include <bitcoin/feerate.h>
 #include <bitcoin/script.h>
-#include <closingd/gen_closing_wire.h>
+#include <closingd/closingd_wiregen.h>
 #include <common/close_tx.h>
+#include <common/fee_states.h>
 #include <common/initial_commit_tx.h>
+#include <common/per_peer_state.h>
 #include <common/utils.h>
 #include <errno.h>
+#include <gossipd/gossipd_wiregen.h>
 #include <inttypes.h>
+#include <lightningd/bitcoind.h>
 #include <lightningd/chaintopology.h>
 #include <lightningd/channel.h>
 #include <lightningd/closing_control.h>
+#include <lightningd/hsm_control.h>
 #include <lightningd/lightningd.h>
 #include <lightningd/log.h>
 #include <lightningd/options.h>
 #include <lightningd/peer_control.h>
 #include <lightningd/subd.h>
+#include <wire/common_wiregen.h>
 
-/* Is this better than the last tx we were holding?  This can happen
- * even without closingd misbehaving, if we have multiple,
- * interrupted, rounds of negotiation. */
-static bool better_closing_fee(struct lightningd *ld,
-			       struct channel *channel,
-			       const struct bitcoin_tx *tx)
+static struct amount_sat calc_tx_fee(struct amount_sat sat_in,
+				     const struct bitcoin_tx *tx)
 {
-	u64 weight, fee, last_fee, ideal_fee, min_fee;
-	s64 old_diff, new_diff;
-	size_t i;
+	struct amount_asset amt;
+	struct amount_sat fee = sat_in;
+	const u8 *oscript;
+	size_t scriptlen;
+	for (size_t i = 0; i < tx->wtx->num_outputs; i++) {
+		amt = bitcoin_tx_output_get_amount(tx, i);
+		oscript = bitcoin_tx_output_get_script(NULL, tx, i);
+		scriptlen = tal_bytelen(oscript);
+		tal_free(oscript);
+
+		if (chainparams->is_elements && scriptlen == 0)
+			continue;
+
+		/* Ignore outputs that are not denominated in our main
+		 * currency. */
+		if (!amount_asset_is_main(&amt))
+			continue;
+
+		if (!amount_sat_sub(&fee, fee, amount_asset_to_sat(&amt)))
+			fatal("Tx spends more than input %s? %s",
+			      type_to_string(tmpctx, struct amount_sat, &sat_in),
+			      type_to_string(tmpctx, struct bitcoin_tx, tx));
+	}
+	return fee;
+}
+
+/* Assess whether a proposed closing fee is acceptable. */
+static bool closing_fee_is_acceptable(struct lightningd *ld,
+				      struct channel *channel,
+				      const struct bitcoin_tx *tx)
+{
+	struct amount_sat fee, last_fee, min_fee;
+	u64 weight;
+	u32 min_feerate;
+	bool feerate_unknown;
 
 	/* Calculate actual fee (adds in eliminated outputs) */
-	fee = channel->funding_satoshi;
-	for (i = 0; i < tal_count(tx->output); i++)
-		fee -= tx->output[i].amount;
+	fee = calc_tx_fee(channel->funding, tx);
+	last_fee = calc_tx_fee(channel->funding, channel->last_tx);
 
-	last_fee = channel->funding_satoshi;
-	for (i = 0; i < tal_count(channel->last_tx); i++)
-		last_fee -= channel->last_tx->output[i].amount;
-
-	log_debug(channel->log, "Their actual closing tx fee is %"PRIu64
-		 " vs previous %"PRIu64, fee, last_fee);
+	log_debug(channel->log, "Their actual closing tx fee is %s"
+		 " vs previous %s",
+		  type_to_string(tmpctx, struct amount_sat, &fee),
+		  type_to_string(tmpctx, struct amount_sat, &last_fee));
 
 	/* Weight once we add in sigs. */
-	weight = measure_tx_weight(tx) + 74 * 2;
+	weight = bitcoin_tx_weight(tx) + bitcoin_tx_input_sig_weight() * 2;
 
-	min_fee = get_feerate(ld->topology, FEERATE_SLOW) * weight / 1000;
-	if (fee < min_fee) {
-		log_debug(channel->log, "... That's below our min %"PRIu64
-			 " for weight %"PRIu64" at feerate %u",
-			 min_fee, weight,
-			 get_feerate(ld->topology, FEERATE_SLOW));
+	/* If we don't have a feerate estimate, this gives feerate_floor */
+	min_feerate = feerate_min(ld, &feerate_unknown);
+
+	min_fee = amount_tx_fee(min_feerate, weight);
+	if (amount_sat_less(fee, min_fee)) {
+		log_debug(channel->log, "... That's below our min %s"
+			  " for weight %"PRIu64" at feerate %u",
+			  type_to_string(tmpctx, struct amount_sat, &fee),
+			  weight, min_feerate);
 		return false;
 	}
 
-	ideal_fee = get_feerate(ld->topology, FEERATE_NORMAL) * weight / 1000;
-
-	/* We prefer fee which is closest to our ideal. */
-	old_diff = imaxabs((s64)ideal_fee - (s64)last_fee);
-	new_diff = imaxabs((s64)ideal_fee - (s64)fee);
-
-	/* In case of a tie, prefer new over old: this covers the preference
+	/* Prefer new over old: this covers the preference
 	 * for a mutual close over a unilateral one. */
-	log_debug(channel->log, "... That's %s our ideal %"PRIu64,
-		 new_diff < old_diff
-		 ? "closer to"
-		 : new_diff > old_diff
-		 ? "further from"
-		 : "same distance to",
-		 ideal_fee);
 
-	return new_diff <= old_diff;
+	return true;
 }
 
 static void peer_received_closing_signature(struct channel *channel,
 					    const u8 *msg)
 {
-	secp256k1_ecdsa_signature sig;
+	struct bitcoin_signature sig;
 	struct bitcoin_tx *tx;
+	struct bitcoin_txid tx_id;
 	struct lightningd *ld = channel->peer->ld;
 
-	if (!fromwire_closing_received_signature(msg, msg, &sig, &tx)) {
+	if (!fromwire_closingd_received_signature(msg, msg, &sig, &tx)) {
 		channel_internal_error(channel, "Bad closing_received_signature %s",
 				       tal_hex(msg, msg));
 		return;
 	}
+	tx->chainparams = chainparams;
 
 	/* FIXME: Make sure signature is correct! */
-	if (better_closing_fee(ld, channel, tx)) {
-		channel_set_last_tx(channel, tx, &sig);
-		/* TODO(cdecker) Selectively save updated fields to DB */
+	if (closing_fee_is_acceptable(ld, channel, tx)) {
+		channel_set_last_tx(channel, tx, &sig, TX_CHANNEL_CLOSE);
 		wallet_channel_save(ld->wallet, channel);
 	}
 
+
+	// Send back the txid so we can update the billboard on selection.
+	bitcoin_txid(channel->last_tx, &tx_id);
 	/* OK, you can continue now. */
 	subd_send_msg(channel->owner,
-		      take(towire_closing_received_signature_reply(channel)));
+		      take(towire_closingd_received_signature_reply(channel, &tx_id)));
 }
 
 static void peer_closing_complete(struct channel *channel, const u8 *msg)
 {
-	/* FIXME: We should save this, to return to gossipd */
-	u64 gossip_index;
-
-	if (!fromwire_closing_complete(msg, &gossip_index)) {
+	if (!fromwire_closingd_complete(msg)) {
 		channel_internal_error(channel, "Bad closing_complete %s",
 				       tal_hex(msg, msg));
 		return;
 	}
 
+	/* Don't report spurious failure when closingd exits. */
+	channel_set_owner(channel, NULL);
+	/* Clear any transient negotiation messages */
+	channel_set_billboard(channel, false, NULL);
+
 	/* Retransmission only, ignore closing. */
 	if (channel->state == CLOSINGD_COMPLETE)
 		return;
 
-	drop_to_chain(channel->peer->ld, channel);
-	channel_set_state(channel, CLOSINGD_SIGEXCHANGE, CLOSINGD_COMPLETE);
+	/* Channel gets dropped to chain cooperatively. */
+	drop_to_chain(channel->peer->ld, channel, true);
+	channel_set_state(channel,
+			  CLOSINGD_SIGEXCHANGE,
+			  CLOSINGD_COMPLETE,
+			  REASON_UNKNOWN,
+			  "Closing complete");
 }
 
 static unsigned closing_msg(struct subd *sd, const u8 *msg, const int *fds UNUSED)
 {
-	enum closing_wire_type t = fromwire_peektype(msg);
+	enum closingd_wire t = fromwire_peektype(msg);
 
 	switch (t) {
-	case WIRE_CLOSING_RECEIVED_SIGNATURE:
+	case WIRE_CLOSINGD_RECEIVED_SIGNATURE:
 		peer_received_closing_signature(sd->channel, msg);
 		break;
 
-	case WIRE_CLOSING_COMPLETE:
+	case WIRE_CLOSINGD_COMPLETE:
 		peer_closing_complete(sd->channel, msg);
 		break;
 
 	/* We send these, not receive them */
-	case WIRE_CLOSING_INIT:
-	case WIRE_CLOSING_RECEIVED_SIGNATURE_REPLY:
+	case WIRE_CLOSINGD_INIT:
+	case WIRE_CLOSINGD_RECEIVED_SIGNATURE_REPLY:
+		break;
+	}
+
+	switch ((enum common_wire)t) {
+#if DEVELOPER
+	case WIRE_CUSTOMMSG_IN:
+		handle_custommsg_in(sd->ld, sd->node_id, msg);
+		break;
+#else
+	case WIRE_CUSTOMMSG_IN:
+#endif
+	/* We send these. */
+	case WIRE_CUSTOMMSG_OUT:
 		break;
 	}
 
@@ -135,55 +181,81 @@ static unsigned closing_msg(struct subd *sd, const u8 *msg, const int *fds UNUSE
 }
 
 void peer_start_closingd(struct channel *channel,
-			 struct crypto_state *cs,
-			 u64 gossip_index,
-			 int peer_fd, int gossip_fd,
-			 bool reconnected)
+			 struct per_peer_state *pps,
+			 bool reconnected,
+			 const u8 *channel_reestablish)
 {
 	u8 *initmsg;
-	u64 minfee, startfee, feelimit;
+	u32 feerate;
+	struct amount_sat minfee, startfee, feelimit;
 	u64 num_revocations;
-	u64 funding_msatoshi, our_msatoshi, their_msatoshi;
+	struct amount_msat their_msat;
+	int hsmfd;
+	struct secret last_remote_per_commit_secret;
 	struct lightningd *ld = channel->peer->ld;
+	u32 final_commit_feerate;
 
-	if (!channel->remote_shutdown_scriptpubkey) {
+	if (!channel->shutdown_scriptpubkey[REMOTE]) {
 		channel_internal_error(channel,
 				       "Can't start closing: no remote info");
 		return;
 	}
 
-	channel_set_owner(channel, new_channel_subd(ld,
+	hsmfd = hsm_get_client_fd(ld, &channel->peer->id, channel->dbid,
+				  HSM_CAP_SIGN_CLOSING_TX
+				  | HSM_CAP_COMMITMENT_POINT);
+
+	channel_set_owner(channel,
+			  new_channel_subd(ld,
 					   "lightning_closingd",
-					   channel, channel->log,
-					   closing_wire_type_name, closing_msg,
+					   channel, &channel->peer->id,
+					   channel->log, true,
+					   closingd_wire_name, closing_msg,
 					   channel_errmsg,
 					   channel_set_billboard,
-					   take(&peer_fd), take(&gossip_fd),
+					   take(&pps->peer_fd),
+					   take(&pps->gossip_fd),
+					   take(&pps->gossip_store_fd),
+					   take(&hsmfd),
 					   NULL));
+
 	if (!channel->owner) {
-		log_unusual(channel->log, "Could not subdaemon closing: %s",
+		log_broken(channel->log, "Could not subdaemon closing: %s",
 			    strerror(errno));
-		channel_fail_transient(channel, "Failed to subdaemon closing");
+		channel_fail_reconnect_later(channel,
+					     "Failed to subdaemon closing");
 		return;
 	}
 
 	/* BOLT #2:
 	 *
-	 * A sending node MUST set `fee_satoshis` lower than or equal
-	 * to the base fee of the final commitment transaction as
-	 * calculated in [BOLT
-	 * #3](03-transactions.md#fee-calculation).
+	 * The sending node:
+	 *  - MUST set `fee_satoshis` less than or equal to the base
+	 *    fee of the final commitment transaction, as calculated in
+	 *    [BOLT #3](03-transactions.md#fee-calculation).
 	 */
-	feelimit = commit_tx_base_fee(channel->channel_info.feerate_per_kw[LOCAL],
-				      0);
+	final_commit_feerate = get_feerate(channel->fee_states,
+					   channel->opener, LOCAL);
+	feelimit = commit_tx_base_fee(final_commit_feerate, 0,
+				      channel->option_anchor_outputs);
 
-	minfee = commit_tx_base_fee(get_feerate(ld->topology, FEERATE_SLOW), 0);
-	startfee = commit_tx_base_fee(get_feerate(ld->topology, FEERATE_NORMAL),
-				      0);
+	/* Pick some value above slow feerate (or min possible if unknown) */
+	minfee = commit_tx_base_fee(feerate_min(ld, NULL), 0,
+				    channel->option_anchor_outputs);
 
-	if (startfee > feelimit)
+	/* If we can't determine feerate, start at half unilateral feerate. */
+	feerate = mutual_close_feerate(ld->topology);
+	if (!feerate) {
+		feerate = final_commit_feerate / 2;
+		if (feerate < feerate_floor())
+			feerate = feerate_floor();
+	}
+	startfee = commit_tx_base_fee(feerate, 0,
+				      channel->option_anchor_outputs);
+
+	if (amount_sat_greater(startfee, feelimit))
 		startfee = feelimit;
-	if (minfee > feelimit)
+	if (amount_sat_greater(minfee, feelimit))
 		minfee = feelimit;
 
 	num_revocations
@@ -191,36 +263,77 @@ void peer_start_closingd(struct channel *channel,
 
 	/* BOLT #3:
 	 *
-	 * The amounts for each output MUST BE rounded down to whole satoshis.
+	 * Each node offering a signature:
+	 *  - MUST round each output down to whole satoshis.
 	 */
-	/* Convert unit */
-	funding_msatoshi = channel->funding_satoshi * 1000;
 	/* What is not ours is theirs */
-	our_msatoshi = channel->our_msatoshi;
-	their_msatoshi = funding_msatoshi - our_msatoshi;
-	initmsg = towire_closing_init(tmpctx,
-				      cs,
-				      gossip_index,
-				      &channel->seed,
-				      &channel->funding_txid,
-				      channel->funding_outnum,
-				      channel->funding_satoshi,
-				      &channel->channel_info.remote_fundingkey,
-				      channel->funder,
-				      our_msatoshi / 1000, /* Rounds down */
-				      their_msatoshi / 1000, /* Rounds down */
-				      channel->our_config.dust_limit_satoshis,
-				      minfee, feelimit, startfee,
-				      p2wpkh_for_keyidx(tmpctx, ld,
-							channel->final_key_idx),
-				      channel->remote_shutdown_scriptpubkey,
-				      reconnected,
-				      channel->next_index[LOCAL],
-				      channel->next_index[REMOTE],
-				      num_revocations,
-				      deprecated_apis);
+	if (!amount_sat_sub_msat(&their_msat,
+				 channel->funding, channel->our_msat)) {
+		log_broken(channel->log, "our_msat overflow funding %s minus %s",
+			  type_to_string(tmpctx, struct amount_sat,
+					 &channel->funding),
+			  type_to_string(tmpctx, struct amount_msat,
+					 &channel->our_msat));
+		channel_fail_permanent(channel,
+				       REASON_LOCAL,
+				       "our_msat overflow on closing");
+		return;
+	}
+
+	/* BOLT #2:
+	 *     - if `next_revocation_number` equals 0:
+	 *       - MUST set `your_last_per_commitment_secret` to all zeroes
+	 *     - otherwise:
+	 *       - MUST set `your_last_per_commitment_secret` to the last
+	 *         `per_commitment_secret` it received
+	 */
+	if (num_revocations == 0)
+		memset(&last_remote_per_commit_secret, 0,
+		       sizeof(last_remote_per_commit_secret));
+	else if (!shachain_get_secret(&channel->their_shachain.chain,
+				      num_revocations-1,
+				      &last_remote_per_commit_secret)) {
+		channel_fail_permanent(channel,
+				       REASON_LOCAL,
+				       "Could not get revocation secret %"PRIu64,
+				       num_revocations-1);
+		return;
+	}
+	initmsg = towire_closingd_init(tmpctx,
+				       chainparams,
+				       pps,
+				       &channel->cid,
+				       &channel->funding_txid,
+				       channel->funding_outnum,
+				       channel->funding,
+				       &channel->local_funding_pubkey,
+				       &channel->channel_info.remote_fundingkey,
+				       channel->opener,
+				       amount_msat_to_sat_round_down(channel->our_msat),
+				       amount_msat_to_sat_round_down(their_msat),
+				       channel->our_config.dust_limit,
+				       minfee, feelimit, startfee,
+				       channel->shutdown_scriptpubkey[LOCAL],
+				       channel->shutdown_scriptpubkey[REMOTE],
+				       channel->closing_fee_negotiation_step,
+				       channel->closing_fee_negotiation_step_unit,
+				       reconnected,
+				       channel->next_index[LOCAL],
+				       channel->next_index[REMOTE],
+				       num_revocations,
+				       channel_reestablish,
+				       &last_remote_per_commit_secret,
+				       IFDEV(ld->dev_fast_gossip, false),
+				       channel->shutdown_wrong_funding);
 
 	/* We don't expect a response: it will give us feedback on
 	 * signatures sent and received, then closing_complete. */
 	subd_send_msg(channel->owner, take(initmsg));
+
+	/* Now tell gossipd that we're closing and that neither direction should
+	 * be used. */
+	if (channel->scid)
+		subd_send_msg(channel->peer->ld->gossip,
+			      take(towire_gossipd_local_channel_close(
+				  tmpctx, channel->scid)));
 }

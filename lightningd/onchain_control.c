@@ -1,16 +1,18 @@
+#include <bitcoin/feerate.h>
 #include <bitcoin/script.h>
 #include <common/key_derive.h>
+#include <common/utils.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <lightningd/chaintopology.h>
-#include <lightningd/lightningd.h>
+#include <lightningd/coin_mvts.h>
+#include <lightningd/hsm_control.h>
 #include <lightningd/log.h>
 #include <lightningd/onchain_control.h>
 #include <lightningd/peer_control.h>
 #include <lightningd/subd.h>
 #include <lightningd/watch.h>
-#include <onchaind/gen_onchain_wire.h>
-#include <onchaind/onchain_wire.h>
+#include <wire/wire_sync.h>
 
 /* We dump all the known preimages when onchaind starts up. */
 static void onchaind_tell_fulfill(struct channel *channel)
@@ -28,12 +30,19 @@ static void onchaind_tell_fulfill(struct channel *channel)
 
 		/* BOLT #5:
 		 *
-		 * If the node receives (or already knows) a payment preimage
-		 * for an unresolved HTLC output it was offered for which it
-		 * has committed to an outgoing HTLC, it MUST *resolve* the
-		 * output by spending it.  Otherwise, if the other node is not
-		 * irrevocably committed to the HTLC, it MUST NOT *resolve*
-		 * the output by spending it.
+		 * A local node:
+
+		 *  - if it receives (or already possesses) a payment preimage
+		 *  for an unresolved HTLC output that it has been offered AND
+		 *  for which it has committed to an outgoing HTLC:
+		 *    - MUST *resolve* the output by spending it, using the
+		 *      HTLC-success transaction.
+		 *    - MUST NOT reveal its own preimage when it's not the final recipient...
+		 *    - MUST resolve the output of that HTLC-success transaction.
+		 *  - otherwise:
+		 *      - if the *remote node* is NOT irrevocably committed to
+		 *        the HTLC:
+		 *        - MUST NOT *resolve* the output by spending it.
 		 */
 
 		/* We only set preimage once it's irrevocably committed, and
@@ -42,59 +51,129 @@ static void onchaind_tell_fulfill(struct channel *channel)
 		if (!hin->preimage)
 			continue;
 
-		msg = towire_onchain_known_preimage(channel, hin->preimage);
+		/* Sooo these are *probably* replays since they're coming
+		 * from the database but it's hard to be sure since we update
+		 * the database before notifying onchaind about them.
+		 * There's a *very* rare chance that we'll not log them,
+		 * only in that we only make ledger records as a result of this call
+		 * iff the output isn't deemed 'trackable'. So if we do miss a
+		 * ledger record as a result of this decision, it's guaranteed to be
+		 * impreceptibly tiny *and* not show up anywhere else in the node's
+		 * utxo set.
+		 *
+		 * Aka a reconciliator's nightmare.
+		 * The alternative is to double-count *every* ignored htlc output
+		 * It's easier to delete than find a missing, but I'm banking on
+		 * the rarity of failure here. (hahaha) */
+		msg = towire_onchaind_known_preimage(channel, hin->preimage, false);
 		subd_send_msg(channel->owner, take(msg));
 	}
 }
 
-static void handle_onchain_init_reply(struct channel *channel, const u8 *msg)
+static void handle_onchain_init_reply(struct channel *channel, const u8 *msg UNUSED)
 {
 	/* FIXME: We may already be ONCHAIN state when we implement restart! */
-	channel_set_state(channel, FUNDING_SPEND_SEEN, ONCHAIN);
-
-	/* Tell it about any preimages we know. */
-	onchaind_tell_fulfill(channel);
+	channel_set_state(channel,
+			  FUNDING_SPEND_SEEN,
+			  ONCHAIN,
+			  REASON_UNKNOWN,
+			  "Onchain init reply");
 }
 
-static enum watch_result onchain_tx_watched(struct channel *channel,
+/**
+ * Notify onchaind about the depth change of the watched tx.
+ */
+static void onchain_tx_depth(struct channel *channel,
+			     const struct bitcoin_txid *txid,
+			     unsigned int depth,
+			     bool is_replay)
+{
+	u8 *msg;
+	msg = towire_onchaind_depth(channel, txid, depth, is_replay);
+	subd_send_msg(channel->owner, take(msg));
+}
+
+/**
+ * Entrypoint for the txwatch callback, calls onchain_tx_depth.
+ */
+static enum watch_result onchain_tx_watched(struct lightningd *ld,
+					    struct channel *channel,
+					    const struct bitcoin_txid *txid,
 					    const struct bitcoin_tx *tx,
 					    unsigned int depth)
 {
-	u8 *msg;
-	struct bitcoin_txid txid;
+	u32 blockheight = get_block_height(ld->topology);
+
+	if (tx != NULL) {
+		struct bitcoin_txid txid2;
+
+		bitcoin_txid(tx, &txid2);
+		if (!bitcoin_txid_eq(txid, &txid2)) {
+			channel_internal_error(channel, "Txid for %s is not %s",
+					       type_to_string(tmpctx,
+							      struct bitcoin_tx,
+							      tx),
+					       type_to_string(tmpctx,
+							      struct bitcoin_txid,
+							      txid));
+			return DELETE_WATCH;
+		}
+	}
 
 	if (depth == 0) {
 		log_unusual(channel->log, "Chain reorganization!");
 		channel_set_owner(channel, NULL);
 
-		/* FIXME!
-		topology_rescan(peer->ld->topology, peer->funding_txid);
-		*/
-
 		/* We will most likely be freed, so this is a noop */
 		return KEEP_WATCHING;
 	}
 
-	bitcoin_txid(tx, &txid);
-	msg = towire_onchain_depth(channel, &txid, depth);
-	subd_send_msg(channel->owner, take(msg));
+	/* Store the channeltx so we can replay later */
+	wallet_channeltxs_add(ld->wallet, channel,
+			      WIRE_ONCHAIND_DEPTH, txid, 0, blockheight);
+
+	onchain_tx_depth(channel, txid, depth, false);
 	return KEEP_WATCHING;
 }
 
 static void watch_tx_and_outputs(struct channel *channel,
 				 const struct bitcoin_tx *tx);
 
+/**
+ * Notify onchaind that an output was spent and register new watches.
+ */
+static void onchain_txo_spent(struct channel *channel, const struct bitcoin_tx *tx, size_t input_num, u32 blockheight, bool is_replay)
+{
+	u8 *msg;
+	/* Onchaind needs all inputs, since it uses those to compare
+	 * with existing spends (which can vary, with feerate changes). */
+	struct tx_parts *parts = tx_parts_from_wally_tx(tmpctx, tx->wtx,
+							-1, -1);
+
+	watch_tx_and_outputs(channel, tx);
+
+	msg = towire_onchaind_spent(channel, parts, input_num, blockheight, is_replay);
+	subd_send_msg(channel->owner, take(msg));
+
+}
+
+/**
+ * Entrypoint for the txowatch callback, stores tx and calls onchain_txo_spent.
+ */
 static enum watch_result onchain_txo_watched(struct channel *channel,
 					     const struct bitcoin_tx *tx,
 					     size_t input_num,
 					     const struct block *block)
 {
-	u8 *msg;
+	struct bitcoin_txid txid;
+	bitcoin_txid(tx, &txid);
 
-	watch_tx_and_outputs(channel, tx);
+	/* Store the channeltx so we can replay later */
+	wallet_channeltxs_add(channel->peer->ld->wallet, channel,
+			      WIRE_ONCHAIND_SPENT, &txid, input_num,
+			      block->height);
 
-	msg = towire_onchain_spent(channel, tx, input_num, block->height);
-	subd_send_msg(channel->owner, take(msg));
+	onchain_txo_spent(channel, tx, input_num, block->height, false);
 
 	/* We don't need to keep watching: If this output is double-spent
 	 * (reorg), we'll get a zero depth cb to onchain_tx_watched, and
@@ -116,22 +195,101 @@ static void watch_tx_and_outputs(struct channel *channel,
 	txw = watch_tx(channel->owner, ld->topology, channel, tx,
 		       onchain_tx_watched);
 
-	for (size_t i = 0; i < tal_count(tx->output); i++)
+	for (size_t i = 0; i < tx->wtx->num_outputs; i++)
 		watch_txo(txw, ld->topology, channel, &txid, i,
 			  onchain_txo_watched);
 }
 
-static void handle_onchain_broadcast_tx(struct channel *channel, const u8 *msg)
+static void handle_onchain_log_coin_move(struct channel *channel, const u8 *msg)
+{
+	struct chain_coin_mvt *mvt = tal(NULL, struct chain_coin_mvt);
+
+	if (!fromwire_onchaind_notify_coin_mvt(msg, mvt)) {
+		channel_internal_error(channel, "Invalid onchain notify_coin_mvt");
+		return;
+	}
+
+	mvt->account_name =
+		type_to_string(mvt, struct channel_id, &channel->cid);
+	notify_chain_mvt(channel->peer->ld, mvt);
+	tal_free(mvt);
+}
+
+/** handle_onchain_broadcast_rbf_tx_cb
+ *
+ * @brief suppresses the rebroadcast of a
+ * transaction.
+ *
+ * @desc when using the `bitcoin_tx` function,
+ * if a callback is not given, the transaction
+ * will be rebroadcast automatically by
+ * chaintopology.
+ * However, in the case of an RBF transaction
+ * from `onchaind`, `onchaind` will periodically
+ * create a new, higher-fee replacement, thus
+ * `onchaind` will trigger rebroadcast (with a
+ * higher fee) by itself, which the `lightningd`
+ * chaintopology should not repeat.
+ * This callback exists to suppress the
+ * rebroadcast behavior of chaintopology.
+ *
+ * @param channel - the channel for which the
+ * transaction was broadcast.
+ * @param success - whether the tx was broadcast.
+ * @param err - the error received from the
+ * underlying sendrawtx.
+ */
+static void handle_onchain_broadcast_rbf_tx_cb(struct channel *channel,
+					       bool success,
+					       const char *err)
+{
+	/* Victory is boring.  */
+	if (success)
+		return;
+
+	/* Failure is unusual but not broken: it is possible that just
+	 * as we were about to broadcast, a new block came in which
+	 * contains a previous version of the transaction, thus
+	 * causing the higher-fee replacement to fail broadcast.
+	 *
+	 * ...or it could be a bug in onchaind which prevents it from
+	 * successfully RBFing out the transaction, in which case we
+	 * should log it for devs to check.
+	 */
+	log_unusual(channel->log,
+		    "Broadcast of RBF tx failed, "
+		    "did a new block just come in? "
+		    "error: %s",
+		    err);
+}
+
+static void handle_onchain_broadcast_tx(struct channel *channel,
+					const u8 *msg)
 {
 	struct bitcoin_tx *tx;
+	struct wallet *w = channel->peer->ld->wallet;
+	struct bitcoin_txid txid;
+	enum wallet_tx_type type;
+	bool is_rbf;
 
-	if (!fromwire_onchain_broadcast_tx(msg, msg, &tx)) {
+	if (!fromwire_onchaind_broadcast_tx(msg, msg, &tx, &type, &is_rbf)) {
 		channel_internal_error(channel, "Invalid onchain_broadcast_tx");
 		return;
 	}
 
+	tx->chainparams = chainparams;
+
+	bitcoin_txid(tx, &txid);
+	wallet_transaction_add(w, tx->wtx, 0, 0);
+	wallet_transaction_annotate(w, &txid, type, channel->dbid);
+
 	/* We don't really care if it fails, we'll respond via watch. */
-	broadcast_tx(channel->peer->ld->topology, channel, tx, NULL);
+	/* If the onchaind signals this as RBF-able, then we also
+	 * set allowhighfees, as the transaction may be RBFed into
+	 * high feerates as protection against the MAD-HTLC attack.  */
+	broadcast_tx_ahf(channel->peer->ld->topology, channel,
+			 tx, is_rbf,
+			 is_rbf ? &handle_onchain_broadcast_rbf_tx_cb : NULL);
 }
 
 static void handle_onchain_unwatch_tx(struct channel *channel, const u8 *msg)
@@ -139,7 +297,7 @@ static void handle_onchain_unwatch_tx(struct channel *channel, const u8 *msg)
 	struct bitcoin_txid txid;
 	struct txwatch *txw;
 
-	if (!fromwire_onchain_unwatch_tx(msg, &txid)) {
+	if (!fromwire_onchaind_unwatch_tx(msg, &txid)) {
 		channel_internal_error(channel, "Invalid onchain_unwatch_tx");
 		return;
 	}
@@ -156,7 +314,7 @@ static void handle_extracted_preimage(struct channel *channel, const u8 *msg)
 {
 	struct preimage preimage;
 
-	if (!fromwire_onchain_extracted_preimage(msg, &preimage)) {
+	if (!fromwire_onchaind_extracted_preimage(msg, &preimage)) {
 		channel_internal_error(channel, "Invalid extracted_preimage");
 		return;
 	}
@@ -168,18 +326,20 @@ static void handle_missing_htlc_output(struct channel *channel, const u8 *msg)
 {
 	struct htlc_stub htlc;
 
-	if (!fromwire_onchain_missing_htlc_output(msg, &htlc)) {
+	if (!fromwire_onchaind_missing_htlc_output(msg, &htlc)) {
 		channel_internal_error(channel, "Invalid missing_htlc_output");
 		return;
 	}
 
 	/* BOLT #5:
 	 *
-	 * For any committed HTLC which does not have an output in this
-	 * commitment transaction, the node MUST fail the corresponding
-	 * incoming HTLC (if any) once the commitment transaction has reached
-	 * reasonable depth, and MAY fail it sooner if no valid commitment
-	 * transaction contains an output corresponding to the HTLC.
+	 *   - for any committed HTLC that does NOT have an output in this
+	 *     commitment transaction:
+	 *     - once the commitment transaction has reached reasonable depth:
+	 *       - MUST fail the corresponding incoming HTLC (if any).
+	 *     - if no *valid* commitment transaction contains an output
+	 *       corresponding to the HTLC.
+	 *       - MAY fail the corresponding incoming HTLC sooner.
 	 */
 	onchain_failed_our_htlc(channel, &htlc, "missing in commitment tx");
 }
@@ -188,22 +348,22 @@ static void handle_onchain_htlc_timeout(struct channel *channel, const u8 *msg)
 {
 	struct htlc_stub htlc;
 
-	if (!fromwire_onchain_htlc_timeout(msg, &htlc)) {
+	if (!fromwire_onchaind_htlc_timeout(msg, &htlc)) {
 		channel_internal_error(channel, "Invalid onchain_htlc_timeout");
 		return;
 	}
 
 	/* BOLT #5:
 	 *
-	 * If the HTLC output has *timed out* and not been *resolved*, the node
-	 * MUST *resolve* the output and MUST fail the corresponding incoming
-	 * HTLC (if any) once the resolving transaction has reached reasonable
-	 * depth.
+	 *   - if the commitment transaction HTLC output has *timed out* and
+	 *     hasn't been *resolved*:
+	 *     - MUST *resolve* the output by spending it using the HTLC-timeout
+	 *     transaction.
 	 */
 	onchain_failed_our_htlc(channel, &htlc, "timed out");
 }
 
-static void handle_irrevocably_resolved(struct channel *channel, const u8 *msg)
+static void handle_irrevocably_resolved(struct channel *channel, const u8 *msg UNUSED)
 {
 	/* FIXME: Implement check_htlcs to ensure no dangling hout->in ptrs! */
 	free_htlcs(channel->peer->ld, channel);
@@ -219,71 +379,119 @@ static void handle_irrevocably_resolved(struct channel *channel, const u8 *msg)
  */
 static void onchain_add_utxo(struct channel *channel, const u8 *msg)
 {
-	struct utxo *u = tal(msg, struct utxo);
+	struct chain_coin_mvt *mvt;
 	u32 blockheight;
-	u->close_info = tal(u, struct unilateral_close_info);
+	struct bitcoin_txid txid;
+	u32 outnum;
+	struct amount_sat amount;
+	struct pubkey *commitment_point;
+	u8 *scriptPubkey;
 
-	u->is_p2sh = true;
-	u->keyindex = 0;
-	u->status = output_state_available;
-	u->close_info->channel_id = channel->dbid;
-	u->close_info->peer_id = channel->peer->id;
-	u->spendheight = NULL;
-
-	if (!fromwire_onchain_add_utxo(msg, &u->txid, &u->outnum,
-				       &u->close_info->commitment_point,
-				       &u->amount, &blockheight)) {
-		fatal("onchaind gave invalid add_utxo message: %s", tal_hex(msg, msg));
+	if (!fromwire_onchaind_add_utxo(
+		tmpctx, msg, &txid, &outnum, &commitment_point,
+		&amount, &blockheight, &scriptPubkey)) {
+		log_broken(channel->log,
+			   "onchaind gave invalid add_utxo message: %s",
+			   tal_hex(msg, msg));
+		return;
 	}
-	u->blockheight = blockheight>0?&blockheight:NULL;
 
-	outpointfilter_add(channel->peer->ld->wallet->owned_outpoints, &u->txid, u->outnum);
-	wallet_add_utxo(channel->peer->ld->wallet, u, p2wpkh);
+	assert(blockheight);
+	outpointfilter_add(channel->peer->ld->wallet->owned_outpoints,
+			   &txid, outnum);
+	wallet_add_onchaind_utxo(channel->peer->ld->wallet,
+				 &txid, outnum, scriptPubkey,
+				 blockheight, amount, channel,
+				 commitment_point);
+
+	mvt = new_coin_deposit_sat(msg, "wallet", &txid,
+				   outnum, blockheight, amount);
+	notify_chain_mvt(channel->peer->ld, mvt);
+}
+
+static void onchain_annotate_txout(struct channel *channel, const u8 *msg)
+{
+	struct bitcoin_txid txid;
+	enum wallet_tx_type type;
+	u32 outnum;
+	if (!fromwire_onchaind_annotate_txout(msg, &txid, &outnum, &type))
+		fatal("onchaind gave invalid onchain_annotate_txout "
+		      "message: %s",
+		      tal_hex(msg, msg));
+	wallet_annotate_txout(channel->peer->ld->wallet, &txid, outnum, type,
+			      channel->dbid);
+}
+
+static void onchain_annotate_txin(struct channel *channel, const u8 *msg)
+{
+	struct bitcoin_txid txid;
+	enum wallet_tx_type type;
+	u32 innum;
+	if (!fromwire_onchaind_annotate_txin(msg, &txid, &innum, &type))
+		fatal("onchaind gave invalid onchain_annotate_txin "
+		      "message: %s",
+		      tal_hex(msg, msg));
+	wallet_annotate_txin(channel->peer->ld->wallet, &txid, innum, type,
+				    channel->dbid);
 }
 
 static unsigned int onchain_msg(struct subd *sd, const u8 *msg, const int *fds UNUSED)
 {
-	enum onchain_wire_type t = fromwire_peektype(msg);
+	enum onchaind_wire t = fromwire_peektype(msg);
 
 	switch (t) {
-	case WIRE_ONCHAIN_INIT_REPLY:
+	case WIRE_ONCHAIND_INIT_REPLY:
 		handle_onchain_init_reply(sd->channel, msg);
 		break;
 
-	case WIRE_ONCHAIN_BROADCAST_TX:
+	case WIRE_ONCHAIND_BROADCAST_TX:
 		handle_onchain_broadcast_tx(sd->channel, msg);
 		break;
 
-	case WIRE_ONCHAIN_UNWATCH_TX:
+	case WIRE_ONCHAIND_UNWATCH_TX:
 		handle_onchain_unwatch_tx(sd->channel, msg);
 		break;
 
- 	case WIRE_ONCHAIN_EXTRACTED_PREIMAGE:
+ 	case WIRE_ONCHAIND_EXTRACTED_PREIMAGE:
 		handle_extracted_preimage(sd->channel, msg);
 		break;
 
-	case WIRE_ONCHAIN_MISSING_HTLC_OUTPUT:
+	case WIRE_ONCHAIND_MISSING_HTLC_OUTPUT:
 		handle_missing_htlc_output(sd->channel, msg);
 		break;
 
-	case WIRE_ONCHAIN_HTLC_TIMEOUT:
+	case WIRE_ONCHAIND_HTLC_TIMEOUT:
 		handle_onchain_htlc_timeout(sd->channel, msg);
 		break;
 
-	case WIRE_ONCHAIN_ALL_IRREVOCABLY_RESOLVED:
+	case WIRE_ONCHAIND_ALL_IRREVOCABLY_RESOLVED:
 		handle_irrevocably_resolved(sd->channel, msg);
 		break;
 
-	case WIRE_ONCHAIN_ADD_UTXO:
+	case WIRE_ONCHAIND_ADD_UTXO:
 		onchain_add_utxo(sd->channel, msg);
 		break;
 
+	case WIRE_ONCHAIND_ANNOTATE_TXIN:
+		onchain_annotate_txin(sd->channel, msg);
+		break;
+
+	case WIRE_ONCHAIND_ANNOTATE_TXOUT:
+		onchain_annotate_txout(sd->channel, msg);
+		break;
+
+	case WIRE_ONCHAIND_NOTIFY_COIN_MVT:
+		handle_onchain_log_coin_move(sd->channel, msg);
+		break;
+
 	/* We send these, not receive them */
-	case WIRE_ONCHAIN_INIT:
-	case WIRE_ONCHAIN_SPENT:
-	case WIRE_ONCHAIN_DEPTH:
-	case WIRE_ONCHAIN_HTLC:
-	case WIRE_ONCHAIN_KNOWN_PREIMAGE:
+	case WIRE_ONCHAIND_INIT:
+	case WIRE_ONCHAIND_SPENT:
+	case WIRE_ONCHAIND_DEPTH:
+	case WIRE_ONCHAIND_HTLC:
+	case WIRE_ONCHAIND_KNOWN_PREIMAGE:
+	case WIRE_ONCHAIND_DEV_MEMLEAK:
+	case WIRE_ONCHAIND_DEV_MEMLEAK_REPLY:
 		break;
 	}
 
@@ -300,18 +508,24 @@ static bool tell_if_missing(const struct channel *channel,
 	/* Keep valgrind happy. */
 	*tell_immediate = false;
 
-	/* Is it a current HTLC? */
-	hout = find_htlc_out_by_ripemd(channel, &stub->ripemd);
+	/* Don't care about incoming HTLCs, just ones we offered. */
+	if (stub->owner == REMOTE)
+		return false;
+
+	/* Might not be a current HTLC. */
+	hout = find_htlc_out(&channel->peer->ld->htlcs_out, channel, stub->id);
 	if (!hout)
 		return false;
 
 	/* BOLT #5:
 	 *
-	 * For any committed HTLC which does not have an output in this
-	 * commitment transaction, the node MUST fail the corresponding
-	 * incoming HTLC (if any) once the commitment transaction has reached
-	 * reasonable depth, and MAY fail it sooner if no valid commitment
-	 * transaction contains an output corresponding to the HTLC.
+	 *   - for any committed HTLC that does NOT have an output in this
+	 *     commitment transaction:
+	 *     - once the commitment transaction has reached reasonable depth:
+	 *       - MUST fail the corresponding incoming HTLC (if any).
+	 *     - if no *valid* commitment transaction contains an output
+	 *       corresponding to the HTLC.
+	 *       - MAY fail the corresponding incoming HTLC sooner.
 	 */
 	if (hout->hstate >= RCVD_ADD_REVOCATION
 	    && hout->hstate < SENT_REMOVE_REVOCATION)
@@ -325,11 +539,10 @@ static bool tell_if_missing(const struct channel *channel,
 
 /* Only error onchaind can get is if it dies. */
 static void onchain_error(struct channel *channel,
-			  int peer_fd UNUSED, int gossip_fd UNUSED,
-			  const struct crypto_state *cs UNUSED,
-			  u64 gossip_index UNUSED,
+			  struct per_peer_state *pps UNUSED,
 			  const struct channel_id *channel_id UNUSED,
 			  const char *desc,
+			  bool warning UNUSED,
 			  const u8 *err_for_them UNUSED)
 {
 	/* FIXME: re-launch? */
@@ -340,30 +553,50 @@ static void onchain_error(struct channel *channel,
 
 /* With a reorg, this can get called multiple times; each time we'll kill
  * onchaind (like any other owner), and restart */
-enum watch_result funding_spent(struct channel *channel,
-				const struct bitcoin_tx *tx,
-				size_t input_num UNUSED,
-				const struct block *block)
+enum watch_result onchaind_funding_spent(struct channel *channel,
+					 const struct bitcoin_tx *tx,
+					 u32 blockheight,
+					 bool is_replay)
 {
 	u8 *msg;
 	struct bitcoin_txid our_last_txid;
 	struct htlc_stub *stubs;
 	struct lightningd *ld = channel->peer->ld;
 	struct pubkey final_key;
+	int hsmfd;
+	u32 feerates[3];
+	enum state_change reason;
 
-	channel_fail_permanent(channel, "Funding transaction spent");
+	/* use REASON_ONCHAIN or closer's reason, if known */
+	reason = REASON_ONCHAIN;
+	if (channel->closer != NUM_SIDES)
+		reason = REASON_UNKNOWN;  /* will use last cause as reason */
+
+	channel_fail_permanent(channel, reason, "Funding transaction spent");
 
 	/* We could come from almost any state. */
-	channel_set_state(channel, channel->state, FUNDING_SPEND_SEEN);
+	/* NOTE(mschmoock) above comment is wrong, since we failed above! */
+	channel_set_state(channel,
+			  channel->state,
+			  FUNDING_SPEND_SEEN,
+			  reason,
+			  "Onchain funding spend");
+
+	hsmfd = hsm_get_client_fd(ld, &channel->peer->id,
+				  channel->dbid,
+				  HSM_CAP_SIGN_ONCHAIN_TX
+				  | HSM_CAP_COMMITMENT_POINT);
 
 	channel_set_owner(channel, new_channel_subd(ld,
 						    "lightning_onchaind",
 						    channel,
-						    channel->log,
-						    onchain_wire_type_name,
+						    &channel->peer->id,
+						    channel->log, false,
+						    onchaind_wire_name,
 						    onchain_msg,
 						    onchain_error,
 						    channel_set_billboard,
+						    take(&hsmfd),
 						    NULL));
 
 	if (!channel->owner) {
@@ -387,50 +620,146 @@ enum watch_result funding_spent(struct channel *channel,
 	/* This could be a mutual close, but it doesn't matter. */
 	bitcoin_txid(channel->last_tx, &our_last_txid);
 
-	msg = towire_onchain_init(channel,
-				  &channel->seed, &channel->their_shachain.chain,
-				  channel->funding_satoshi,
+	/* We try to get the feerate for each transaction type, 0 if estimation
+	 * failed. */
+	feerates[0] = delayed_to_us_feerate(ld->topology);
+	feerates[1] = htlc_resolution_feerate(ld->topology);
+	feerates[2] = penalty_feerate(ld->topology);
+	/* We check them separately but there is a high chance that if estimation
+	 * failed for one, it failed for all.. */
+	for (size_t i = 0; i < 3; i++) {
+		if (!feerates[i]) {
+			/* We have at least one data point: the last tx's feerate. */
+			struct amount_sat fee = channel->funding;
+			for (size_t i = 0;
+			     i < channel->last_tx->wtx->num_outputs; i++) {
+				struct amount_asset asset =
+					bitcoin_tx_output_get_amount(channel->last_tx, i);
+				struct amount_sat amt;
+				assert(amount_asset_is_main(&asset));
+				amt = amount_asset_to_sat(&asset);
+				if (!amount_sat_sub(&fee, fee, amt)) {
+					log_broken(channel->log, "Could not get fee"
+						   " funding %s tx %s",
+						   type_to_string(tmpctx,
+								  struct amount_sat,
+								  &channel->funding),
+						   type_to_string(tmpctx,
+								  struct bitcoin_tx,
+								  channel->last_tx));
+					return KEEP_WATCHING;
+				}
+			}
+
+			feerates[i] = fee.satoshis / bitcoin_tx_weight(tx); /* Raw: reverse feerate extraction */
+			if (feerates[i] < feerate_floor())
+				feerates[i] = feerate_floor();
+		}
+	}
+
+	msg = towire_onchaind_init(channel,
+				  &channel->their_shachain.chain,
+				  chainparams,
+				  channel->funding,
+				  channel->our_msat,
 				  &channel->channel_info.old_remote_per_commit,
 				  &channel->channel_info.remote_per_commit,
 				   /* BOLT #2:
 				    * `to_self_delay` is the number of blocks
-				    * that the other nodes to-self outputs
+				    * that the other node's to-self outputs
 				    * must be delayed */
 				   /* So, these are reversed: they specify ours,
 				    * we specify theirs. */
 				  channel->channel_info.their_config.to_self_delay,
 				  channel->our_config.to_self_delay,
-				  get_feerate(ld->topology, FEERATE_NORMAL),
-				  channel->our_config.dust_limit_satoshis,
-				  &channel->channel_info.theirbase.revocation,
+				  /* delayed_to_us, htlc, and penalty. */
+				  feerates[0], feerates[1], feerates[2],
+				  channel->our_config.dust_limit,
 				  &our_last_txid,
-				  p2wpkh_for_keyidx(tmpctx, ld,
-						    channel->final_key_idx),
-				  channel->remote_shutdown_scriptpubkey,
+				  channel->shutdown_scriptpubkey[LOCAL],
+				  channel->shutdown_scriptpubkey[REMOTE],
 				  &final_key,
-				  channel->funder,
-				  &channel->channel_info.theirbase.payment,
-				  &channel->channel_info.theirbase.htlc,
-				  &channel->channel_info.theirbase.delayed_payment,
-				  tx,
-				  block->height,
+				  channel->opener,
+				  &channel->local_basepoints,
+				  &channel->channel_info.theirbase,
+				  tx_parts_from_wally_tx(tmpctx, tx->wtx, -1, -1),
+				  tx->wtx->locktime,
+				  blockheight,
 				  /* FIXME: config for 'reasonable depth' */
 				  3,
 				  channel->last_htlc_sigs,
-				  tal_count(stubs));
+				  tal_count(stubs),
+				  channel->min_possible_feerate,
+				  channel->max_possible_feerate,
+				  channel->future_per_commitment_point,
+				  &channel->local_funding_pubkey,
+				  &channel->channel_info.remote_fundingkey,
+				  channel->option_static_remotekey,
+				  channel->option_anchor_outputs,
+				  is_replay,
+				  feerate_min(ld, NULL));
 	subd_send_msg(channel->owner, take(msg));
 
 	/* FIXME: Don't queue all at once, use an empty cb... */
 	for (size_t i = 0; i < tal_count(stubs); i++) {
 		bool tell_immediate;
 		bool tell = tell_if_missing(channel, &stubs[i], &tell_immediate);
-		msg = towire_onchain_htlc(channel, &stubs[i],
+		msg = towire_onchaind_htlc(channel, &stubs[i],
 					  tell, tell_immediate);
 		subd_send_msg(channel->owner, take(msg));
 	}
+
+	/* Tell it about any preimages we know. */
+	onchaind_tell_fulfill(channel);
 
 	watch_tx_and_outputs(channel, tx);
 
 	/* We keep watching until peer finally deleted, for reorgs. */
 	return KEEP_WATCHING;
+}
+
+void onchaind_replay_channels(struct lightningd *ld)
+{
+	u32 *onchaind_ids;
+	struct channeltx *txs;
+	struct channel *chan;
+
+	db_begin_transaction(ld->wallet->db);
+	onchaind_ids = wallet_onchaind_channels(ld->wallet, ld);
+
+	for (size_t i = 0; i < tal_count(onchaind_ids); i++) {
+		log_info(ld->log, "Restarting onchaind for channel %d",
+			 onchaind_ids[i]);
+
+		txs = wallet_channeltxs_get(ld->wallet, onchaind_ids,
+					    onchaind_ids[i]);
+		chan = channel_by_dbid(ld, onchaind_ids[i]);
+
+		for (size_t j = 0; j < tal_count(txs); j++) {
+			if (txs[j].type == WIRE_ONCHAIND_INIT) {
+				onchaind_funding_spent(chan, txs[j].tx,
+						       txs[j].blockheight,
+						       true);
+
+			} else if (txs[j].type == WIRE_ONCHAIND_SPENT) {
+				onchain_txo_spent(chan, txs[j].tx,
+						  txs[j].input_num,
+						  txs[j].blockheight,
+						  true);
+
+			} else if (txs[j].type == WIRE_ONCHAIND_DEPTH) {
+				onchain_tx_depth(chan, &txs[j].txid,
+						 txs[j].depth, true);
+
+			} else {
+				fatal("unknown message of type %d during "
+				      "onchaind replay",
+				      txs[j].type);
+			}
+		}
+		tal_free(txs);
+	}
+	tal_free(onchaind_ids);
+
+	db_commit_transaction(ld->wallet->db);
 }
