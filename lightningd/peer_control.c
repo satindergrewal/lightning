@@ -29,6 +29,7 @@
 #include <common/key_derive.h>
 #include <common/param.h>
 #include <common/per_peer_state.h>
+#include <common/shutdown_scriptpubkey.h>
 #include <common/status.h>
 #include <common/timeout.h>
 #include <common/utils.h>
@@ -509,6 +510,8 @@ static void json_add_htlcs(struct lightningd *ld,
 				    channel->our_config.dust_limit, LOCAL,
 				    channel->option_anchor_outputs))
 			json_add_bool(response, "local_trimmed", true);
+		if (hin->status != NULL)
+			json_add_string(response, "status", hin->status);
 		json_object_end(response);
 	}
 
@@ -852,7 +855,7 @@ static void json_add_channel(struct lightningd *ld,
 		json_add_null(response, "closer");
 
 	json_array_start(response, "features");
-	if (channel->option_static_remotekey)
+	if (channel->static_remotekey_start[LOCAL] != 0x7FFFFFFFFFFFFFFF)
 		json_add_string(response, NULL, "option_static_remotekey");
 	if (channel->option_anchor_outputs)
 		json_add_string(response, NULL, "option_anchor_outputs");
@@ -1043,7 +1046,7 @@ struct peer_connected_hook_payload {
 
 static void
 peer_connected_serialize(struct peer_connected_hook_payload *payload,
-			 struct json_stream *stream)
+			 struct json_stream *stream, struct plugin *plugin)
 {
 	const struct peer *p = payload->peer;
 	json_object_start(stream, "peer");
@@ -1117,7 +1120,7 @@ static void peer_connected_hook_final(struct peer_connected_hook_payload *payloa
 			assert(!channel->owner);
 			channel->peer->addr = addr;
 			channel->peer->connected_incoming = payload->incoming;
-			peer_restart_dualopend(peer, payload->pps, channel, NULL);
+			peer_restart_dualopend(peer, payload->pps, channel);
 			return;
 		case CHANNELD_AWAITING_LOCKIN:
 		case CHANNELD_NORMAL:
@@ -1140,10 +1143,6 @@ static void peer_connected_hook_final(struct peer_connected_hook_payload *payloa
 
 	notify_connect(ld, &peer->id, payload->incoming, &addr);
 
-	/* No err, all good. */
-	error = NULL;
-
-send_error:
 	if (feature_negotiated(ld->our_features,
 			       peer->their_features,
 			       OPT_DUAL_FUND)) {
@@ -1154,11 +1153,28 @@ send_error:
 			       || channel->state == AWAITING_UNILATERAL);
 			channel->peer->addr = addr;
 			channel->peer->connected_incoming = payload->incoming;
-			peer_restart_dualopend(peer, payload->pps, channel, error);
+			peer_restart_dualopend(peer, payload->pps, channel);
 		} else
-			peer_start_dualopend(peer, payload->pps, error);
+			peer_start_dualopend(peer, payload->pps);
 	} else
-		peer_start_openingd(peer, payload->pps, error);
+		peer_start_openingd(peer, payload->pps);
+	return;
+
+send_error:
+	log_debug(ld->log, "Telling connectd to send error %s",
+		  tal_hex(tmpctx, error));
+	/* Get connectd to send error and close. */
+	subd_send_msg(ld->connectd,
+		      take(towire_connectd_peer_final_msg(NULL, &peer->id,
+							  payload->pps, error)));
+	subd_send_fd(ld->connectd, payload->pps->peer_fd);
+	subd_send_fd(ld->connectd, payload->pps->gossip_fd);
+	subd_send_fd(ld->connectd, payload->pps->gossip_store_fd);
+	/* Don't close those fds! */
+	payload->pps->peer_fd
+		= payload->pps->gossip_fd
+		= payload->pps->gossip_store_fd
+		= -1;
 }
 
 static bool
@@ -1644,6 +1660,7 @@ static struct command_result *json_close(struct command *cmd,
 	const char *fee_negotiation_step_str;
 	struct bitcoin_outpoint *wrong_funding;
 	char* end;
+	bool anysegwit;
 
 	if (!param(cmd, buffer, params,
 		   p_req("id", param_tok, &idtok),
@@ -1719,6 +1736,24 @@ static struct command_result *json_close(struct command *cmd,
 		close_script_set = false;
 	} else
 		close_script_set = false;
+
+	/* Don't send a scriptpubkey peer won't accept */
+	anysegwit = feature_negotiated(cmd->ld->our_features,
+				       channel->peer->their_features,
+				       OPT_SHUTDOWN_ANYSEGWIT);
+	if (!valid_shutdown_scriptpubkey(channel->shutdown_scriptpubkey[LOCAL],
+					 anysegwit)) {
+		/* Explicit check for future segwits. */
+		if (!anysegwit &&
+		    valid_shutdown_scriptpubkey(channel->shutdown_scriptpubkey
+						[LOCAL], true)) {
+			return command_fail(cmd, JSONRPC2_INVALID_PARAMS,
+					    "Peer does not allow v1+ shutdown addresses");
+		}
+
+		return command_fail(cmd, JSONRPC2_INVALID_PARAMS,
+				    "Invalid close destination");
+	}
 
 	if (fee_negotiation_step_str == NULL) {
 		channel->closing_fee_negotiation_step = 50;
@@ -2773,7 +2808,8 @@ static void custommsg_final(struct custommsg_payload *payload STEALS)
 }
 
 static void custommsg_payload_serialize(struct custommsg_payload *payload,
-					struct json_stream *stream)
+					struct json_stream *stream,
+					struct plugin *plugin)
 {
 	/* Backward compat for broken custommsg: if we get a custommsg
 	 * from an old c-lightning node, then we must identify and

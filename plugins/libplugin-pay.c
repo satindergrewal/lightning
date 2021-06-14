@@ -1505,8 +1505,6 @@ static struct command_result *payment_createonion_success(struct command *cmd,
 	json_add_hex_talarr(req->js, "onion", p->createonion_response->onion);
 
 	json_object_start(req->js, "first_hop");
-	json_add_short_channel_id(req->js, "channel", &first->scid);
-	json_add_num(req->js, "direction", first->direction);
 	json_add_amount_msat_only(req->js, "amount_msat", first->amount);
 	json_add_num(req->js, "delay", first->delay);
 	json_add_node_id(req->js, "id", &first->node_id);
@@ -2334,8 +2332,16 @@ static struct route_info **filter_routehints(struct gossmap *map,
 {
 	const size_t max_hops = ROUTING_MAX_HOPS / 2;
 	char *mods = tal_strdup(tmpctx, "");
-	for (size_t i = 0; i < tal_count(hints); i++) {
-		struct gossmap_node *entrynode, *src;
+	struct gossmap_node *src = gossmap_find_node(map, p->local_id);
+
+	if (src == NULL) {
+		tal_append_fmt(&mods,
+			       "Could not locate ourselves in the gossip map, "
+			       "leaving routehints untouched. ");
+	}
+
+	for (size_t i = 0; i < tal_count(hints) && src != NULL; i++) {
+		struct gossmap_node *entrynode;
 		u32 distance;
 
 		/* Trim any routehint > 10 hops */
@@ -2367,8 +2373,6 @@ static struct route_info **filter_routehints(struct gossmap *map,
 		/* If routehint entrypoint is unreachable there's no
 		 * point in keeping it. */
 		entrynode = gossmap_find_node(map, &hints[i][0].pubkey);
-		src = gossmap_find_node(map, p->local_id);
-
 		if (entrynode == NULL) {
 			tal_append_fmt(&mods,
 				       "Removed routehint %zu because "
@@ -3446,7 +3450,7 @@ static void presplit_cb(struct presplit_mod_data *d, struct payment *p)
 		/* The presplitter only acts on the root and only in the first
 		 * step. */
 		size_t count = 0;
-		u32 htlcs = payment_max_htlcs(p) / PRESPLIT_MAX_HTLC_SHARE;
+		u32 htlcs;
 		struct amount_msat target, amt = p->amount;
 		char *partids = tal_strdup(tmpctx, "");
 		u64 target_amount = MPP_TARGET_SIZE;
@@ -3471,14 +3475,25 @@ static void presplit_cb(struct presplit_mod_data *d, struct payment *p)
 		 * but makes debugging a bit easier. */
 		root->next_partid++;
 
+		htlcs = payment_max_htlcs(p);
+		/* Divide it up if we can, but it might be v low already */
+		if (htlcs >= PRESPLIT_MAX_HTLC_SHARE)
+			htlcs /= PRESPLIT_MAX_HTLC_SHARE;
+
+		int targethtlcs =
+		    p->amount.millisatoshis / target_amount; /* Raw: division */
 		if (htlcs == 0) {
 			p->abort = true;
 			return payment_fail(
 			    p, "Cannot attempt payment, we have no channel to "
 			       "which we can add an HTLC");
-		} else if (p->amount.millisatoshis / target_amount > htlcs) /* Raw: division */
-			target = amount_msat_div(p->amount, htlcs);
-		else
+		} else if (targethtlcs > htlcs) {
+			paymod_log(p, LOG_INFORM,
+				   "Number of pre-split HTLCs (%d) exceeds our "
+				   "HTLC budget (%d), skipping pre-splitter",
+				   targethtlcs, htlcs);
+			return payment_continue(p);
+		} else
 			target = amount_msat(target_amount);
 
 		/* If we are already below the target size don't split it
@@ -3591,18 +3606,17 @@ static void adaptive_splitter_cb(struct adaptive_split_mod_data *d, struct payme
 		 * update our htlc_budget that we own exclusively from now
 		 * on. We do this by subtracting the number of payment
 		 * attempts an eventual presplitter has already performed. */
-		struct payment_tree_result res;
-		res = payment_collect_result(p);
+		int children = tal_count(p->children);
 		d->htlc_budget = payment_max_htlcs(p);
-		if (res.attempts > d->htlc_budget) {
+		if (children > d->htlc_budget) {
 			p->abort = true;
 			return payment_fail(
 			    p,
 			    "Cannot add %d HTLCs to our channels, we "
 			    "only have %d HTLCs available.",
-			    res.attempts, d->htlc_budget);
+			    children, d->htlc_budget);
 		}
-		d->htlc_budget -= res.attempts;
+		d->htlc_budget -= children;
 	}
 
 	if (p->step == PAYMENT_STEP_ONION_PAYLOAD) {
