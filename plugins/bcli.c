@@ -461,9 +461,12 @@ estimatefees_parse_feerate(struct bitcoin_cli *bcli, u64 *feerate)
 			*feerate = 1000;
 			return NULL;
 		}
-		/* We return null if estimation failed, and bitcoin-cli will
-		 * exit with 0 but no feerate field on failure. */
-		return estimatefees_null_response(bcli);
+		
+		if (strcmp(chainparams->network_name, "chips")  != 0) {
+			/* We return null if estimation failed, and bitcoin-cli will
+			* exit with 0 but no feerate field on failure. */
+			return estimatefees_null_response(bcli);
+		}
 	}
 
 	return NULL;
@@ -633,26 +636,51 @@ static struct command_result *estimatefees_next(struct command *cmd,
 	}
 
 	response = jsonrpc_stream_success(cmd);
-	json_add_u64(response, "opening", stash->perkb[FEERATE_NORMAL]);
-	json_add_u64(response, "mutual_close", stash->perkb[FEERATE_SLOW]);
-	json_add_u64(response, "unilateral_close",
-		     stash->perkb[FEERATE_URGENT] * bitcoind->commit_fee_percent / 100);
-	json_add_u64(response, "delayed_to_us", stash->perkb[FEERATE_NORMAL]);
-	json_add_u64(response, "htlc_resolution", stash->perkb[FEERATE_URGENT]);
-	json_add_u64(response, "penalty", stash->perkb[FEERATE_NORMAL]);
-	/* We divide the slow feerate for the minimum acceptable, lightningd
-	 * will use floor if it's hit, though. */
-	json_add_u64(response, "min_acceptable",
-		     stash->perkb[FEERATE_SLOW] / 2);
-	/* BOLT #2:
-	 *
-	 * Given the variance in fees, and the fact that the transaction may be
-	 * spent in the future, it's a good idea for the fee payer to keep a good
-	 * margin (say 5x the expected fee requirement)
-	 */
-	json_add_u64(response, "max_acceptable",
-		     stash->perkb[FEERATE_HIGHEST]
-		     * bitcoind->max_fee_multiplier);
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
+		json_add_u64(response, "opening", stash->perkb[FEERATE_NORMAL]);
+		json_add_u64(response, "mutual_close", stash->perkb[FEERATE_SLOW]);
+		json_add_u64(response, "unilateral_close",
+				stash->perkb[FEERATE_URGENT] * bitcoind->commit_fee_percent / 100);
+		json_add_u64(response, "delayed_to_us", stash->perkb[FEERATE_NORMAL]);
+		json_add_u64(response, "htlc_resolution", stash->perkb[FEERATE_URGENT]);
+		json_add_u64(response, "penalty", stash->perkb[FEERATE_NORMAL]);
+		/* We divide the slow feerate for the minimum acceptable, lightningd
+		* will use floor if it's hit, though. */
+		json_add_u64(response, "min_acceptable",
+				stash->perkb[FEERATE_SLOW] / 2);
+		/* BOLT #2:
+		*
+		* Given the variance in fees, and the fact that the transaction may be
+		* spent in the future, it's a good idea for the fee payer to keep a good
+		* margin (say 5x the expected fee requirement)
+		*/
+		json_add_u64(response, "max_acceptable",
+				stash->perkb[FEERATE_HIGHEST]
+				* bitcoind->max_fee_multiplier);
+		// json_add_string(response, "network_name", chainparams->network_name);
+	} else {
+		json_add_u64(response, "opening", 5000);
+		json_add_u64(response, "mutual_close", 5000);
+		json_add_u64(response, "unilateral_close",
+				5000 * bitcoind->commit_fee_percent / 100);
+		json_add_u64(response, "delayed_to_us", 5000);
+		json_add_u64(response, "htlc_resolution", 5000);
+		json_add_u64(response, "penalty", 5000);
+		/* We divide the slow feerate for the minimum acceptable, lightningd
+		* will use floor if it's hit, though. */
+		json_add_u64(response, "min_acceptable",
+				5000 / 2);
+		/* BOLT #2:
+		*
+		* Given the variance in fees, and the fact that the transaction may be
+		* spent in the future, it's a good idea for the fee payer to keep a good
+		* margin (say 5x the expected fee requirement)
+		*/
+		json_add_u64(response, "max_acceptable",
+				5000
+				* bitcoind->max_fee_multiplier);
+		// json_add_string(response, "network_name", chainparams->network_name);
+	}
 	return command_finished(cmd, response);
 }
 
@@ -678,10 +706,12 @@ static struct command_result *estimatefees_done(struct bitcoin_cli *bcli)
 	struct command_result *err;
 	struct estimatefees_stash *stash = bcli->stash;
 
-	/* If we cannot estimate fees, no need to continue bothering bitcoind. */
-	if (*bcli->exitstatus != 0)
-		return estimatefees_null_response(bcli);
-
+	if (strcmp(chainparams->network_name, "chips")  != 0) {
+		/* If we cannot estimate fees, no need to continue bothering bitcoind. */
+		if (*bcli->exitstatus != 0)
+			return estimatefees_null_response(bcli);
+	}
+	
 	err = estimatefees_parse_feerate(bcli, &stash->perkb[stash->cursor]);
 	if (err)
 		return err;
