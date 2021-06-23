@@ -125,8 +125,11 @@ struct wireaddr_internal {
 		/* ADDR_INTERNAL_AUTOTOR
 		 * ADDR_INTERNAL_STATICTOR */
 		struct torservice {
+			/* Where to connect to Tor proxy */
 			struct wireaddr address;
+			/* Tor port to use */
 			u16 port;
+			/* Blob to use to create tor service */
 			u8 blob[TOR_V3_BLOBLEN + 1];
 		} torservice;
 		/* ADDR_INTERNAL_FORPROXY */
@@ -164,5 +167,8 @@ struct addrinfo *wireaddr_internal_to_addrinfo(const tal_t *ctx,
 					       const struct wireaddr_internal *wireaddr);
 
 bool all_tor_addresses(const struct wireaddr_internal *wireaddr);
+
+/* Decode an array of serialized addresses from node_announcement */
+struct wireaddr *fromwire_wireaddr_array(const tal_t *ctx, const u8 *ser);
 
 #endif /* LIGHTNING_COMMON_WIREADDR_H */
